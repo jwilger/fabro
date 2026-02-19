@@ -1,0 +1,249 @@
+use crate::error::SdkError;
+use crate::types::RetryPolicy;
+use std::future::Future;
+
+/// Retry a fallible async operation according to the given policy (Section 6.6).
+///
+/// - Only retries if the error is retryable.
+/// - Respects Retry-After from the error if less than `max_delay`.
+/// - If Retry-After exceeds `max_delay`, does NOT retry.
+///
+/// # Errors
+///
+/// Returns the last `SdkError` if all retries are exhausted or the error is non-retryable.
+pub async fn retry<F, Fut, T>(policy: &RetryPolicy, mut operation: F) -> Result<T, SdkError>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, SdkError>>,
+{
+    let mut attempt = 0u32;
+
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(err) => {
+                if !err.retryable() || attempt >= policy.max_retries {
+                    return Err(err);
+                }
+
+                // Check Retry-After
+                if let Some(retry_after) = err.retry_after() {
+                    if retry_after > policy.max_delay {
+                        return Err(err);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs_f64(retry_after)).await;
+                } else {
+                    let delay = policy.delay_for_attempt(attempt);
+                    tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
+                }
+
+                attempt += 1;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn retry_succeeds_first_try() {
+        let policy = RetryPolicy {
+            max_retries: 2,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                cc.fetch_add(1, Ordering::SeqCst);
+                Ok::<_, SdkError>(42)
+            }
+        })
+        .await;
+
+        assert_eq!(result.unwrap(), 42);
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_succeeds_after_retries() {
+        let policy = RetryPolicy {
+            max_retries: 3,
+            base_delay: 0.001,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                let count = cc.fetch_add(1, Ordering::SeqCst);
+                if count < 2 {
+                    Err(SdkError::Server {
+                        message: "error".into(),
+                        provider: "test".into(),
+                        status_code: Some(500),
+                        error_code: None,
+                        retry_after: None,
+                        raw: None,
+                    })
+                } else {
+                    Ok(99)
+                }
+            }
+        })
+        .await;
+
+        assert_eq!(result.unwrap(), 99);
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn retry_gives_up_after_max_retries() {
+        let policy = RetryPolicy {
+            max_retries: 2,
+            base_delay: 0.001,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                cc.fetch_add(1, Ordering::SeqCst);
+                Err::<i32, _>(SdkError::Server {
+                    message: "error".into(),
+                    provider: "test".into(),
+                    status_code: Some(500),
+                    error_code: None,
+                    retry_after: None,
+                    raw: None,
+                })
+            }
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(call_count.load(Ordering::SeqCst), 3); // 1 initial + 2 retries
+    }
+
+    #[tokio::test]
+    async fn retry_does_not_retry_non_retryable() {
+        let policy = RetryPolicy {
+            max_retries: 3,
+            base_delay: 0.001,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                cc.fetch_add(1, Ordering::SeqCst);
+                Err::<i32, _>(SdkError::Authentication {
+                    message: "bad key".into(),
+                    provider: "test".into(),
+                    status_code: Some(401),
+                    error_code: None,
+                    retry_after: None,
+                    raw: None,
+                })
+            }
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_skips_when_retry_after_exceeds_max_delay() {
+        let policy = RetryPolicy {
+            max_retries: 3,
+            base_delay: 0.001,
+            max_delay: 5.0,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                cc.fetch_add(1, Ordering::SeqCst);
+                Err::<i32, _>(SdkError::RateLimit {
+                    message: "rate limited".into(),
+                    provider: "test".into(),
+                    status_code: Some(429),
+                    error_code: None,
+                    retry_after: Some(100.0), // Way beyond max_delay
+                    raw: None,
+                })
+            }
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_uses_retry_after_when_within_limit() {
+        let policy = RetryPolicy {
+            max_retries: 1,
+            base_delay: 10.0, // base_delay is high, but retry_after is low
+            max_delay: 60.0,
+            jitter: false,
+            ..Default::default()
+        };
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        let start = tokio::time::Instant::now();
+        let result = retry(&policy, || {
+            let cc = cc.clone();
+            async move {
+                let count = cc.fetch_add(1, Ordering::SeqCst);
+                if count < 1 {
+                    Err(SdkError::RateLimit {
+                        message: "rate limited".into(),
+                        provider: "test".into(),
+                        status_code: Some(429),
+                        error_code: None,
+                        retry_after: Some(0.01),
+                        raw: None,
+                    })
+                } else {
+                    Ok(42)
+                }
+            }
+        })
+        .await;
+
+        let elapsed = start.elapsed();
+        assert_eq!(result.unwrap(), 42);
+        assert_eq!(call_count.load(Ordering::SeqCst), 2);
+        // Should have waited ~0.01s, not ~10s
+        assert!(elapsed.as_secs_f64() < 1.0);
+    }
+}
