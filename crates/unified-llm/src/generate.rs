@@ -674,6 +674,18 @@ async fn stream_with_tool_loop(params: GenerateParams) -> Result<StreamEventStre
                 return;
             }
 
+            // Emit StepFinish event between steps
+            let step_finish = StreamEvent::step_finish(
+                response.finish_reason.clone(),
+                response.usage.clone(),
+                response.clone(),
+                tool_calls,
+                tool_results.clone(),
+            );
+            if tx.send(Ok(step_finish)).await.is_err() {
+                return; // Consumer dropped
+            }
+
             // Append assistant message and tool results to conversation
             messages.push(response.message.clone());
             for result in &tool_results {
@@ -1955,5 +1967,117 @@ mod tests {
 
         // Only one stream call, no tool execution
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn stream_accumulator_handles_step_finish() {
+        let mut acc = StreamAccumulator::new();
+
+        let response = Response {
+            id: "resp_1".into(),
+            model: "mock-model".into(),
+            provider: "mock".into(),
+            message: Message::assistant("tool step"),
+            finish_reason: FinishReason::ToolCalls,
+            usage: Usage {
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+                ..Default::default()
+            },
+            raw: None,
+            warnings: vec![],
+            rate_limit: None,
+        };
+
+        let tool_calls = vec![ToolCall::new(
+            "call_1",
+            "get_weather",
+            serde_json::json!({"city": "SF"}),
+        )];
+
+        let tool_results = vec![crate::types::ToolResult {
+            tool_call_id: "call_1".into(),
+            content: serde_json::json!("72F"),
+            is_error: false,
+            image_data: None,
+            image_media_type: None,
+        }];
+
+        // Processing StepFinish should not panic and should not set the final response
+        acc.process(&StreamEvent::step_finish(
+            FinishReason::ToolCalls,
+            response.usage.clone(),
+            response,
+            tool_calls,
+            tool_results,
+        ));
+
+        // StepFinish should not set the final response (only Finish does that)
+        assert!(acc.response().is_none());
+        assert_eq!(acc.text(), "");
+    }
+
+    #[tokio::test]
+    async fn stream_with_tool_loop_emits_step_finish() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let provider: Arc<dyn ProviderAdapter> = Arc::new(StreamingToolCallMockProvider {
+            call_count: call_count.clone(),
+        });
+
+        let mut providers: HashMap<String, Arc<dyn ProviderAdapter>> = HashMap::new();
+        providers.insert("mock".to_string(), provider);
+        let client = Arc::new(Client::new(
+            providers,
+            Some("mock".to_string()),
+            vec![],
+        ));
+
+        let mut result = stream(
+            GenerateParams::new("mock-model")
+                .prompt("What's the weather in SF?")
+                .tools(vec![Tool::active(
+                    "get_weather",
+                    "Get weather",
+                    serde_json::json!({"type": "object", "properties": {"city": {"type": "string"}}}),
+                    |_args| async { Ok(serde_json::json!("72F")) },
+                )])
+                .max_tool_rounds(5)
+                .client(client),
+        )
+        .await
+        .unwrap();
+
+        let mut events = Vec::new();
+        while let Some(item) = result.next().await {
+            events.push(item);
+        }
+
+        // Should have a StepFinish event between the tool call round and text round
+        let step_finish_count = events
+            .iter()
+            .filter(|e| matches!(e, Ok(StreamEvent::StepFinish { .. })))
+            .count();
+        assert_eq!(step_finish_count, 1, "Expected exactly one StepFinish event");
+
+        // Verify StepFinish contents
+        let step_finish = events
+            .iter()
+            .find_map(|e| match e {
+                Ok(StreamEvent::StepFinish {
+                    finish_reason,
+                    tool_calls,
+                    tool_results,
+                    ..
+                }) => Some((finish_reason, tool_calls, tool_results)),
+                _ => None,
+            })
+            .expect("StepFinish event should exist");
+
+        assert_eq!(*step_finish.0, FinishReason::ToolCalls);
+        assert_eq!(step_finish.1.len(), 1);
+        assert_eq!(step_finish.1[0].name, "get_weather");
+        assert_eq!(step_finish.2.len(), 1);
+        assert_eq!(step_finish.2[0].tool_call_id, "call_1");
     }
 }

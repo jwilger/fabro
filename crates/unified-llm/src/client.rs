@@ -53,6 +53,12 @@ impl Client {
             if let Ok(base_url) = std::env::var("OPENAI_BASE_URL") {
                 adapter = adapter.with_base_url(base_url);
             }
+            if let Ok(org_id) = std::env::var("OPENAI_ORG_ID") {
+                adapter = adapter.with_org_id(org_id);
+            }
+            if let Ok(project_id) = std::env::var("OPENAI_PROJECT_ID") {
+                adapter = adapter.with_project_id(project_id);
+            }
             client.register_provider(Arc::new(adapter));
         }
         if let Ok(key) = std::env::var("GEMINI_API_KEY").or_else(|_| std::env::var("GOOGLE_API_KEY"))

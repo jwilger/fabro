@@ -428,6 +428,13 @@ pub enum StreamEvent {
     ToolCallEnd {
         tool_call: ToolCall,
     },
+    StepFinish {
+        finish_reason: FinishReason,
+        usage: Usage,
+        response: Box<Response>,
+        tool_calls: Vec<ToolCall>,
+        tool_results: Vec<ToolResult>,
+    },
     Finish {
         finish_reason: FinishReason,
         usage: Usage,
@@ -447,6 +454,23 @@ impl StreamEvent {
         Self::TextDelta {
             delta: delta.into(),
             text_id,
+        }
+    }
+
+    #[must_use]
+    pub fn step_finish(
+        reason: FinishReason,
+        usage: Usage,
+        response: Response,
+        tool_calls: Vec<ToolCall>,
+        tool_results: Vec<ToolResult>,
+    ) -> Self {
+        Self::StepFinish {
+            finish_reason: reason,
+            usage,
+            response: Box::new(response),
+            tool_calls,
+            tool_results,
         }
     }
 
@@ -1037,5 +1061,59 @@ mod tests {
         assert_eq!(tc.id, "c1");
         assert_eq!(tc.name, "test");
         assert_eq!(tc.raw_arguments, None);
+    }
+
+    #[test]
+    fn stream_event_step_finish_constructor() {
+        let response = Response {
+            id: "resp_1".into(),
+            model: "test-model".into(),
+            provider: "test".into(),
+            message: Message::assistant("tool response"),
+            finish_reason: FinishReason::ToolCalls,
+            usage: Usage {
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+                ..Default::default()
+            },
+            raw: None,
+            warnings: vec![],
+            rate_limit: None,
+        };
+        let tool_calls = vec![ToolCall::new("call_1", "get_weather", serde_json::json!({"city": "SF"}))];
+        let tool_results = vec![ToolResult {
+            tool_call_id: "call_1".into(),
+            content: serde_json::json!("72F"),
+            is_error: false,
+            image_data: None,
+            image_media_type: None,
+        }];
+
+        let event = StreamEvent::step_finish(
+            FinishReason::ToolCalls,
+            response.usage.clone(),
+            response,
+            tool_calls,
+            tool_results,
+        );
+
+        match &event {
+            StreamEvent::StepFinish {
+                finish_reason,
+                usage,
+                tool_calls,
+                tool_results,
+                ..
+            } => {
+                assert_eq!(*finish_reason, FinishReason::ToolCalls);
+                assert_eq!(usage.input_tokens, 10);
+                assert_eq!(tool_calls.len(), 1);
+                assert_eq!(tool_calls[0].name, "get_weather");
+                assert_eq!(tool_results.len(), 1);
+                assert_eq!(tool_results[0].tool_call_id, "call_1");
+            }
+            other => panic!("Expected StepFinish, got {other:?}"),
+        }
     }
 }

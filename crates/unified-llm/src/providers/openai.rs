@@ -18,6 +18,9 @@ use crate::types::{
 pub struct Adapter {
     api_key: String,
     base_url: String,
+    org_id: Option<String>,
+    project_id: Option<String>,
+    default_headers: std::collections::HashMap<String, String>,
     client: reqwest::Client,
     request_timeout: std::time::Duration,
 }
@@ -33,6 +36,9 @@ impl Adapter {
         Self {
             api_key: api_key.into(),
             base_url: "https://api.openai.com/v1".to_string(),
+            org_id: None,
+            project_id: None,
+            default_headers: std::collections::HashMap::new(),
             client,
             request_timeout: std::time::Duration::from_secs_f64(timeout.request),
         }
@@ -42,6 +48,41 @@ impl Adapter {
     pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
         self.base_url = base_url.into();
         self
+    }
+
+    #[must_use]
+    pub fn with_org_id(mut self, org_id: impl Into<String>) -> Self {
+        self.org_id = Some(org_id.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_project_id(mut self, project_id: impl Into<String>) -> Self {
+        self.project_id = Some(project_id.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_default_headers(mut self, headers: std::collections::HashMap<String, String>) -> Self {
+        self.default_headers = headers;
+        self
+    }
+
+    /// Build a `reqwest::RequestBuilder` with default headers, org/project headers, and auth.
+    fn build_request(&self, url: &str) -> reqwest::RequestBuilder {
+        let mut req = self.client.post(url);
+        // Apply default_headers first so adapter-specific headers can override
+        for (key, value) in &self.default_headers {
+            req = req.header(key, value);
+        }
+        req = req.bearer_auth(&self.api_key);
+        if let Some(org_id) = &self.org_id {
+            req = req.header("OpenAI-Organization", org_id);
+        }
+        if let Some(project_id) = &self.project_id {
+            req = req.header("OpenAI-Project", project_id);
+        }
+        req
     }
 }
 
@@ -771,9 +812,7 @@ impl ProviderAdapter for Adapter {
         let url = format!("{}/responses", self.base_url);
 
         let (body, headers) = send_and_read_response(
-            self.client
-                .post(&url)
-                .bearer_auth(&self.api_key)
+            self.build_request(&url)
                 .json(&request_body)
                 .timeout(self.request_timeout),
             "openai",
@@ -830,9 +869,7 @@ impl ProviderAdapter for Adapter {
         let url = format!("{}/responses", self.base_url);
 
         let http_resp = self
-            .client
-            .post(&url)
-            .bearer_auth(&self.api_key)
+            .build_request(&url)
             .json(&request_body)
             .send()
             .await
@@ -1013,5 +1050,33 @@ mod tests {
         let body = build_request_body(&request, false);
         assert_eq!(body["metadata"]["trace_id"], "t789");
         assert_eq!(body["store"], true);
+    }
+
+    #[test]
+    fn adapter_with_org_id_sets_field() {
+        let adapter = Adapter::new("sk-test").with_org_id("org-123");
+        assert_eq!(adapter.org_id.as_deref(), Some("org-123"));
+    }
+
+    #[test]
+    fn adapter_with_project_id_sets_field() {
+        let adapter = Adapter::new("sk-test").with_project_id("proj-456");
+        assert_eq!(adapter.project_id.as_deref(), Some("proj-456"));
+    }
+
+    #[test]
+    fn adapter_with_default_headers_sets_field() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+        let adapter = Adapter::new("sk-test").with_default_headers(headers);
+        assert_eq!(adapter.default_headers.get("X-Custom").map(String::as_str), Some("value"));
+    }
+
+    #[test]
+    fn adapter_defaults_have_no_org_project_or_headers() {
+        let adapter = Adapter::new("sk-test");
+        assert!(adapter.org_id.is_none());
+        assert!(adapter.project_id.is_none());
+        assert!(adapter.default_headers.is_empty());
     }
 }

@@ -21,6 +21,7 @@ pub struct Adapter {
     api_key: String,
     base_url: String,
     provider_name: String,
+    default_headers: std::collections::HashMap<String, String>,
     client: reqwest::Client,
     request_timeout: std::time::Duration,
 }
@@ -37,6 +38,7 @@ impl Adapter {
             api_key: api_key.into(),
             base_url: base_url.into(),
             provider_name: "openai-compatible".to_string(),
+            default_headers: std::collections::HashMap::new(),
             client,
             request_timeout: std::time::Duration::from_secs_f64(timeout.request),
         }
@@ -46,6 +48,22 @@ impl Adapter {
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.provider_name = name.into();
         self
+    }
+
+    #[must_use]
+    pub fn with_default_headers(mut self, headers: std::collections::HashMap<String, String>) -> Self {
+        self.default_headers = headers;
+        self
+    }
+
+    /// Build a `reqwest::RequestBuilder` with default headers and auth.
+    fn build_request(&self, url: &str) -> reqwest::RequestBuilder {
+        let mut req = self.client.post(url);
+        // Apply default_headers first so adapter-specific headers can override
+        for (key, value) in &self.default_headers {
+            req = req.header(key, value);
+        }
+        req.bearer_auth(&self.api_key)
     }
 }
 
@@ -358,9 +376,7 @@ impl ProviderAdapter for Adapter {
         let url = format!("{}/chat/completions", self.base_url);
 
         let (body, headers) = send_and_read_response(
-            self.client
-                .post(&url)
-                .bearer_auth(&self.api_key)
+            self.build_request(&url)
                 .json(&api_body)
                 .timeout(self.request_timeout),
             &self.provider_name,
@@ -432,9 +448,7 @@ impl ProviderAdapter for Adapter {
         let url = format!("{}/chat/completions", self.base_url);
 
         let http_resp = self
-            .client
-            .post(&url)
-            .bearer_auth(&self.api_key)
+            .build_request(&url)
             .json(&api_body)
             .send()
             .await

@@ -18,6 +18,7 @@ const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta
 pub struct Adapter {
     api_key: String,
     base_url: String,
+    default_headers: std::collections::HashMap<String, String>,
     client: reqwest::Client,
     request_timeout: std::time::Duration,
 }
@@ -33,6 +34,7 @@ impl Adapter {
         Self {
             api_key: api_key.into(),
             base_url: DEFAULT_BASE_URL.to_string(),
+            default_headers: std::collections::HashMap::new(),
             client,
             request_timeout: std::time::Duration::from_secs_f64(timeout.request),
         }
@@ -41,6 +43,12 @@ impl Adapter {
     #[must_use]
     pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
         self.base_url = base_url.into();
+        self
+    }
+
+    #[must_use]
+    pub fn with_default_headers(mut self, headers: std::collections::HashMap<String, String>) -> Self {
+        self.default_headers = headers;
         self
     }
 }
@@ -727,8 +735,12 @@ impl ProviderAdapter for Adapter {
             self.base_url, request.model, self.api_key
         );
 
+        let mut req = self.client.post(&url);
+        for (key, value) in &self.default_headers {
+            req = req.header(key, value);
+        }
         let (body, headers) = send_and_read_response(
-            self.client.post(&url).json(&api_body).timeout(self.request_timeout),
+            req.json(&api_body).timeout(self.request_timeout),
             "gemini",
             "status",
         )
@@ -790,8 +802,11 @@ impl ProviderAdapter for Adapter {
             self.base_url, request.model, self.api_key
         );
 
-        let http_resp =
-            send_streaming_request(self.client.post(&url).json(&api_body)).await?;
+        let mut req = self.client.post(&url);
+        for (key, value) in &self.default_headers {
+            req = req.header(key, value);
+        }
+        let http_resp = send_streaming_request(req.json(&api_body)).await?;
 
         let rate_limit = parse_rate_limit_headers(http_resp.headers());
         Ok(process_sse_stream(http_resp, request.model.clone(), rate_limit))

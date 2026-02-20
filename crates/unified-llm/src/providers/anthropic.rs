@@ -14,6 +14,7 @@ use crate::types::{
 pub struct Adapter {
     api_key: String,
     base_url: String,
+    default_headers: std::collections::HashMap<String, String>,
     client: reqwest::Client,
     request_timeout: std::time::Duration,
 }
@@ -29,6 +30,7 @@ impl Adapter {
         Self {
             api_key: api_key.into(),
             base_url: DEFAULT_BASE_URL.to_string(),
+            default_headers: std::collections::HashMap::new(),
             client,
             request_timeout: std::time::Duration::from_secs_f64(timeout.request),
         }
@@ -37,6 +39,12 @@ impl Adapter {
     #[must_use]
     pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
         self.base_url = base_url.into();
+        self
+    }
+
+    #[must_use]
+    pub fn with_default_headers(mut self, headers: std::collections::HashMap<String, String>) -> Self {
+        self.default_headers = headers;
         self
     }
 
@@ -1005,9 +1013,12 @@ fn build_api_request(
     };
 
     let url = adapter.messages_url();
-    let mut req_builder = adapter
-        .client
-        .post(&url)
+    let mut req_builder = adapter.client.post(&url);
+    // Apply default_headers first so adapter-specific headers can override
+    for (key, value) in &adapter.default_headers {
+        req_builder = req_builder.header(key, value);
+    }
+    req_builder = req_builder
         .header("x-api-key", &adapter.api_key)
         .header("anthropic-version", "2023-06-01");
 
