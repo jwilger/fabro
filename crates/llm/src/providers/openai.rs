@@ -244,7 +244,7 @@ fn translate_input(messages: &[Message]) -> (Option<String>, Vec<serde_json::Val
                                 "content": [{"type": "output_text", "text": text}],
                             }));
                         }
-                        ContentPart::ToolCall(tc) => {
+                        ContentPart::ToolCall(tc) if !tc.name.is_empty() => {
                             let args = tc
                                 .raw_arguments
                                 .as_ref()
@@ -437,7 +437,6 @@ fn parse_output(output: &[serde_json::Value]) -> (Vec<ContentPart>, bool) {
                 });
             }
             Some("function_call") => {
-                has_tool_calls = true;
                 let item_id = item
                     .get("id")
                     .and_then(serde_json::Value::as_str)
@@ -452,6 +451,11 @@ fn parse_output(output: &[serde_json::Value]) -> (Vec<ContentPart>, bool) {
                     .and_then(serde_json::Value::as_str)
                     .unwrap_or("")
                     .to_string();
+                // Skip function calls with empty names (e.g. model-internal items)
+                if name.is_empty() {
+                    continue;
+                }
+                has_tool_calls = true;
                 let args_str = item
                     .get("arguments")
                     .and_then(serde_json::Value::as_str)
@@ -861,6 +865,10 @@ fn handle_response_completed(
         content_parts.push(ContentPart::text(&state.accumulated_text));
     }
     for tc in &state.tool_calls {
+        // Skip tool calls with empty names (e.g. model-internal items)
+        if tc.name.is_empty() {
+            continue;
+        }
         content_parts.push(ContentPart::ToolCall(tc.clone()));
     }
 
