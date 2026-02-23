@@ -28,17 +28,25 @@ impl History {
                     ..
                 } => {
                     let mut parts: Vec<ContentPart> = Vec::new();
-                    // Provider-specific opaque parts (e.g. OpenAI reasoning items)
-                    // must precede function calls for correct round-tripping.
+                    // Provider-specific opaque parts (e.g. OpenAI reasoning items,
+                    // Anthropic thinking blocks with signatures) must precede
+                    // function calls for correct round-tripping.
                     parts.extend(provider_parts.iter().cloned());
-                    if let Some(reasoning_text) = reasoning {
-                        parts.push(ContentPart::Thinking(
-                            llm::types::ThinkingData {
-                                text: reasoning_text.clone(),
-                                signature: None,
-                                redacted: false,
-                            },
-                        ));
+                    // Only reconstruct thinking from plain text if provider_parts
+                    // doesn't already contain thinking blocks (which preserve signatures).
+                    let has_thinking_parts = provider_parts
+                        .iter()
+                        .any(|p| matches!(p, ContentPart::Thinking(_) | ContentPart::RedactedThinking(_)));
+                    if !has_thinking_parts {
+                        if let Some(reasoning_text) = reasoning {
+                            parts.push(ContentPart::Thinking(
+                                llm::types::ThinkingData {
+                                    text: reasoning_text.clone(),
+                                    signature: None,
+                                    redacted: false,
+                                },
+                            ));
+                        }
                     }
                     if !content.is_empty() {
                         parts.push(ContentPart::text(content));
@@ -165,6 +173,38 @@ mod tests {
             .filter(|p| matches!(p, ContentPart::Thinking(_)))
             .collect();
         assert_eq!(thinking_parts.len(), 1);
+    }
+
+    #[test]
+    fn thinking_with_signature_preserved_via_provider_parts() {
+        let mut history = History::default();
+        let thinking = ContentPart::Thinking(llm::types::ThinkingData {
+            text: "Let me think...".into(),
+            signature: Some("sig_abc123".into()),
+            redacted: false,
+        });
+        history.push(Turn::Assistant {
+            content: "The answer".into(),
+            tool_calls: vec![],
+            reasoning: Some("Let me think...".into()),
+            provider_parts: vec![thinking],
+            usage: Usage::default(),
+            response_id: "resp_4".into(),
+            timestamp: SystemTime::now(),
+        });
+        let messages = history.convert_to_messages();
+        let thinking_parts: Vec<_> = messages[0]
+            .content
+            .iter()
+            .filter_map(|p| match p {
+                ContentPart::Thinking(td) => Some(td),
+                _ => None,
+            })
+            .collect();
+        // Should have exactly one thinking block (from provider_parts, not duplicated)
+        assert_eq!(thinking_parts.len(), 1);
+        // Signature must be preserved
+        assert_eq!(thinking_parts[0].signature.as_deref(), Some("sig_abc123"));
     }
 
     #[test]

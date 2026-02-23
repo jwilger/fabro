@@ -338,7 +338,14 @@ impl Session {
                 .message
                 .content
                 .iter()
-                .filter(|p| matches!(p, llm::types::ContentPart::Other { .. }))
+                .filter(|p| {
+                    matches!(
+                        p,
+                        llm::types::ContentPart::Other { .. }
+                            | llm::types::ContentPart::Thinking(_)
+                            | llm::types::ContentPart::RedactedThinking(_)
+                    )
+                })
                 .cloned()
                 .collect();
             let usage = response.usage.clone();
