@@ -133,6 +133,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 provider.clone(),
                 args.verbose,
                 styles,
+                args.docker,
             )))
         }
     });

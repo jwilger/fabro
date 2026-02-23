@@ -4,8 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use agent::{
-    AnthropicProfile, EventData, EventKind, GeminiProfile, LocalExecutionEnvironment,
-    OpenAiProfile, ProviderProfile, Session, SessionConfig, Turn,
+    AnthropicProfile, DockerConfig, DockerExecutionEnvironment, EventData, EventKind,
+    ExecutionEnvironment, GeminiProfile, LocalExecutionEnvironment, OpenAiProfile, ProviderProfile,
+    Session, SessionConfig, Turn,
 };
 use llm::client::Client;
 use terminal::Styles;
@@ -21,6 +22,7 @@ pub struct AgentBackend {
     provider: Option<String>,
     verbose: u8,
     styles: &'static Styles,
+    docker: bool,
 }
 
 impl AgentBackend {
@@ -30,12 +32,14 @@ impl AgentBackend {
         provider: Option<String>,
         verbose: u8,
         styles: &'static Styles,
+        docker: bool,
     ) -> Self {
         Self {
             model,
             provider,
             verbose,
             styles,
+            docker,
         }
     }
 
@@ -64,7 +68,19 @@ impl CodergenBackend for AgentBackend {
 
         let profile = self.build_profile();
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let exec_env = Arc::new(LocalExecutionEnvironment::new(cwd));
+
+        let exec_env: Arc<dyn ExecutionEnvironment> = if self.docker {
+            let config = DockerConfig {
+                host_working_directory: cwd.to_string_lossy().to_string(),
+                ..DockerConfig::default()
+            };
+            Arc::new(
+                DockerExecutionEnvironment::new(config)
+                    .map_err(|e| AttractorError::Handler(format!("Failed to create Docker environment: {e}")))?,
+            )
+        } else {
+            Arc::new(LocalExecutionEnvironment::new(cwd))
+        };
 
         let config = SessionConfig {
             reasoning_effort: Some(node.reasoning_effort().to_string()),

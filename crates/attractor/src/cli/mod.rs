@@ -63,6 +63,10 @@ pub struct RunArgs {
     /// Verbosity level (-v summary, -vv full details)
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
+
+    /// Run agent tools inside a Docker container
+    #[arg(long)]
+    pub docker: bool,
 }
 
 #[derive(Args)]
@@ -93,6 +97,10 @@ pub struct ServeArgs {
     /// Execute with simulated LLM backend
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Run agent tools inside a Docker container
+    #[arg(long)]
+    pub docker: bool,
 }
 
 /// Read a .dot file from disk.

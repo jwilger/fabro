@@ -60,6 +60,7 @@ pub async fn serve_command(args: ServeArgs, styles: &'static Styles) -> anyhow::
                     provider.clone(),
                     0,
                     styles,
+                    args.docker,
                 )))
             }
         })
