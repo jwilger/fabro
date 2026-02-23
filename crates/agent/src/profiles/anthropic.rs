@@ -147,11 +147,16 @@ in the project. Keep changes minimal and focused on the task.";
     }
 
     fn provider_options(&self) -> Option<serde_json::Value> {
-        Some(serde_json::json!({
-            "anthropic": {
-                "beta_headers": ["interleaved-thinking-2025-05-14"]
-            }
-        }))
+        let model = self.model();
+        if model.contains("opus-4-6") || model.contains("sonnet-4-6") {
+            Some(serde_json::json!({
+                "anthropic": {
+                    "thinking": {"type": "adaptive"}
+                }
+            }))
+        } else {
+            None
+        }
     }
 
     fn knowledge_cutoff(&self) -> &str {
@@ -268,22 +273,39 @@ mod tests {
     }
 
     #[test]
-    fn anthropic_provider_options_include_beta_headers() {
-        let profile = AnthropicProfile::new("claude-sonnet-4-20250514");
+    fn anthropic_provider_options_include_thinking_for_opus_4_6() {
+        let profile = AnthropicProfile::new("claude-opus-4-6");
         let options = profile.provider_options();
         assert!(options.is_some(), "provider_options should return Some");
         let options = options.unwrap();
-        let beta_headers = &options["anthropic"]["beta_headers"];
-        assert!(beta_headers.is_array(), "beta_headers should be an array");
-        let headers: Vec<&str> = beta_headers
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_str().unwrap())
-            .collect();
+        let thinking_type = options["anthropic"]["thinking"]["type"].as_str();
+        assert_eq!(
+            thinking_type,
+            Some("adaptive"),
+            "thinking type should be adaptive"
+        );
+    }
+
+    #[test]
+    fn anthropic_provider_options_include_thinking_for_sonnet_4_6() {
+        let profile = AnthropicProfile::new("claude-sonnet-4-6");
+        let options = profile.provider_options();
+        assert!(options.is_some(), "provider_options should return Some");
+        let options = options.unwrap();
+        let thinking_type = options["anthropic"]["thinking"]["type"].as_str();
+        assert_eq!(
+            thinking_type,
+            Some("adaptive"),
+            "thinking type should be adaptive"
+        );
+    }
+
+    #[test]
+    fn anthropic_provider_options_none_for_older_models() {
+        let profile = AnthropicProfile::new("claude-sonnet-4-5");
         assert!(
-            headers.contains(&"interleaved-thinking-2025-05-14"),
-            "beta_headers should contain interleaved-thinking header"
+            profile.provider_options().is_none(),
+            "older models should not have provider_options"
         );
     }
 

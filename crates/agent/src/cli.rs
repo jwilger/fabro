@@ -54,7 +54,7 @@ fn default_model(provider: &str) -> &'static str {
         "openai" => "gpt-5.2",
         "gemini" => "gemini-3-pro-preview",
         // anthropic and unknown providers
-        _ => "claude-sonnet-4-5",
+        _ => "claude-opus-4-6",
     }
 }
 
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn default_model_anthropic() {
-        assert_eq!(default_model("anthropic"), "claude-sonnet-4-5");
+        assert_eq!(default_model("anthropic"), "claude-opus-4-6");
     }
 
     #[test]
