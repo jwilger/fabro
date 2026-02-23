@@ -33,3 +33,5 @@ tokio-util = "0.7"
 clap = { version = "4", features = ["derive"] }
 jsonschema = "0.42"
 chrono = "0.4"
+bollard = "0.18"
+tar = "0.4"

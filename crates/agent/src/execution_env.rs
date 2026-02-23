@@ -1,4 +1,23 @@
 use async_trait::async_trait;
+use std::fmt::Write;
+
+/// Formats file content with line numbers for display.
+///
+/// Applies optional offset (0-based lines to skip) and limit (max lines to return).
+/// Line numbers are 1-based and right-aligned.
+pub fn format_lines_numbered(content: &str, offset: Option<usize>, limit: Option<usize>) -> String {
+    let all_lines: Vec<&str> = content.lines().collect();
+    let skip = offset.unwrap_or(0);
+    let take = limit.unwrap_or(all_lines.len());
+    let selected: Vec<&str> = all_lines.into_iter().skip(skip).take(take).collect();
+    let width = (skip + selected.len()).to_string().len().max(1);
+    let mut result = String::new();
+    for (i, line) in selected.iter().enumerate() {
+        let line_num = skip + i + 1;
+        let _ = writeln!(result, "{line_num:>width$} | {line}");
+    }
+    result
+}
 
 #[derive(Debug, Clone)]
 pub struct ExecResult {

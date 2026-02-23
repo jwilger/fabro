@@ -1,3 +1,6 @@
+#[cfg(feature = "docker")]
+pub mod docker_env;
+
 pub mod cli;
 pub mod config;
 pub mod error;
@@ -19,8 +22,10 @@ pub mod types;
 pub use config::{SessionConfig, ToolApprovalFn};
 pub use error::AgentError;
 pub use event::EventEmitter;
-pub use execution_env::{DirEntry, ExecResult, ExecutionEnvironment, GrepOptions};
+pub use execution_env::{format_lines_numbered, DirEntry, ExecResult, ExecutionEnvironment, GrepOptions};
 pub use history::History;
+#[cfg(feature = "docker")]
+pub use docker_env::{DockerConfig, DockerExecutionEnvironment};
 pub use local_env::LocalExecutionEnvironment;
 pub use loop_detection::detect_loop;
 pub use project_docs::discover_project_docs;
