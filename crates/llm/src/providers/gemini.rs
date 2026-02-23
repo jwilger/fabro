@@ -189,11 +189,12 @@ fn parse_part(part: &serde_json::Value) -> Option<ContentPart> {
             .get("args")
             .cloned()
             .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-        return Some(ContentPart::ToolCall(ToolCall::new(
-            uuid::Uuid::new_v4().to_string(),
-            name,
-            args,
-        )));
+        let mut tc = ToolCall::new(uuid::Uuid::new_v4().to_string(), name, args);
+        // Preserve thought_signature for Gemini 3 models (sibling of functionCall in the part)
+        if let Some(sig) = part.get("thoughtSignature") {
+            tc.provider_metadata = Some(serde_json::json!({"thoughtSignature": sig}));
+        }
+        return Some(ContentPart::ToolCall(tc));
     }
     None
 }
@@ -240,12 +241,23 @@ fn translate_messages(messages: &[&Message]) -> Vec<Content> {
             .iter()
             .filter_map(|part| match part {
                 ContentPart::Text(text) => Some(serde_json::json!({"text": text})),
-                ContentPart::ToolCall(tc) => Some(serde_json::json!({
-                    "functionCall": {
-                        "name": tc.name,
-                        "args": tc.arguments,
+                ContentPart::ToolCall(tc) => {
+                    let mut part_json = serde_json::json!({
+                        "functionCall": {
+                            "name": tc.name,
+                            "args": tc.arguments,
+                        }
+                    });
+                    // Re-attach thought_signature as sibling of functionCall
+                    if let Some(sig) = tc
+                        .provider_metadata
+                        .as_ref()
+                        .and_then(|m| m.get("thoughtSignature"))
+                    {
+                        part_json["thoughtSignature"] = sig.clone();
                     }
-                })),
+                    Some(part_json)
+                }
                 ContentPart::Image(img) => {
                     img.url.as_ref().map_or_else(
                         || {
@@ -804,7 +816,12 @@ impl SseStreamState {
                     .get("args")
                     .cloned()
                     .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-                let tool_call = ToolCall::new(uuid::Uuid::new_v4().to_string(), name, args);
+                let mut tool_call = ToolCall::new(uuid::Uuid::new_v4().to_string(), name, args);
+                // Preserve thought_signature for Gemini 3 models (sibling of functionCall)
+                if let Some(sig) = part.get("thoughtSignature") {
+                    tool_call.provider_metadata =
+                        Some(serde_json::json!({"thoughtSignature": sig}));
+                }
 
                 // Gemini delivers function calls as complete objects in a single chunk.
                 self.pending_events

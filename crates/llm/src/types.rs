@@ -55,6 +55,11 @@ pub struct ToolCall {
     pub name: String,
     pub arguments: serde_json::Value,
     pub raw_arguments: Option<String>,
+    /// Opaque provider-specific metadata (e.g. Gemini thought_signature).
+    /// Preserved across round-trips so the provider can include it when
+    /// sending conversation history back to the API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Value>,
 }
 
 impl ToolCall {
@@ -68,6 +73,7 @@ impl ToolCall {
             name: name.into(),
             arguments,
             raw_arguments: None,
+            provider_metadata: None,
         }
     }
 }
