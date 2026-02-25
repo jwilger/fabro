@@ -2,6 +2,7 @@ use crate::execution_env::ExecutionEnvironment;
 use crate::profiles::assemble_system_prompt;
 use crate::profiles::BaseProfile;
 use crate::provider_profile::{ProfileCapabilities, ProviderProfile};
+use crate::skills::Skill;
 use crate::tool_registry::ToolRegistry;
 use crate::tools::{
     make_edit_file_tool, make_glob_tool, make_grep_tool, make_list_dir_tool,
@@ -64,6 +65,7 @@ impl ProviderProfile for GeminiProfile {
         env_context: &EnvContext,
         project_docs: &[String],
         user_instructions: Option<&str>,
+        skills: &[Skill],
     ) -> String {
         let core_prompt = "\
 You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks \
@@ -181,7 +183,7 @@ These are foundational mandates that take precedence over defaults in this promp
 Write clean, maintainable code. Handle errors appropriately. Follow existing code conventions \
 in the project.";
 
-        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions)
+        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions, skills)
     }
 
     fn capabilities(&self) -> ProfileCapabilities {
@@ -235,7 +237,7 @@ mod tests {
     fn gemini_system_prompt_contains_identity() {
         let profile = GeminiProfile::new("gemini-2.0-flash");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("You are Gemini CLI"));
         assert!(prompt.contains("solving bugs"));
         assert!(prompt.contains("adding new functionality"));
@@ -247,7 +249,7 @@ mod tests {
     fn gemini_system_prompt_contains_tool_guidance() {
         let profile = GeminiProfile::new("gemini-2.0-flash");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("read_file"));
         assert!(prompt.contains("read_many_files"));
         assert!(prompt.contains("edit_file"));
@@ -265,7 +267,7 @@ mod tests {
     fn gemini_system_prompt_contains_project_docs_convention() {
         let profile = GeminiProfile::new("gemini-2.0-flash");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("GEMINI.md"));
         assert!(prompt.contains("AGENTS.md"));
     }
@@ -274,7 +276,7 @@ mod tests {
     fn gemini_system_prompt_contains_coding_best_practices() {
         let profile = GeminiProfile::new("gemini-2.0-flash");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("clean, maintainable code"));
         assert!(prompt.contains("Handle errors appropriately"));
         assert!(prompt.contains("existing code conventions"));
@@ -284,7 +286,7 @@ mod tests {
     fn gemini_system_prompt_contains_env_context() {
         let profile = GeminiProfile::new("gemini-2.0-flash");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("<environment>"));
         assert!(prompt.contains("linux"));
     }

@@ -7,6 +7,7 @@ use crate::loop_detection::detect_loop;
 use crate::profiles::EnvContext;
 use crate::project_docs::discover_project_docs;
 use crate::provider_profile::ProviderProfile;
+use crate::skills::{default_skill_dirs, discover_skills, expand_skill, Skill};
 use crate::tool_registry::ToolRegistry;
 use crate::truncation::truncate_tool_output;
 use crate::types::{AgentEvent, SessionState, Turn};
@@ -34,6 +35,7 @@ pub struct Session {
     cancel_token: CancellationToken,
     project_docs: Vec<String>,
     env_context: EnvContext,
+    skills: Vec<Skill>,
 }
 
 impl Session {
@@ -58,6 +60,7 @@ impl Session {
             cancel_token: CancellationToken::new(),
             project_docs: Vec::new(),
             env_context: EnvContext::default(),
+            skills: Vec::new(),
         }
     }
 
@@ -79,6 +82,16 @@ impl Session {
             self.provider_profile.id(),
         )
         .await;
+
+        // Discover skills
+        let skill_dirs = match &self.config.skill_dirs {
+            Some(dirs) => dirs.clone(),
+            None => {
+                let home = dirs::home_dir().map(|p| p.to_string_lossy().to_string());
+                default_skill_dirs(home.as_deref(), self.config.git_root.as_deref())
+            }
+        };
+        self.skills = discover_skills(self.execution_env.as_ref(), &skill_dirs).await;
 
         // Populate environment context
         self.env_context = self.build_env_context().await;
@@ -222,9 +235,17 @@ impl Session {
 
         self.state = SessionState::Processing;
 
+        // Expand skill references in input
+        let expanded_input = if self.skills.is_empty() {
+            input.to_string()
+        } else {
+            expand_skill(&self.skills, input)
+                .map_err(AgentError::InvalidState)?
+        };
+
         // Append user turn and emit event
         self.history.push(Turn::User {
-            content: input.to_string(),
+            content: expanded_input.clone(),
             timestamp: SystemTime::now(),
         });
         self.event_emitter
@@ -239,6 +260,7 @@ impl Session {
             &self.env_context,
             &self.project_docs,
             self.config.user_instructions.as_deref(),
+            &self.skills,
         );
 
         let mut round_count: usize = 0;

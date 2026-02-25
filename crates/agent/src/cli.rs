@@ -39,6 +39,10 @@ struct Cli {
     /// Print full LLM request/response JSON to stderr
     #[arg(long)]
     verbose: bool,
+
+    /// Directory containing skill files (overrides default discovery)
+    #[arg(long)]
+    skills_dir: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -330,6 +334,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let config = SessionConfig {
         tool_approval: Some(tool_approval),
+        skill_dirs: cli.skills_dir.map(|d| vec![d]),
         ..SessionConfig::default()
     };
 

@@ -1,5 +1,6 @@
 use crate::execution_env::ExecutionEnvironment;
 use crate::profiles::EnvContext;
+use crate::skills::Skill;
 use crate::subagent::{
     make_close_agent_tool, make_send_input_tool, make_spawn_agent_tool, SessionFactory,
     SubAgentManager,
@@ -27,6 +28,7 @@ pub trait ProviderProfile: Send + Sync {
         env_context: &EnvContext,
         project_docs: &[String],
         user_instructions: Option<&str>,
+        skills: &[Skill],
     ) -> String;
     fn capabilities(&self) -> ProfileCapabilities;
     fn knowledge_cutoff(&self) -> &str;
@@ -102,7 +104,7 @@ mod tests {
         let env = MockExecutionEnvironment::linux();
         let ctx = EnvContext::default();
         let docs = vec!["README.md contents".into()];
-        let prompt = profile.build_system_prompt(&env, &ctx, &docs, None);
+        let prompt = profile.build_system_prompt(&env, &ctx, &docs, None, &[]);
         assert!(prompt.contains("test assistant"));
     }
 
@@ -111,7 +113,7 @@ mod tests {
         let profile = TestProfile::new();
         let env = MockExecutionEnvironment::default();
         let ctx = EnvContext::default();
-        let prompt = profile.build_system_prompt(&env, &ctx, &[], Some("Always use TDD"));
+        let prompt = profile.build_system_prompt(&env, &ctx, &[], Some("Always use TDD"), &[]);
         assert!(prompt.contains("Always use TDD"));
     }
 

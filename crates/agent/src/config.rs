@@ -24,6 +24,8 @@ pub struct SessionConfig {
     pub enable_context_compaction: bool,
     pub compaction_threshold_percent: usize,
     pub compaction_preserve_turns: usize,
+    /// Skill directories. `None` = use convention defaults, `Some(dirs)` = use these instead.
+    pub skill_dirs: Option<Vec<String>>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -54,6 +56,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("enable_context_compaction", &self.enable_context_compaction)
             .field("compaction_threshold_percent", &self.compaction_threshold_percent)
             .field("compaction_preserve_turns", &self.compaction_preserve_turns)
+            .field("skill_dirs", &self.skill_dirs)
             .finish()
     }
 }
@@ -77,6 +80,7 @@ impl Default for SessionConfig {
             enable_context_compaction: true,
             compaction_threshold_percent: 80,
             compaction_preserve_turns: 6,
+            skill_dirs: None,
         }
     }
 }

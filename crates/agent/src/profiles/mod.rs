@@ -7,6 +7,7 @@ pub use gemini::GeminiProfile;
 pub use openai::OpenAiProfile;
 
 use crate::execution_env::ExecutionEnvironment;
+use crate::skills::{format_skills_prompt_section, Skill};
 use crate::tool_registry::ToolRegistry;
 
 /// Common fields shared by all provider profiles.
@@ -42,6 +43,7 @@ pub fn assemble_system_prompt(
     env_context: &EnvContext,
     project_docs: &[String],
     user_instructions: Option<&str>,
+    skills: &[Skill],
 ) -> String {
     let env_block = build_env_context_block_with(env, env_context);
     let docs_section = if project_docs.is_empty() {
@@ -49,13 +51,21 @@ pub fn assemble_system_prompt(
     } else {
         format!("\n\n{}", project_docs.join("\n\n"))
     };
+    let skills_section = {
+        let s = format_skills_prompt_section(skills);
+        if s.is_empty() {
+            String::new()
+        } else {
+            format!("\n\n{s}")
+        }
+    };
     let user_section = match user_instructions {
         Some(instructions) => format!("\n\n# User Instructions\n{instructions}"),
         None => String::new(),
     };
 
     let prompt = core_prompt.replace("{env_block}", &env_block);
-    format!("{prompt}{docs_section}{user_section}")
+    format!("{prompt}{docs_section}{skills_section}{user_section}")
 }
 
 #[cfg(test)]

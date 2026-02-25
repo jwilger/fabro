@@ -3,6 +3,7 @@ use crate::execution_env::ExecutionEnvironment;
 use crate::profiles::assemble_system_prompt;
 use crate::profiles::BaseProfile;
 use crate::provider_profile::{ProfileCapabilities, ProviderProfile};
+use crate::skills::Skill;
 use crate::tool_registry::ToolRegistry;
 use crate::tools::{
     make_edit_file_tool, make_glob_tool, make_grep_tool, make_read_file_tool,
@@ -64,6 +65,7 @@ impl ProviderProfile for AnthropicProfile {
         env_context: &EnvContext,
         project_docs: &[String],
         user_instructions: Option<&str>,
+        skills: &[Skill],
     ) -> String {
         let core_prompt = "\
 You are Claude, an AI coding assistant made by Anthropic. You help users with software \
@@ -134,7 +136,7 @@ finding files rather than using shell find or ls commands.
 Write clean, maintainable code. Handle errors appropriately. Follow existing code conventions \
 in the project. Keep changes minimal and focused on the task.";
 
-        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions)
+        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions, skills)
     }
 
     fn capabilities(&self) -> ProfileCapabilities {
@@ -207,7 +209,7 @@ mod tests {
     fn anthropic_system_prompt_contains_env_context() {
         let profile = AnthropicProfile::new("claude-sonnet-4-20250514");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("You are Claude, an AI coding assistant made by Anthropic"));
         assert!(prompt.contains("<environment>"));
         assert!(prompt.contains("linux"));
@@ -241,7 +243,7 @@ mod tests {
         let profile = AnthropicProfile::new("claude-sonnet-4-20250514");
         let env = MockExecutionEnvironment::linux();
         let docs = vec!["# Project README".into(), "# CONTRIBUTING guide".into()];
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &docs, None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &docs, None, &[]);
         assert!(prompt.contains("# Project README"));
         assert!(prompt.contains("# CONTRIBUTING guide"));
     }
@@ -259,7 +261,7 @@ mod tests {
             git_status_short: None,
             git_recent_commits: None,
         };
-        let prompt = profile.build_system_prompt(&env, &ctx, &[], None);
+        let prompt = profile.build_system_prompt(&env, &ctx, &[], None, &[]);
         assert!(prompt.contains("Git branch: feature-branch"));
         assert!(prompt.contains("Is git repository: true"));
         assert!(prompt.contains("Today's date: 2026-02-20"));
@@ -272,7 +274,7 @@ mod tests {
         let profile = AnthropicProfile::new("claude-opus-4-6");
         let env = MockExecutionEnvironment::linux();
         let ctx = EnvContext::default();
-        let prompt = profile.build_system_prompt(&env, &ctx, &[], Some("Always write tests first"));
+        let prompt = profile.build_system_prompt(&env, &ctx, &[], Some("Always write tests first"), &[]);
         assert!(prompt.contains("Always write tests first"));
         assert!(prompt.contains("# User Instructions"));
     }

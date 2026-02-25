@@ -3,6 +3,7 @@ use crate::execution_env::*;
 use crate::profiles::EnvContext;
 use crate::provider_profile::{ProfileCapabilities, ProviderProfile};
 use crate::session::Session;
+use crate::skills::Skill;
 use crate::tool_registry::ToolRegistry;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -344,10 +345,17 @@ impl ProviderProfile for TestProfile {
         _env_context: &EnvContext,
         _project_docs: &[String],
         user_instructions: Option<&str>,
+        skills: &[Skill],
     ) -> String {
+        let skills_section = crate::skills::format_skills_prompt_section(skills);
+        let skills_part = if skills_section.is_empty() {
+            String::new()
+        } else {
+            format!("\n\n{skills_section}")
+        };
         match user_instructions {
-            Some(instructions) => format!("You are a test assistant.\n\n# User Instructions\n{instructions}"),
-            None => "You are a test assistant.".into(),
+            Some(instructions) => format!("You are a test assistant.{skills_part}\n\n# User Instructions\n{instructions}"),
+            None => format!("You are a test assistant.{skills_part}"),
         }
     }
 

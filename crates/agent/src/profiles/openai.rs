@@ -2,6 +2,7 @@ use crate::execution_env::ExecutionEnvironment;
 use crate::profiles::assemble_system_prompt;
 use crate::profiles::BaseProfile;
 use crate::provider_profile::{ProfileCapabilities, ProviderProfile};
+use crate::skills::Skill;
 use crate::tool_registry::{RegisteredTool, ToolRegistry};
 use llm::types::ToolDefinition;
 use crate::tools::{
@@ -66,6 +67,7 @@ impl ProviderProfile for OpenAiProfile {
         env_context: &EnvContext,
         project_docs: &[String],
         user_instructions: Option<&str>,
+        skills: &[Skill],
     ) -> String {
         let core_prompt = "\
 You are a coding agent powered by OpenAI, running in a terminal-based agentic coding assistant. \
@@ -147,7 +149,7 @@ Find files by name pattern.
 Write clean, maintainable code. Handle errors appropriately. Follow existing code conventions \
 in the project.";
 
-        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions)
+        assemble_system_prompt(core_prompt, env, env_context, project_docs, user_instructions, skills)
     }
 
     fn capabilities(&self) -> ProfileCapabilities {
@@ -442,7 +444,7 @@ mod tests {
     fn openai_system_prompt_contains_env_context() {
         let profile = OpenAiProfile::new("o3-mini");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("You are a coding agent powered by OpenAI"));
         assert!(prompt.contains("<environment>"));
         assert!(prompt.contains("linux"));
@@ -454,7 +456,7 @@ mod tests {
     fn openai_system_prompt_contains_tool_guidance() {
         let profile = OpenAiProfile::new("o3-mini");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("read_file"));
         assert!(prompt.contains("apply_patch"));
         assert!(prompt.contains("write_file"));
@@ -468,7 +470,7 @@ mod tests {
     fn openai_system_prompt_contains_coding_best_practices() {
         let profile = OpenAiProfile::new("o3-mini");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], None, &[]);
         assert!(prompt.contains("clean, maintainable code"));
         assert!(prompt.contains("existing code conventions"));
     }
@@ -478,7 +480,7 @@ mod tests {
         let profile = OpenAiProfile::new("o3-mini");
         let env = MockExecutionEnvironment::linux();
         let docs = vec!["# Project README".into(), "# CONTRIBUTING guide".into()];
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &docs, None);
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &docs, None, &[]);
         assert!(prompt.contains("# Project README"));
         assert!(prompt.contains("# CONTRIBUTING guide"));
     }
@@ -487,7 +489,7 @@ mod tests {
     fn openai_system_prompt_includes_user_instructions() {
         let profile = OpenAiProfile::new("o3-mini");
         let env = MockExecutionEnvironment::linux();
-        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], Some("Always write tests first"));
+        let prompt = profile.build_system_prompt(&env, &EnvContext::default(), &[], Some("Always write tests first"), &[]);
         assert!(prompt.contains("Always write tests first"));
         assert!(prompt.contains("# User Instructions"));
     }
