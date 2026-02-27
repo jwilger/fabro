@@ -19,6 +19,7 @@ pub struct ArtifactInfo {
     pub size_bytes: usize,
     pub stored_at: DateTime<Utc>,
     pub is_file_backed: bool,
+    pub file_path: Option<PathBuf>,
 }
 
 /// Storage for artifacts, either held in memory or backed by files on disk.
@@ -68,15 +69,15 @@ impl ArtifactStore {
 
         let is_file_backed = size_bytes > FILE_BACKING_THRESHOLD && self.base_dir.is_some();
 
-        let stored = if is_file_backed {
+        let (stored, file_path) = if is_file_backed {
             let base = self.base_dir.as_ref().expect("base_dir checked above");
             let artifacts_dir = base.join("artifacts");
             std::fs::create_dir_all(&artifacts_dir)?;
-            let file_path = artifacts_dir.join(format!("{id}.json"));
-            std::fs::write(&file_path, &serialized)?;
-            StoredData::FileBacked(file_path)
+            let path = artifacts_dir.join(format!("{id}.json"));
+            std::fs::write(&path, &serialized)?;
+            (StoredData::FileBacked(path.clone()), Some(path))
         } else {
-            StoredData::InMemory(data)
+            (StoredData::InMemory(data), None)
         };
 
         let info = ArtifactInfo {
@@ -85,6 +86,7 @@ impl ArtifactStore {
             size_bytes,
             stored_at: Utc::now(),
             is_file_backed,
+            file_path,
         };
 
         self.artifacts
@@ -168,6 +170,13 @@ impl ArtifactStore {
         }
     }
 
+    /// Returns the absolute path to the artifacts directory under this store's base_dir.
+    /// Returns `None` if no `base_dir` is configured.
+    #[must_use]
+    pub fn artifacts_dir(&self) -> Option<PathBuf> {
+        self.base_dir.as_ref().map(|b| b.join("artifacts"))
+    }
+
     /// Remove all artifacts. Also deletes file-backed data from disk.
     ///
     /// # Panics
@@ -184,6 +193,61 @@ impl ArtifactStore {
     }
 }
 
+/// Prefix used to identify artifact pointer strings in context values.
+const ARTIFACT_POINTER_PREFIX: &str = "artifact://";
+
+/// Offload context values exceeding the file-backing threshold into the artifact store.
+///
+/// For each entry in `updates` whose serialized JSON exceeds `FILE_BACKING_THRESHOLD`,
+/// the value is stored in `store` and replaced with an `"artifact://{path}"` pointer.
+/// Small values are left untouched.
+///
+/// # Errors
+///
+/// Returns an error if storing an artifact fails.
+pub fn offload_large_values(
+    updates: &mut HashMap<String, Value>,
+    store: &ArtifactStore,
+) -> Result<()> {
+    for (key, value) in updates.iter_mut() {
+        let serialized_len = serde_json::to_string(&*value)
+            .map(|s| s.len())
+            .unwrap_or(0);
+        if serialized_len > FILE_BACKING_THRESHOLD {
+            let info = store.store(key, key, value.clone())?;
+            if let Some(path) = info.file_path {
+                *value = Value::String(format!("{ARTIFACT_POINTER_PREFIX}{}", path.display()));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Extract the file path from an artifact pointer value.
+///
+/// Returns `Some(path)` if the value is a string starting with `"artifact://"`,
+/// `None` otherwise.
+#[must_use]
+pub fn artifact_path(value: &Value) -> Option<&str> {
+    value
+        .as_str()
+        .and_then(|s| s.strip_prefix(ARTIFACT_POINTER_PREFIX))
+}
+
+/// Returns `true` if `path` looks like an artifact pointer path (starts with `"artifact://"`).
+#[must_use]
+pub fn is_artifact_pointer(value: &Value) -> bool {
+    artifact_path(value).is_some()
+}
+
+/// Resolve an artifact pointer to the base name displayed in preamble rendering.
+///
+/// Given `"artifact:///tmp/logs/artifacts/response.plan.json"`, returns `"See: /tmp/logs/artifacts/response.plan.json"`.
+#[must_use]
+pub fn format_artifact_reference(path: &str) -> String {
+    format!("See: {path}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,6 +262,7 @@ mod tests {
         assert_eq!(info.name, "test artifact");
         assert!(!info.is_file_backed);
         assert!(info.size_bytes > 0);
+        assert!(info.file_path.is_none());
 
         let retrieved = store.retrieve("art1").unwrap();
         assert_eq!(retrieved, data);
@@ -257,6 +322,10 @@ mod tests {
         let info = store.store("big", "large artifact", data.clone()).unwrap();
         assert!(info.is_file_backed);
         assert!(info.size_bytes > FILE_BACKING_THRESHOLD);
+        assert_eq!(
+            info.file_path,
+            Some(dir.path().join("artifacts").join("big.json"))
+        );
 
         let retrieved = store.retrieve("big").unwrap();
         assert_eq!(retrieved, data);
@@ -296,5 +365,72 @@ mod tests {
         let data = serde_json::json!(large_string);
         let info = store.store("big", "large", data).unwrap();
         assert!(!info.is_file_backed);
+    }
+
+    #[test]
+    fn offload_replaces_large_values_with_pointer() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ArtifactStore::new(Some(dir.path().to_path_buf()));
+
+        let large_string = "x".repeat(FILE_BACKING_THRESHOLD + 1);
+        let mut updates = HashMap::new();
+        updates.insert("response.plan".to_string(), serde_json::json!(large_string));
+
+        offload_large_values(&mut updates, &store).unwrap();
+
+        // Value should now be a pointer string
+        let pointer = updates.get("response.plan").unwrap();
+        let path = artifact_path(pointer).expect("should be an artifact pointer");
+        assert_eq!(
+            path,
+            dir.path()
+                .join("artifacts")
+                .join("response.plan.json")
+                .to_str()
+                .unwrap()
+        );
+
+        // The artifact store should contain the original value
+        let retrieved = store.retrieve("response.plan").unwrap();
+        assert_eq!(retrieved, serde_json::json!(large_string));
+
+        // File should exist on disk
+        assert!(dir.path().join("artifacts").join("response.plan.json").exists());
+    }
+
+    #[test]
+    fn offload_leaves_small_values_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ArtifactStore::new(Some(dir.path().to_path_buf()));
+
+        let small_value = serde_json::json!("hello world");
+        let mut updates = HashMap::new();
+        updates.insert("small_key".to_string(), small_value.clone());
+
+        offload_large_values(&mut updates, &store).unwrap();
+
+        assert_eq!(updates.get("small_key").unwrap(), &small_value);
+        assert!(!store.has("small_key"));
+    }
+
+    #[test]
+    fn artifact_path_extracts_path_from_pointer() {
+        let value = serde_json::json!("artifact:///tmp/logs/artifacts/response.plan.json");
+        assert_eq!(
+            artifact_path(&value),
+            Some("/tmp/logs/artifacts/response.plan.json")
+        );
+    }
+
+    #[test]
+    fn artifact_path_returns_none_for_plain_string() {
+        let value = serde_json::json!("just a normal string");
+        assert_eq!(artifact_path(&value), None);
+    }
+
+    #[test]
+    fn artifact_path_returns_none_for_non_string() {
+        let value = serde_json::json!(42);
+        assert_eq!(artifact_path(&value), None);
     }
 }

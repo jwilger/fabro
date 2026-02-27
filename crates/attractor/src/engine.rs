@@ -10,6 +10,7 @@ use chrono::Utc;
 use futures::FutureExt;
 use rand::Rng;
 
+use crate::artifact::{offload_large_values, ArtifactStore};
 use crate::checkpoint::Checkpoint;
 use crate::condition::evaluate_condition;
 use crate::context::Context;
@@ -673,6 +674,7 @@ impl PipelineEngine {
     ) -> Result<Outcome> {
         let run_start = Instant::now();
         let run_id = uuid::Uuid::new_v4().to_string();
+        let artifact_store = ArtifactStore::new(Some(config.logs_root.clone()));
 
         self.services.emitter.emit(&PipelineEvent::PipelineStarted {
             name: graph.name.clone(),
@@ -923,6 +925,11 @@ impl PipelineEngine {
             // Write per-node status.json (spec 5.6)
             write_node_status(&config.logs_root, &node.id, &outcome);
 
+            // Offload large context values to artifact store before recording
+            if let Err(e) = offload_large_values(&mut outcome.context_updates, &artifact_store) {
+                context.append_log(format!("artifact offload failed: {e}"));
+            }
+
             // Step 3: Record completion
             completed_nodes.push(node.id.clone());
             node_outcomes.insert(node.id.clone(), outcome.clone());
@@ -1021,7 +1028,7 @@ impl PipelineEngine {
         };
         self.services.emitter.emit(&PipelineEvent::PipelineCompleted {
             duration_ms,
-            artifact_count: 0,
+            artifact_count: artifact_store.list().len(),
             total_cost,
         });
 

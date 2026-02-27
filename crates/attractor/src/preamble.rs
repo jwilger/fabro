@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::artifact::{artifact_path, format_artifact_reference};
 use crate::context::Context;
 use crate::graph::{Graph, Node};
 use crate::outcome::Outcome;
@@ -205,25 +206,33 @@ fn render_summary_high_stage_section(
                 }
             }
             if let Some(stdout_val) = outcome.context_updates.get("script.output") {
-                let stdout = format_value(stdout_val);
-                if stdout.trim().is_empty() {
-                    lines.push("- Stdout: (empty)".to_string());
+                if let Some(path) = artifact_path(stdout_val) {
+                    lines.push(format!("- Stdout: {}", format_artifact_reference(path)));
                 } else {
-                    lines.push("- Stdout:".to_string());
-                    lines.push("  ```".to_string());
-                    lines.push(format!("  {}", stdout.trim()));
-                    lines.push("  ```".to_string());
+                    let stdout = format_value(stdout_val);
+                    if stdout.trim().is_empty() {
+                        lines.push("- Stdout: (empty)".to_string());
+                    } else {
+                        lines.push("- Stdout:".to_string());
+                        lines.push("  ```".to_string());
+                        lines.push(format!("  {}", stdout.trim()));
+                        lines.push("  ```".to_string());
+                    }
                 }
             }
             if let Some(stderr_val) = outcome.context_updates.get("script.stderr") {
-                let stderr = format_value(stderr_val);
-                if stderr.trim().is_empty() {
-                    lines.push("- Stderr: (empty)".to_string());
+                if let Some(path) = artifact_path(stderr_val) {
+                    lines.push(format!("- Stderr: {}", format_artifact_reference(path)));
                 } else {
-                    lines.push("- Stderr:".to_string());
-                    lines.push("  ```".to_string());
-                    lines.push(format!("  {}", stderr.trim()));
-                    lines.push("  ```".to_string());
+                    let stderr = format_value(stderr_val);
+                    if stderr.trim().is_empty() {
+                        lines.push("- Stderr: (empty)".to_string());
+                    } else {
+                        lines.push("- Stderr:".to_string());
+                        lines.push("  ```".to_string());
+                        lines.push(format!("  {}", stderr.trim()));
+                        lines.push("  ```".to_string());
+                    }
                 }
             }
         }
@@ -242,16 +251,20 @@ fn render_summary_high_stage_section(
                     outcome.files_touched.join(", ")
                 ));
             }
-            // Include full response from context_updates
+            // Include full response from context_updates (or artifact pointer)
             if let Some(resp_val) =
                 outcome.context_updates.get(&format!("response.{node_id}"))
             {
-                let resp = format_value(resp_val);
-                if !resp.is_empty() {
-                    lines.push("- Response:".to_string());
-                    // Blockquote each line
-                    for line in resp.lines() {
-                        lines.push(format!("  > {line}"));
+                if let Some(path) = artifact_path(resp_val) {
+                    lines.push(format!("- Response: {}", format_artifact_reference(path)));
+                } else {
+                    let resp = format_value(resp_val);
+                    if !resp.is_empty() {
+                        lines.push("- Response:".to_string());
+                        // Blockquote each line
+                        for line in resp.lines() {
+                            lines.push(format!("  > {line}"));
+                        }
                     }
                 }
             }

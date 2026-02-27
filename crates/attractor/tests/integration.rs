@@ -1112,6 +1112,30 @@ impl Handler for CounterHandler {
     }
 }
 
+/// A handler that sets a context_update with a large value (>100KB) to trigger artifact offloading.
+struct LargeOutputHandler;
+
+#[async_trait::async_trait]
+impl Handler for LargeOutputHandler {
+    async fn execute(
+        &self,
+        node: &Node,
+        _context: &Context,
+        _graph: &Graph,
+        _logs_root: &Path,
+        _services: &attractor::handler::EngineServices,
+    ) -> Result<Outcome, AttractorError> {
+        let mut outcome = Outcome::success();
+        // 150KB string — well above the 100KB artifact threshold
+        let large_value = "x".repeat(150 * 1024);
+        outcome.context_updates.insert(
+            format!("response.{}", node.id),
+            serde_json::json!(large_value),
+        );
+        Ok(outcome)
+    }
+}
+
 /// A handler that sets `context_updates` = {"`my_flag"`: "set"}.
 struct ContextSetterHandler;
 
@@ -6818,4 +6842,95 @@ async fn fidelity_prompt_full_has_no_preamble() {
         prompt, "Summarize the test results",
         "full: should be bare prompt with no preamble, got:\n{prompt}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Artifact offloading integration test
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn large_context_values_are_offloaded_to_artifact_store() {
+    // Pipeline: start -> big_output -> exit
+    // big_output uses LargeOutputHandler which returns a >100KB context_update.
+    let mut graph = make_graph_with_start_exit("ArtifactOffload");
+    graph.attrs.insert(
+        "goal".to_string(),
+        AttrValue::String("Test artifact offloading".to_string()),
+    );
+
+    let mut big_output = Node::new("big_output");
+    big_output.attrs.insert(
+        "label".to_string(),
+        AttrValue::String("Big Output".to_string()),
+    );
+    graph
+        .nodes
+        .insert("big_output".to_string(), big_output);
+
+    graph.edges.push(Edge::new("start", "big_output"));
+    graph.edges.push(Edge::new("big_output", "exit"));
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut registry = HandlerRegistry::new(Box::new(LargeOutputHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+
+    let mut emitter = EventEmitter::new();
+    let events = collect_events(&mut emitter);
+    let engine = PipelineEngine::new(registry, Arc::new(emitter), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+    };
+
+    let outcome = engine
+        .run(&graph, &config)
+        .await
+        .expect("pipeline should succeed");
+    assert_eq!(outcome.status, StageStatus::Success);
+
+    // The checkpoint context should contain an artifact pointer, not the full value
+    let checkpoint = attractor::checkpoint::Checkpoint::load(&dir.path().join("checkpoint.json"))
+        .expect("checkpoint should load");
+    let pointer_value = checkpoint
+        .context_values
+        .get("response.big_output")
+        .expect("context should have response.big_output");
+    let pointer_str = pointer_value.as_str().expect("pointer should be a string");
+    assert!(
+        pointer_str.starts_with("artifact://"),
+        "value should be an artifact pointer, got: {pointer_str}"
+    );
+
+    // The artifact file should exist on disk
+    let artifact_file = dir
+        .path()
+        .join("artifacts")
+        .join("response.big_output.json");
+    assert!(
+        artifact_file.exists(),
+        "artifact file should exist at {artifact_file:?}"
+    );
+
+    // The artifact file should contain the original large value
+    let artifact_content = std::fs::read_to_string(&artifact_file)
+        .expect("should read artifact file");
+    let artifact_value: serde_json::Value =
+        serde_json::from_str(&artifact_content).expect("should parse artifact JSON");
+    let artifact_str = artifact_value.as_str().expect("should be a string");
+    assert_eq!(artifact_str.len(), 150 * 1024, "artifact should contain the original 150KB value");
+
+    // PipelineCompleted event should report artifact_count > 0
+    let evts = events.lock().unwrap();
+    let completed_event = evts
+        .iter()
+        .find(|e| matches!(e, PipelineEvent::PipelineCompleted { .. }))
+        .expect("should have PipelineCompleted event");
+    if let PipelineEvent::PipelineCompleted { artifact_count, .. } = completed_event {
+        assert!(
+            *artifact_count > 0,
+            "artifact_count should be > 0, got {artifact_count}"
+        );
+    }
 }
