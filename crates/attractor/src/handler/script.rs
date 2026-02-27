@@ -131,22 +131,26 @@ impl Handler for ScriptHandler {
                         .insert("script.output".to_string(), serde_json::json!(stdout));
                     outcome
                         .context_updates
-                        .insert("tool.output".to_string(), serde_json::json!(stdout));
-                    outcome
-                        .context_updates
                         .insert("script.stderr".to_string(), serde_json::json!(stderr));
                     outcome.notes = Some(format!("Script completed: {script}"));
                     Ok(outcome)
                 } else {
-                    let reason = if stderr.is_empty() {
-                        format!(
-                            "Script failed with exit code: {}",
-                            output.status.code().unwrap_or(-1)
-                        )
-                    } else {
-                        format!("Script failed: {}", stderr.trim())
-                    };
+                    let mut reason = format!(
+                        "Script failed with exit code: {}",
+                        output.status.code().unwrap_or(-1)
+                    );
+                    if !stdout.trim().is_empty() {
+                        reason.push_str("\n\n## stdout\n");
+                        reason.push_str(&stdout);
+                    }
+                    if !stderr.trim().is_empty() {
+                        reason.push_str("\n\n## stderr\n");
+                        reason.push_str(&stderr);
+                    }
                     let mut outcome = Outcome::fail(reason);
+                    outcome
+                        .context_updates
+                        .insert("script.output".to_string(), serde_json::json!(stdout));
                     outcome
                         .context_updates
                         .insert("script.stderr".to_string(), serde_json::json!(stderr));
@@ -579,7 +583,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tool_output_context_key_dual_write() {
+    async fn tool_output_context_key_not_emitted() {
         let handler = ScriptHandler;
         let mut node = Node::new("script_node");
         node.attrs.insert(
@@ -595,9 +599,69 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
-        let script_output = outcome.context_updates.get("script.output").unwrap();
-        let tool_output = outcome.context_updates.get("tool.output").unwrap();
-        assert_eq!(script_output, tool_output);
-        assert!(script_output.as_str().unwrap().contains("dual"));
+        assert!(outcome.context_updates.get("script.output").is_some());
+        assert!(
+            outcome.context_updates.get("tool.output").is_none(),
+            "tool.output should not be emitted"
+        );
+    }
+
+    #[tokio::test]
+    async fn script_handler_failure_includes_stdout() {
+        let handler = ScriptHandler;
+        let mut node = Node::new("script_node");
+        node.attrs.insert(
+            "script".to_string(),
+            AttrValue::String(r#"echo "build output" && echo "oops" >&2 && exit 1"#.to_string()),
+        );
+        let context = Context::new();
+        let graph = Graph::new("test");
+        let logs_root = tempfile::tempdir().unwrap();
+
+        let outcome = handler
+            .execute(&node, &context, &graph, logs_root.path(), &make_services())
+            .await
+            .unwrap();
+        assert_eq!(outcome.status, StageStatus::Fail);
+        let reason = outcome.failure_reason.as_deref().unwrap();
+        assert!(
+            reason.contains("build output"),
+            "failure_reason should contain stdout, got: {reason}"
+        );
+        assert!(
+            reason.contains("oops"),
+            "failure_reason should contain stderr, got: {reason}"
+        );
+        assert!(
+            reason.contains("exit code: 1"),
+            "failure_reason should contain exit code, got: {reason}"
+        );
+    }
+
+    #[tokio::test]
+    async fn script_handler_failure_sets_script_output() {
+        let handler = ScriptHandler;
+        let mut node = Node::new("script_node");
+        node.attrs.insert(
+            "script".to_string(),
+            AttrValue::String(r#"echo "build output" && exit 1"#.to_string()),
+        );
+        let context = Context::new();
+        let graph = Graph::new("test");
+        let logs_root = tempfile::tempdir().unwrap();
+
+        let outcome = handler
+            .execute(&node, &context, &graph, logs_root.path(), &make_services())
+            .await
+            .unwrap();
+        assert_eq!(outcome.status, StageStatus::Fail);
+        let script_output = outcome
+            .context_updates
+            .get("script.output")
+            .expect("script.output should be set on failure");
+        assert!(
+            script_output.as_str().unwrap().contains("build output"),
+            "script.output should contain stdout, got: {script_output:?}"
+        );
     }
 }

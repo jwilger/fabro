@@ -104,7 +104,6 @@ fn stage_rendered_keys(node_id: &str, outcome: &Outcome) -> HashSet<String> {
     let candidates = [
         "script.output".to_string(),
         "script.stderr".to_string(),
-        "tool.output".to_string(),
         "last_stage".to_string(),
         "last_response".to_string(),
         format!("response.{node_id}"),
@@ -889,7 +888,6 @@ mod tests {
         let context = Context::new();
         // script.output is set in context (the engine copies context_updates to context)
         context.set("script.output", serde_json::json!("hi\n"));
-        context.set("tool.output", serde_json::json!("hi\n"));
         context.set("script.stderr", serde_json::json!(""));
         let completed_nodes = vec!["step".to_string()];
         let mut node_outcomes: HashMap<String, Outcome> = HashMap::new();
@@ -898,9 +896,6 @@ mod tests {
             "script.output".to_string(),
             serde_json::json!("hi\n"),
         );
-        outcome
-            .context_updates
-            .insert("tool.output".to_string(), serde_json::json!("hi\n"));
         outcome
             .context_updates
             .insert("script.stderr".to_string(), serde_json::json!(""));
@@ -914,8 +909,8 @@ mod tests {
             &node_outcomes,
         );
 
-        // script.output and tool.output should NOT appear in the Context section
-        // because they're already rendered inline under the stage
+        // script.output should NOT appear in the Context section
+        // because it's already rendered inline under the stage
         let context_section = preamble
             .split("## Context")
             .nth(1)
@@ -923,10 +918,6 @@ mod tests {
         assert!(
             !context_section.contains("script.output"),
             "script.output should be deduplicated from context section"
-        );
-        assert!(
-            !context_section.contains("tool.output"),
-            "tool.output should be deduplicated from context section"
         );
     }
 
