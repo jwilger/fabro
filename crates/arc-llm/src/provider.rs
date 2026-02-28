@@ -24,6 +24,17 @@ pub enum Provider {
 }
 
 impl Provider {
+    /// All known provider variants, for use in guardrail tests and iteration.
+    pub const ALL: &[Provider] = &[
+        Provider::Anthropic,
+        Provider::OpenAi,
+        Provider::Gemini,
+        Provider::Kimi,
+        Provider::Zai,
+        Provider::Minimax,
+        Provider::Inception,
+    ];
+
     /// Stable lowercase string representation used in `Request.provider`,
     /// adapter names, and other serialization boundaries.
     #[must_use]

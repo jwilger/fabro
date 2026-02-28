@@ -11,6 +11,8 @@ use crate::types::{
     Role, StreamEvent, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
 
+const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
+
 /// Provider adapter for the `OpenAI` Responses API (`/v1/responses`).
 ///
 /// Per spec Section 2.7, this adapter uses the Responses API (not Chat Completions)
@@ -25,7 +27,7 @@ impl Adapter {
     #[must_use]
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
-            http: super::http_api::HttpApi::new(api_key, "https://api.openai.com/v1"),
+            http: super::http_api::HttpApi::new(api_key, DEFAULT_BASE_URL),
             org_id: None,
             project_id: None,
         }

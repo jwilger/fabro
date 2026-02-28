@@ -154,11 +154,15 @@ in the project. Keep changes minimal and focused on the task.";
     }
 
     fn capabilities(&self) -> ProfileCapabilities {
-        let context_window_size = if self.model().contains("opus-4-6") {
-            1_000_000
-        } else {
-            200_000
-        };
+        let context_window_size = arc_llm::catalog::get_model_info(self.model())
+            .map(|info| info.context_window as usize)
+            .unwrap_or_else(|| {
+                if self.model().contains("opus-4-6") {
+                    1_000_000
+                } else {
+                    200_000
+                }
+            });
         ProfileCapabilities {
             supports_reasoning: true,
             supports_streaming: true,

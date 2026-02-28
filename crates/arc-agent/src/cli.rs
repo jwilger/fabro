@@ -70,7 +70,7 @@ pub enum PermissionLevel {
     Full,
 }
 
-fn default_model(provider: Provider) -> &'static str {
+pub fn default_model(provider: Provider) -> &'static str {
     match provider {
         Provider::OpenAi => "gpt-5.2-codex",
         Provider::Gemini => "gemini-3.1-pro-preview",

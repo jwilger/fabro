@@ -29,6 +29,45 @@ pub fn list_models(provider: Option<&str>) -> Vec<ModelInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::provider::Provider;
+    use std::str::FromStr;
+
+    #[test]
+    fn every_provider_has_catalog_models() {
+        for &provider in Provider::ALL {
+            let models = list_models(Some(provider.as_str()));
+            assert!(
+                !models.is_empty(),
+                "Provider {:?} has no models in catalog",
+                provider
+            );
+        }
+    }
+
+    #[test]
+    fn catalog_provider_strings_roundtrip_through_provider() {
+        for model in list_models(None) {
+            let parsed = Provider::from_str(&model.provider);
+            assert!(
+                parsed.is_ok(),
+                "catalog model '{}' has provider '{}' which does not parse as Provider",
+                model.id, model.provider
+            );
+        }
+    }
+
+    #[test]
+    fn provider_as_str_roundtrips_through_from_str() {
+        for &provider in Provider::ALL {
+            let roundtripped = Provider::from_str(provider.as_str());
+            assert_eq!(
+                roundtripped,
+                Ok(provider),
+                "Provider::{:?}.as_str() does not round-trip through from_str",
+                provider
+            );
+        }
+    }
 
     #[test]
     fn get_model_info_by_id() {

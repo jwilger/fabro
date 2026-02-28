@@ -169,11 +169,14 @@ in the project.";
     }
 
     fn capabilities(&self) -> ProfileCapabilities {
+        let context_window_size = arc_llm::catalog::get_model_info(self.model())
+            .map(|info| info.context_window as usize)
+            .unwrap_or(128_000);
         ProfileCapabilities {
             supports_reasoning: true,
             supports_streaming: true,
             supports_parallel_tool_calls: true,
-            context_window_size: 128_000,
+            context_window_size,
         }
     }
 

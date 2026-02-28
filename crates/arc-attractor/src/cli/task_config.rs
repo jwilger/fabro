@@ -9,6 +9,7 @@ use crate::daytona_env::DaytonaConfig;
 const SUPPORTED_VERSION: u32 = 1;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskConfig {
     pub version: u32,
     pub task: String,
@@ -21,18 +22,21 @@ pub struct TaskConfig {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LlmConfig {
     pub model: Option<String>,
     pub provider: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetupConfig {
     pub commands: Vec<String>,
     pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExecutionConfig {
     pub environment: Option<String>,
     pub daytona: Option<DaytonaConfig>,

@@ -13,6 +13,7 @@ const DEFAULT_IMAGE: &str = "ubuntu:22.04";
 ///
 /// Doubles as the TOML deserialization target for `[execution.daytona]`.
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DaytonaConfig {
     #[serde(default)]
     pub sandbox: DaytonaSandboxConfig,
@@ -21,6 +22,7 @@ pub struct DaytonaConfig {
 
 /// Sandbox-level settings (labels, auto-stop).
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DaytonaSandboxConfig {
     pub auto_stop_interval: Option<i32>,
     pub labels: Option<HashMap<String, String>>,
@@ -29,6 +31,7 @@ pub struct DaytonaSandboxConfig {
 /// Snapshot configuration: when present, the sandbox is created from a snapshot
 /// instead of a bare Docker image.
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DaytonaSnapshotConfig {
     pub name: String,
     pub cpu: Option<i32>,
