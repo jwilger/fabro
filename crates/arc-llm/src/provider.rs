@@ -20,6 +20,7 @@ pub enum Provider {
     Kimi,
     Zai,
     Minimax,
+    Inception,
 }
 
 impl Provider {
@@ -34,6 +35,7 @@ impl Provider {
             Self::Kimi => "kimi",
             Self::Zai => "zai",
             Self::Minimax => "minimax",
+            Self::Inception => "inception",
         }
     }
 }
@@ -55,6 +57,7 @@ impl FromStr for Provider {
             "kimi" => Ok(Self::Kimi),
             "zai" => Ok(Self::Zai),
             "minimax" => Ok(Self::Minimax),
+            "inception" | "inception_labs" => Ok(Self::Inception),
             other => Err(format!("unknown provider: {other}")),
         }
     }
@@ -181,5 +184,16 @@ mod tests {
     #[test]
     fn minimax_as_str() {
         assert_eq!(Provider::Minimax.as_str(), "minimax");
+    }
+
+    #[test]
+    fn parse_inception() {
+        assert_eq!("inception".parse::<Provider>().unwrap(), Provider::Inception);
+        assert_eq!("inception_labs".parse::<Provider>().unwrap(), Provider::Inception);
+    }
+
+    #[test]
+    fn inception_as_str() {
+        assert_eq!(Provider::Inception.as_str(), "inception");
     }
 }

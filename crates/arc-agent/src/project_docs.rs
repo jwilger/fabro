@@ -13,7 +13,7 @@ pub async fn discover_project_docs(
 
     let candidate_filenames: Vec<&str> = match provider {
         Provider::Anthropic => vec!["AGENTS.md", "CLAUDE.md"],
-        Provider::OpenAi | Provider::Kimi | Provider::Zai | Provider::Minimax => {
+        Provider::OpenAi | Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => {
             vec!["AGENTS.md", ".codex/instructions.md"]
         }
         Provider::Gemini => vec!["AGENTS.md", "GEMINI.md"],

@@ -76,7 +76,7 @@ impl AgentBackend {
         let factory: SessionFactory = Arc::new(move || {
             let child_profile: Arc<dyn ProviderProfile> = match factory_provider {
                 Provider::OpenAi => Arc::new(OpenAiProfile::new(&factory_model)),
-                Provider::Kimi | Provider::Zai | Provider::Minimax => Arc::new(
+                Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => Arc::new(
                     OpenAiProfile::new(&factory_model).with_provider(factory_provider),
                 ),
                 Provider::Gemini => Arc::new(GeminiProfile::new(&factory_model)),
@@ -104,7 +104,7 @@ impl AgentBackend {
     fn build_profile(&self) -> Box<dyn ProviderProfile> {
         match self.provider {
             Provider::OpenAi => Box::new(OpenAiProfile::new(&self.model)),
-            Provider::Kimi | Provider::Zai | Provider::Minimax => {
+            Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => {
                 Box::new(OpenAiProfile::new(&self.model).with_provider(self.provider))
             }
             Provider::Gemini => Box::new(GeminiProfile::new(&self.model)),

@@ -17,7 +17,7 @@ pub struct AgentArgs {
     /// Task prompt
     pub prompt: String,
 
-    /// LLM provider (anthropic, openai, gemini, kimi, zai, minimax)
+    /// LLM provider (anthropic, openai, gemini, kimi, zai, minimax, inception)
     #[arg(long, default_value = "anthropic")]
     pub provider: String,
 
@@ -78,6 +78,7 @@ fn default_model(provider: Provider) -> &'static str {
         Provider::Kimi => "kimi-k2.5",
         Provider::Zai => "glm-4.7",
         Provider::Minimax => "minimax-m2.5",
+        Provider::Inception => "mercury",
     }
 }
 
@@ -159,6 +160,7 @@ fn summarizer_model_id(provider: Provider) -> ModelId {
         Provider::Kimi => ModelId::new(Provider::Kimi, "kimi-k2.5"),
         Provider::Zai => ModelId::new(Provider::Zai, "glm-4.7"),
         Provider::Minimax => ModelId::new(Provider::Minimax, "minimax-m2.5"),
+        Provider::Inception => ModelId::new(Provider::Inception, "mercury"),
     }
 }
 
@@ -174,7 +176,7 @@ fn build_profile(provider: Provider, model: &str, llm_client: Option<Client>) ->
     let summarizer = build_summarizer(provider, llm_client);
     match provider {
         Provider::OpenAi => Box::new(OpenAiProfile::with_summarizer(model, summarizer)),
-        Provider::Kimi | Provider::Zai | Provider::Minimax => Box::new(
+        Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => Box::new(
             OpenAiProfile::with_summarizer(model, summarizer).with_provider(provider),
         ),
         Provider::Gemini => Box::new(GeminiProfile::with_summarizer(model, summarizer)),
@@ -192,6 +194,7 @@ fn validate_api_key(provider: Provider) -> bool {
         Provider::Kimi => std::env::var("KIMI_API_KEY").is_ok(),
         Provider::Zai => std::env::var("ZAI_API_KEY").is_ok(),
         Provider::Minimax => std::env::var("MINIMAX_API_KEY").is_ok(),
+        Provider::Inception => std::env::var("INCEPTION_API_KEY").is_ok(),
     }
 }
 
@@ -400,7 +403,7 @@ pub async fn run_with_args(args: AgentArgs) -> anyhow::Result<()> {
             Provider::OpenAi => {
                 Arc::new(OpenAiProfile::with_summarizer(&factory_model, child_summarizer))
             }
-            Provider::Kimi | Provider::Zai | Provider::Minimax => Arc::new(
+            Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => Arc::new(
                 OpenAiProfile::with_summarizer(&factory_model, child_summarizer)
                     .with_provider(provider),
             ),
@@ -648,6 +651,11 @@ mod tests {
     #[test]
     fn default_model_minimax() {
         assert_eq!(default_model(Provider::Minimax), "minimax-m2.5");
+    }
+
+    #[test]
+    fn default_model_inception() {
+        assert_eq!(default_model(Provider::Inception), "mercury");
     }
 
     // build_tool_approval non-interactive tests

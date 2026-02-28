@@ -10,7 +10,7 @@ use arc_llm::provider::{ModelId, Provider};
 
 fn summarizer_model_id(provider: Provider) -> ModelId {
     match provider {
-        Provider::OpenAi | Provider::Kimi | Provider::Zai | Provider::Minimax => {
+        Provider::OpenAi | Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => {
             ModelId::new(Provider::OpenAi, "gpt-4o-mini")
         }
         Provider::Gemini => ModelId::new(Provider::Gemini, "gemini-2.0-flash"),
@@ -32,7 +32,7 @@ fn build_profile(provider: Provider, model: &str, client: &Client) -> Box<dyn Pr
     match provider {
         Provider::Anthropic => Box::new(AnthropicProfile::with_summarizer(model, summarizer)),
         Provider::OpenAi => Box::new(OpenAiProfile::with_summarizer(model, summarizer)),
-        Provider::Kimi | Provider::Zai | Provider::Minimax => Box::new(
+        Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => Box::new(
             OpenAiProfile::with_summarizer(model, summarizer).with_provider(provider),
         ),
         Provider::Gemini => Box::new(GeminiProfile::with_summarizer(model, summarizer)),
@@ -60,7 +60,7 @@ async fn make_session(provider: Provider, model: &str, cwd: &Path) -> Session {
                 Provider::OpenAi => {
                     Arc::new(OpenAiProfile::with_summarizer(&factory_model, summarizer))
                 }
-                Provider::Kimi | Provider::Zai | Provider::Minimax => Arc::new(
+                Provider::Kimi | Provider::Zai | Provider::Minimax | Provider::Inception => Arc::new(
                     OpenAiProfile::with_summarizer(&factory_model, summarizer)
                         .with_provider(provider),
                 ),

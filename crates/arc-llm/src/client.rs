@@ -93,6 +93,12 @@ impl Client {
                     .with_name("minimax");
             client.register_provider(Arc::new(adapter)).await?;
         }
+        if let Ok(key) = std::env::var("INCEPTION_API_KEY") {
+            let adapter =
+                providers::OpenAiCompatibleAdapter::new(key, "https://api.inceptionlabs.ai/v1")
+                    .with_name("inception");
+            client.register_provider(Arc::new(adapter)).await?;
+        }
 
         Ok(client)
     }

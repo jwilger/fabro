@@ -154,5 +154,31 @@
     "input_cost_per_million": null,
     "output_cost_per_million": null,
     "aliases": ["minimax"]
+  },
+  {
+    "id": "mercury",
+    "provider": "inception",
+    "display_name": "Mercury",
+    "context_window": 32768,
+    "max_output": null,
+    "supports_tools": true,
+    "supports_vision": false,
+    "supports_reasoning": false,
+    "input_cost_per_million": null,
+    "output_cost_per_million": null,
+    "aliases": []
+  },
+  {
+    "id": "mercury-coder",
+    "provider": "inception",
+    "display_name": "Mercury Coder",
+    "context_window": 32768,
+    "max_output": null,
+    "supports_tools": true,
+    "supports_vision": false,
+    "supports_reasoning": false,
+    "input_cost_per_million": null,
+    "output_cost_per_million": null,
+    "aliases": []
   }
 ]

@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn list_models_all() {
         let models = list_models(None);
-        assert_eq!(models.len(), 12);
+        assert_eq!(models.len(), 14);
     }
 
     #[test]
@@ -104,6 +104,22 @@ mod tests {
     fn minimax_m2_5_in_catalog() {
         let m = get_model_info("minimax-m2.5").unwrap();
         assert_eq!(m.provider, "minimax");
+    }
+
+    #[test]
+    fn mercury_in_catalog() {
+        let m = get_model_info("mercury").unwrap();
+        assert_eq!(m.provider, "inception");
+        assert_eq!(m.context_window, 32768);
+        assert!(m.supports_tools);
+        assert!(!m.supports_vision);
+        assert!(!m.supports_reasoning);
+    }
+
+    #[test]
+    fn mercury_coder_in_catalog() {
+        let m = get_model_info("mercury-coder").unwrap();
+        assert_eq!(m.provider, "inception");
     }
 
     #[test]
