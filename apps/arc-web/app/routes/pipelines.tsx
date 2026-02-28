@@ -1,3 +1,5 @@
+import { columns, ciConfig } from "../data/runs";
+import type { CiStatus, RunItem } from "../data/runs";
 import type { Route } from "./+types/pipelines";
 
 export function meta({}: Route.MetaArgs) {
@@ -31,18 +33,10 @@ function GitPullRequestIcon({ className }: { className?: string }) {
   );
 }
 
-type CiStatus = "passing" | "failing" | "pending";
-
-const ciConfig: Record<CiStatus, { label: string; dot: string; text: string }> =
-  {
-    passing: { label: "Passing", dot: "bg-mint", text: "text-mint" },
-    failing: {
-      label: "Changes needed",
-      dot: "bg-coral",
-      text: "text-coral",
-    },
-    pending: { label: "Pending", dot: "bg-amber", text: "text-amber" },
-  };
+const iconMap = {
+  branch: GitBranchIcon,
+  pr: GitPullRequestIcon,
+};
 
 function CiBadge({ status }: { status: CiStatus }) {
   const config = ciConfig[status];
@@ -54,157 +48,6 @@ function CiBadge({ status }: { status: CiStatus }) {
   );
 }
 
-interface PullRequest {
-  repo: string;
-  title: string;
-  number?: number;
-  additions?: number;
-  deletions?: number;
-  ci?: CiStatus;
-  elapsed?: string;
-  elapsedWarning?: boolean;
-  resources?: string;
-  actionDisabled?: boolean;
-  comments?: number;
-}
-
-interface Column {
-  id: string;
-  name: string;
-  accent: string;
-  iconColor: string;
-  icon: React.ComponentType<{ className?: string }>;
-  actions?: string[];
-  items: PullRequest[];
-}
-
-const columns: Column[] = [
-  {
-    id: "working",
-    name: "Working",
-    accent: "bg-teal-500",
-    iconColor: "text-teal-500",
-    icon: GitBranchIcon,
-    actions: ["Watch", "Steer"],
-    items: [
-      {
-        repo: "api-server",
-        title: "Add rate limiting to auth endpoints",
-        resources: "4 CPU / 8 GB",
-        elapsed: "7m",
-      },
-      {
-        repo: "web-dashboard",
-        title: "Migrate to React Router v7",
-        resources: "8 CPU / 16 GB",
-        elapsed: "2h 15m",
-      },
-      {
-        repo: "cli-tools",
-        title: "Fix config parsing for nested values",
-        resources: "2 CPU / 4 GB",
-        elapsed: "45m",
-      },
-    ],
-  },
-  {
-    id: "pending",
-    name: "Pending",
-    accent: "bg-amber",
-    iconColor: "text-amber",
-    icon: GitBranchIcon,
-    actions: ["Answer Question"],
-    items: [
-      {
-        repo: "api-server",
-        title: "Update OpenAPI spec for v3",
-        additions: 567,
-        deletions: 234,
-        elapsed: "1h 12m",
-      },
-      {
-        repo: "shared-types",
-        title: "Add pipeline event types",
-        additions: 145,
-        deletions: 23,
-        elapsed: "28m",
-      },
-    ],
-  },
-  {
-    id: "review",
-    name: "Verify",
-    accent: "bg-mint",
-    iconColor: "text-mint",
-    icon: GitPullRequestIcon,
-    actions: ["Resolve"],
-    items: [
-      {
-        repo: "web-dashboard",
-        title: "Add dark mode toggle",
-        number: 889,
-        additions: 234,
-        deletions: 67,
-        ci: "failing",
-        elapsed: "35m",
-        comments: 4,
-      },
-      {
-        repo: "infrastructure",
-        title: "Terraform module for Redis cluster",
-        number: 156,
-        additions: 412,
-        deletions: 0,
-        ci: "pending",
-        elapsed: "12m",
-        actionDisabled: true,
-        comments: 1,
-      },
-    ],
-  },
-  {
-    id: "merge",
-    name: "Merge",
-    accent: "bg-teal-300",
-    iconColor: "text-teal-300",
-    icon: GitPullRequestIcon,
-    actions: ["Merge"],
-    items: [
-      {
-        repo: "api-server",
-        title: "Implement webhook retry logic",
-        number: 1249,
-        additions: 189,
-        deletions: 45,
-        ci: "passing",
-        elapsed: "3d",
-        elapsedWarning: true,
-        comments: 7,
-      },
-      {
-        repo: "cli-tools",
-        title: "Add --verbose flag to run command",
-        number: 430,
-        additions: 56,
-        deletions: 12,
-        ci: "passing",
-        elapsed: "1h 5m",
-        comments: 2,
-      },
-      {
-        repo: "shared-types",
-        title: "Export utility type helpers",
-        number: 76,
-        additions: 34,
-        deletions: 8,
-        ci: "passing",
-        elapsed: "48m",
-        comments: 0,
-      },
-    ],
-  },
-];
-
 const totalCards = columns.reduce((sum, col) => sum + col.items.length, 0);
 const totalPrs = columns.reduce(
   (sum, col) => sum + col.items.filter((item) => item.number != null).length,
@@ -212,6 +55,7 @@ const totalPrs = columns.reduce(
 );
 
 export const handle = {
+  wide: true,
   headerExtra: (
     <div className="flex items-center gap-4 font-mono text-xs text-ice-300">
       <span>
@@ -230,7 +74,7 @@ function PrCard({
   iconColor,
   actions,
 }: {
-  pr: PullRequest;
+  pr: RunItem;
   icon: React.ComponentType<{ className?: string }>;
   iconColor: string;
   actions?: string[];
@@ -332,7 +176,8 @@ function PrCard({
   );
 }
 
-function BoardColumn({ column }: { column: Column }) {
+function BoardColumn({ column }: { column: (typeof columns)[number] }) {
+  const Icon = iconMap[column.iconType];
   return (
     <div className="flex min-w-[280px] flex-1 flex-col">
       <div className="mb-4 flex items-center gap-3">
@@ -350,7 +195,7 @@ function BoardColumn({ column }: { column: Column }) {
           <PrCard
             key={`${pr.repo}-${pr.number ?? pr.title}`}
             pr={pr}
-            icon={column.icon}
+            icon={Icon}
             iconColor={column.iconColor}
             actions={column.actions}
           />

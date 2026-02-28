@@ -45,8 +45,9 @@ export default function AppShell() {
   const currentNav = navigation.find((item) => pathname.startsWith(item.href));
   const title = currentNav?.name ?? "";
   const lastMatch = matches[matches.length - 1];
-  const headerExtra = (lastMatch?.handle as { headerExtra?: React.ReactNode })
-    ?.headerExtra;
+  const handle = lastMatch?.handle as { headerExtra?: React.ReactNode; wide?: boolean } | undefined;
+  const headerExtra = handle?.headerExtra;
+  const maxWidth = handle?.wide ? "max-w-7xl" : "max-w-5xl";
 
   return (
     <div className="min-h-full">
@@ -187,13 +188,15 @@ export default function AppShell() {
       </Disclosure>
 
       <header className="relative bg-navy-800 after:pointer-events-none after:absolute after:inset-x-0 after:inset-y-0 after:bottom-0 after:border-y after:border-white/10">
-        <div className="flex items-center px-4 py-4 sm:px-6 lg:px-8">
-          <h1 className="text-lg/6 font-semibold text-white">{title}</h1>
-          {headerExtra && <div className="ml-auto">{headerExtra}</div>}
+        <div className={`mx-auto ${maxWidth} px-4 py-4 sm:px-6 lg:px-8`}>
+          <div className="flex items-center">
+            <h1 className="text-lg/6 font-semibold text-white">{title}</h1>
+            {headerExtra && <div className="ml-auto">{headerExtra}</div>}
+          </div>
         </div>
       </header>
       <main>
-        <div className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className={`mx-auto ${maxWidth} px-4 py-6 sm:px-6 lg:px-8`}>
           <Outlet />
         </div>
       </main>
