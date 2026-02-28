@@ -65,8 +65,22 @@ const THEME_ATTRS = `
     ]
 `;
 
+function colorSpecialNodes(dot: string): string {
+  // Mdiamond / Msquare → teal start/exit nodes
+  dot = dot.replace(
+    /(\bshape\s*=\s*M(?:diamond|square)\b[^\]]*)\]/g,
+    '$1, fillcolor="#0d4f4f", color="#14b8a6", fontcolor="#5eead4"]',
+  );
+  // hexagon / diamond (but not Mdiamond) → amber gate nodes
+  dot = dot.replace(
+    /(\bshape\s*=\s*(?:hexagon|(?<!M)diamond)\b[^\]]*)\]/g,
+    '$1, fillcolor="#1a2030", color="#f59e0b", fontcolor="#fbbf24"]',
+  );
+  return dot;
+}
+
 function applyTheme(dot: string): string {
-  return dot.replace(/\{/, `{\n${THEME_ATTRS}\n`);
+  return colorSpecialNodes(dot.replace(/\{/, `{\n${THEME_ATTRS}\n`));
 }
 
 function stripGraphTitle(svg: SVGSVGElement) {
