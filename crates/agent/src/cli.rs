@@ -44,6 +44,16 @@ struct Cli {
     /// Directory containing skill files (overrides default discovery)
     #[arg(long)]
     skills_dir: Option<String>,
+
+    /// Output format (text for human-readable, json for NDJSON event stream)
+    #[arg(long, default_value = "text", value_enum)]
+    output_format: OutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -383,79 +393,93 @@ pub async fn run() -> anyhow::Result<()> {
         cancel_token.cancel();
     });
 
-    // Subscribe to events for real-time tool status on stderr
+    // Subscribe to events
     let verbose = cli.verbose;
+    let output_format = cli.output_format;
     let mut rx = session.subscribe();
     tokio::spawn(async move {
-        let s = styles;
-        while let Ok(event) = rx.recv().await {
-            match &event.event {
-                AgentEvent::ToolCallStarted { tool_name, arguments, .. } => {
-                    eprintln!(
-                        "  {dim}\u{25cf}{reset} {bold}{cyan}{tool_name}{reset}{dim}({args}){reset}",
-                        dim = s.dim,
-                        reset = s.reset,
-                        bold = s.bold,
-                        cyan = s.cyan,
-                        args = format_tool_args(arguments, &cwd_str),
-                    );
+        match output_format {
+            OutputFormat::Json => {
+                while let Ok(event) = rx.recv().await {
+                    if let Ok(json) = serde_json::to_string(&event) {
+                        let mut stdout = std::io::stdout().lock();
+                        let _ = writeln!(stdout, "{json}");
+                        let _ = stdout.flush();
+                    }
                 }
-                AgentEvent::ToolCallCompleted {
-                    tool_name, output, is_error, ..
-                } if verbose => {
-                    let label = if *is_error { "tool error" } else { "tool result" };
-                    eprintln!(
-                        "  {}[{label}] {tool_name}:{}\n{}",
-                        s.dim,
-                        s.reset,
-                        serde_json::to_string_pretty(output)
-                            .unwrap_or_else(|_| output.to_string()),
-                    );
+            }
+            OutputFormat::Text => {
+                let s = styles;
+                while let Ok(event) = rx.recv().await {
+                    match &event.event {
+                        AgentEvent::ToolCallStarted { tool_name, arguments, .. } => {
+                            eprintln!(
+                                "  {dim}\u{25cf}{reset} {bold}{cyan}{tool_name}{reset}{dim}({args}){reset}",
+                                dim = s.dim,
+                                reset = s.reset,
+                                bold = s.bold,
+                                cyan = s.cyan,
+                                args = format_tool_args(arguments, &cwd_str),
+                            );
+                        }
+                        AgentEvent::ToolCallCompleted {
+                            tool_name, output, is_error, ..
+                        } if verbose => {
+                            let label = if *is_error { "tool error" } else { "tool result" };
+                            eprintln!(
+                                "  {}[{label}] {tool_name}:{}\n{}",
+                                s.dim,
+                                s.reset,
+                                serde_json::to_string_pretty(output)
+                                    .unwrap_or_else(|_| output.to_string()),
+                            );
+                        }
+                        AgentEvent::Error { error } => {
+                            eprintln!(
+                                "  {red}\u{2717} {error}{reset}",
+                                red = s.red,
+                                reset = s.reset,
+                            );
+                        }
+                        AgentEvent::SubAgentSpawned { agent_id, depth, task, .. } => {
+                            let short_id = &agent_id[..8.min(agent_id.len())];
+                            let task_preview = if task.len() > 60 { &task[..60] } else { task };
+                            eprintln!(
+                                "  {dim}\u{25b6} subagent {short_id} spawned (depth={depth}) task={task_preview:?}{reset}",
+                                dim = s.dim, reset = s.reset,
+                            );
+                        }
+                        AgentEvent::SubAgentCompleted { agent_id, depth, success, turns_used } => {
+                            let short_id = &agent_id[..8.min(agent_id.len())];
+                            eprintln!(
+                                "  {dim}\u{25a0} subagent {short_id} completed (depth={depth}, success={success}, turns={turns_used}){reset}",
+                                dim = s.dim, reset = s.reset,
+                            );
+                        }
+                        AgentEvent::SubAgentFailed { agent_id, depth, error } => {
+                            let short_id = &agent_id[..8.min(agent_id.len())];
+                            eprintln!(
+                                "  {red}\u{2717} subagent {short_id} failed (depth={depth}): {error}{reset}",
+                                red = s.red, reset = s.reset,
+                            );
+                        }
+                        AgentEvent::SubAgentClosed { agent_id, depth } => {
+                            let short_id = &agent_id[..8.min(agent_id.len())];
+                            eprintln!(
+                                "  {dim}\u{25a0} subagent {short_id} closed (depth={depth}){reset}",
+                                dim = s.dim, reset = s.reset,
+                            );
+                        }
+                        AgentEvent::SubAgentEvent { agent_id, event: child_event, .. } if verbose => {
+                            let short_id = &agent_id[..8.min(agent_id.len())];
+                            eprintln!(
+                                "  {dim}[subagent {short_id}] {child_event:?}{reset}",
+                                dim = s.dim, reset = s.reset,
+                            );
+                        }
+                        _ => {}
+                    }
                 }
-                AgentEvent::Error { error } => {
-                    eprintln!(
-                        "  {red}\u{2717} {error}{reset}",
-                        red = s.red,
-                        reset = s.reset,
-                    );
-                }
-                AgentEvent::SubAgentSpawned { agent_id, depth, task, .. } => {
-                    let short_id = &agent_id[..8.min(agent_id.len())];
-                    let task_preview = if task.len() > 60 { &task[..60] } else { task };
-                    eprintln!(
-                        "  {dim}\u{25b6} subagent {short_id} spawned (depth={depth}) task={task_preview:?}{reset}",
-                        dim = s.dim, reset = s.reset,
-                    );
-                }
-                AgentEvent::SubAgentCompleted { agent_id, depth, success, turns_used } => {
-                    let short_id = &agent_id[..8.min(agent_id.len())];
-                    eprintln!(
-                        "  {dim}\u{25a0} subagent {short_id} completed (depth={depth}, success={success}, turns={turns_used}){reset}",
-                        dim = s.dim, reset = s.reset,
-                    );
-                }
-                AgentEvent::SubAgentFailed { agent_id, depth, error } => {
-                    let short_id = &agent_id[..8.min(agent_id.len())];
-                    eprintln!(
-                        "  {red}\u{2717} subagent {short_id} failed (depth={depth}): {error}{reset}",
-                        red = s.red, reset = s.reset,
-                    );
-                }
-                AgentEvent::SubAgentClosed { agent_id, depth } => {
-                    let short_id = &agent_id[..8.min(agent_id.len())];
-                    eprintln!(
-                        "  {dim}\u{25a0} subagent {short_id} closed (depth={depth}){reset}",
-                        dim = s.dim, reset = s.reset,
-                    );
-                }
-                AgentEvent::SubAgentEvent { agent_id, event: child_event, .. } if verbose => {
-                    let short_id = &agent_id[..8.min(agent_id.len())];
-                    eprintln!(
-                        "  {dim}[subagent {short_id}] {child_event:?}{reset}",
-                        dim = s.dim, reset = s.reset,
-                    );
-                }
-                _ => {}
             }
         }
     });
@@ -464,11 +488,13 @@ pub async fn run() -> anyhow::Result<()> {
     session.initialize().await;
     let result = session.process_input(&cli.prompt).await;
 
-    // Print assistant text to stdout
-    print_output(&session);
+    if matches!(output_format, OutputFormat::Text) {
+        // Print assistant text to stdout
+        print_output(&session);
 
-    // Print completion summary to stderr
-    print_summary(&session, styles);
+        // Print completion summary to stderr
+        print_summary(&session, styles);
+    }
 
     // Propagate errors for exit code
     result?;

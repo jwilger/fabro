@@ -2,6 +2,29 @@ use std::time::SystemTime;
 use llm::types::{ContentPart, ToolCall, ToolResult, Usage};
 use serde::{Deserialize, Serialize};
 
+mod system_time_iso8601 {
+    use chrono::{DateTime, Utc};
+    use serde::{self, Deserialize, Deserializer, Serializer};
+    use std::time::SystemTime;
+
+    pub fn serialize<S>(time: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let dt: DateTime<Utc> = (*time).into();
+        serializer.serialize_str(&dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let dt = DateTime::parse_from_rfc3339(&s).map_err(serde::de::Error::custom)?;
+        Ok(dt.with_timezone(&Utc).into())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Turn {
     User {
@@ -136,9 +159,10 @@ pub enum AgentEvent {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionEvent {
     pub event: AgentEvent,
+    #[serde(with = "system_time_iso8601")]
     pub timestamp: SystemTime,
     pub session_id: String,
 }
@@ -254,6 +278,25 @@ mod tests {
         let deserialized: Vec<AgentEvent> = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.len(), 5);
         assert!(matches!(&deserialized[4], AgentEvent::SubAgentEvent { event, .. } if matches!(event.as_ref(), AgentEvent::SessionStarted)));
+    }
+
+    #[test]
+    fn session_event_serde_round_trip() {
+        let event = SessionEvent {
+            event: AgentEvent::SessionStarted,
+            timestamp: SystemTime::now(),
+            session_id: "sess_42".into(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("sess_42"));
+        assert!(json.contains("SessionStarted"));
+        // Timestamp should be ISO-8601
+        assert!(json.contains("T"));
+        assert!(json.contains("Z"));
+
+        let deserialized: SessionEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.session_id, "sess_42");
+        assert!(matches!(deserialized.event, AgentEvent::SessionStarted));
     }
 
     #[test]
