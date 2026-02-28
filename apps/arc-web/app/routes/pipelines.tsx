@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { columns, ciConfig } from "../data/runs";
 import type { CiStatus, RunItem } from "../data/runs";
 import type { Route } from "./+types/pipelines";
@@ -80,7 +81,7 @@ function PrCard({
   actions?: string[];
 }) {
   return (
-    <div className="group rounded-lg border border-white/[0.06] bg-navy-800/80 p-4 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800 hover:shadow-lg hover:shadow-black/20">
+    <Link to={`/runs/${pr.id}`} className="group block rounded-lg border border-white/[0.06] bg-navy-800/80 p-4 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800 hover:shadow-lg hover:shadow-black/20">
       <div className="mb-2 flex items-center gap-1.5">
         <Icon className={`size-3.5 shrink-0 ${iconColor}`} />
         <span className="font-mono text-xs font-medium text-teal-500">
@@ -172,7 +173,7 @@ function PrCard({
           {pr.ci != null && <span className="ml-auto flex items-center"><CiBadge status={pr.ci} /></span>}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 
@@ -193,7 +194,7 @@ function BoardColumn({ column }: { column: (typeof columns)[number] }) {
       <div className="flex flex-1 flex-col gap-3">
         {column.items.map((pr) => (
           <PrCard
-            key={`${pr.repo}-${pr.number ?? pr.title}`}
+            key={pr.id}
             pr={pr}
             icon={Icon}
             iconColor={column.iconColor}

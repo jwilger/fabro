@@ -1,6 +1,7 @@
 export type CiStatus = "passing" | "failing" | "pending";
 
 export interface RunItem {
+  id: string;
   repo: string;
   title: string;
   number?: number;
@@ -39,18 +40,21 @@ export const columns: {
     actions: ["Watch", "Steer"],
     items: [
       {
+        id: "run-1",
         repo: "api-server",
         title: "Add rate limiting to auth endpoints",
         resources: "4 CPU / 8 GB",
         elapsed: "7m",
       },
       {
+        id: "run-2",
         repo: "web-dashboard",
         title: "Migrate to React Router v7",
         resources: "8 CPU / 16 GB",
         elapsed: "2h 15m",
       },
       {
+        id: "run-3",
         repo: "cli-tools",
         title: "Fix config parsing for nested values",
         resources: "2 CPU / 4 GB",
@@ -67,6 +71,7 @@ export const columns: {
     actions: ["Answer Question"],
     items: [
       {
+        id: "run-4",
         repo: "api-server",
         title: "Update OpenAPI spec for v3",
         additions: 567,
@@ -74,6 +79,7 @@ export const columns: {
         elapsed: "1h 12m",
       },
       {
+        id: "run-5",
         repo: "shared-types",
         title: "Add pipeline event types",
         additions: 145,
@@ -91,6 +97,7 @@ export const columns: {
     actions: ["Resolve"],
     items: [
       {
+        id: "run-6",
         repo: "web-dashboard",
         title: "Add dark mode toggle",
         number: 889,
@@ -101,6 +108,7 @@ export const columns: {
         comments: 4,
       },
       {
+        id: "run-7",
         repo: "infrastructure",
         title: "Terraform module for Redis cluster",
         number: 156,
@@ -122,6 +130,7 @@ export const columns: {
     actions: ["Merge"],
     items: [
       {
+        id: "run-8",
         repo: "api-server",
         title: "Implement webhook retry logic",
         number: 1249,
@@ -133,6 +142,7 @@ export const columns: {
         comments: 7,
       },
       {
+        id: "run-9",
         repo: "cli-tools",
         title: "Add --verbose flag to run command",
         number: 430,
@@ -143,6 +153,7 @@ export const columns: {
         comments: 2,
       },
       {
+        id: "run-10",
         repo: "shared-types",
         title: "Export utility type helpers",
         number: 76,
@@ -164,6 +175,10 @@ export function allRunsFlat(): RunWithStatus[] {
       statusLabel: col.name,
     })),
   );
+}
+
+export function findRun(id: string): RunWithStatus | undefined {
+  return allRunsFlat().find((r) => r.id === id);
 }
 
 export const statusColors: Record<ColumnStatus, { dot: string; text: string }> = {

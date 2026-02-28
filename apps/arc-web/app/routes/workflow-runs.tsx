@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { Link } from "react-router";
 import { allRunsFlat, ciConfig, columns, statusColors } from "../data/runs";
 import type { ColumnStatus, RunWithStatus } from "../data/runs";
 
@@ -16,7 +17,7 @@ function GitPullRequestIcon({ className }: { className?: string }) {
 function RunRow({ run }: { run: RunWithStatus }) {
   const colors = statusColors[run.status];
   return (
-    <div className="grid items-center rounded-lg border border-white/[0.06] bg-navy-800/80 px-4 py-3 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800" style={{ gridColumn: "1 / -1", gridTemplateColumns: "subgrid" }}>
+    <Link to={`/runs/${run.id}`} className="grid items-center rounded-lg border border-white/[0.06] bg-navy-800/80 px-4 py-3 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800" style={{ gridColumn: "1 / -1", gridTemplateColumns: "subgrid" }}>
       <span className="flex items-center gap-2 pr-2">
         <span className={`size-2 shrink-0 rounded-full ${colors.dot}`} />
         <span className={`text-xs font-medium ${colors.text}`}>{run.statusLabel}</span>
@@ -52,7 +53,7 @@ function RunRow({ run }: { run: RunWithStatus }) {
           </>
         )}
       </span>
-    </div>
+    </Link>
   );
 }
 
@@ -96,7 +97,7 @@ export default function WorkflowRuns() {
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: "auto 5rem 1fr 8rem auto" }}>
         {filtered.map((run) => (
-          <RunRow key={`${run.repo}-${run.number ?? run.title}`} run={run} />
+          <RunRow key={run.id} run={run} />
         ))}
         {filtered.length === 0 && (
           <p className="py-8 text-center text-sm text-navy-600">No runs match "{query}"</p>

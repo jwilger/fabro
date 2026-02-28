@@ -61,13 +61,14 @@ interface Workflow {
   filename: string;
   lastRun: string;
   icon: ComponentType<{ className?: string }>;
+  color: string;
 }
 
 const workflows: Workflow[] = [
-  { name: "Fix Build", slug: "fix_build", filename: "fix_build.dot", lastRun: "2 hours ago", icon: WrenchIcon },
-  { name: "Implement Feature", slug: "implement", filename: "implement.dot", lastRun: "4 days ago", icon: CodeBracketIcon },
-  { name: "Sync Drift", slug: "sync_drift", filename: "sync_drift.dot", lastRun: "1 day ago", icon: ArrowsRightLeftIcon },
-  { name: "Expand Product", slug: "expand", filename: "expand.dot", lastRun: "2 weeks ago", icon: RocketLaunchIcon },
+  { name: "Fix Build", slug: "fix_build", filename: "fix_build.dot", lastRun: "2 hours ago", icon: WrenchIcon, color: "#F0A45B" },
+  { name: "Implement Feature", slug: "implement", filename: "implement.dot", lastRun: "4 days ago", icon: CodeBracketIcon, color: "#67B2D7" },
+  { name: "Sync Drift", slug: "sync_drift", filename: "sync_drift.dot", lastRun: "1 day ago", icon: ArrowsRightLeftIcon, color: "#5AC8A8" },
+  { name: "Expand Product", slug: "expand", filename: "expand.dot", lastRun: "2 weeks ago", icon: RocketLaunchIcon, color: "#E86B6B" },
 ];
 
 function PlayIcon({ className }: { className?: string }) {
@@ -91,7 +92,10 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
   return (
     <div className="group flex items-center gap-4 rounded-lg border border-white/[0.06] bg-navy-800/80 p-4 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800 hover:shadow-lg hover:shadow-black/20">
       <Link to={`/workflows/${workflow.slug}`} className="flex min-w-0 flex-1 items-center gap-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-navy-900/60 text-ice-300">
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-navy-900/60"
+          style={{ borderColor: `${workflow.color}33`, color: workflow.color }}
+        >
           <Icon className="size-4" />
         </div>
 
