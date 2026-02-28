@@ -10,6 +10,7 @@ export default [
   layout("layouts/app-shell.tsx", [
     route("start", "routes/start.tsx"),
     route("workflows", "routes/workflows.tsx"),
+    route("workflows/:name", "routes/workflow-detail.tsx"),
     route("runs", "routes/pipelines.tsx"),
     route("insights", "routes/insights.tsx"),
     route("settings", "routes/settings.tsx"),

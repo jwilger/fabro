@@ -1,20 +1,66 @@
+import { useState } from "react";
+import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
+import { ChevronDownIcon, PlusIcon } from "@heroicons/react/20/solid";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { Link } from "react-router";
 import type { Route } from "./+types/workflows";
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Workflows — Arc" }];
 }
 
+export const handle = {
+  headerExtra: (
+    <div className="relative inline-flex rounded-md">
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-l-md bg-teal-700 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-500"
+      >
+        <PlusIcon className="size-4" aria-hidden="true" />
+        Create Workflow
+      </button>
+      <Menu as="div" className="relative -ml-px flex">
+        <MenuButton className="inline-flex items-center rounded-r-md border-l border-teal-500/30 bg-teal-700 px-2 text-white transition-colors hover:bg-teal-500">
+          <ChevronDownIcon className="size-4" aria-hidden="true" />
+        </MenuButton>
+        <MenuItems
+          transition
+          className="absolute right-0 top-full z-10 mt-2 w-48 origin-top-right rounded-md bg-navy-800 py-1 outline-1 -outline-offset-1 outline-white/10 transition data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+        >
+          <MenuItem>
+            <button
+              type="button"
+              className="block w-full px-4 py-2 text-left text-sm text-ice-300 data-focus:bg-white/5 data-focus:outline-hidden"
+            >
+              Import from file
+            </button>
+          </MenuItem>
+          <MenuItem>
+            <button
+              type="button"
+              className="block w-full px-4 py-2 text-left text-sm text-ice-300 data-focus:bg-white/5 data-focus:outline-hidden"
+            >
+              Duplicate existing
+            </button>
+          </MenuItem>
+        </MenuItems>
+      </Menu>
+    </div>
+  ),
+};
+
 interface Workflow {
   name: string;
+  slug: string;
   filename: string;
   lastRun: string;
 }
 
 const workflows: Workflow[] = [
-  { name: "Fix Build", filename: "fix_build.dot", lastRun: "2 hours ago" },
-  { name: "Implement Feature", filename: "implement.dot", lastRun: "4 days ago" },
-  { name: "Sync Drift", filename: "sync_drift.dot", lastRun: "1 day ago" },
-  { name: "Expand Product", filename: "expand.dot", lastRun: "2 weeks ago" },
+  { name: "Fix Build", slug: "fix_build", filename: "fix_build.dot", lastRun: "2 hours ago" },
+  { name: "Implement Feature", slug: "implement", filename: "implement.dot", lastRun: "4 days ago" },
+  { name: "Sync Drift", slug: "sync_drift", filename: "sync_drift.dot", lastRun: "1 day ago" },
+  { name: "Expand Product", slug: "expand", filename: "expand.dot", lastRun: "2 weeks ago" },
 ];
 
 function PlayIcon({ className }: { className?: string }) {
@@ -46,7 +92,7 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-ice-100">{workflow.name}</span>
+          <Link to={`/workflows/${workflow.slug}`} className="text-sm font-medium text-ice-100 hover:text-white">{workflow.name}</Link>
           <span className="font-mono text-xs text-navy-600">{workflow.filename}</span>
         </div>
         <p className="mt-1 text-xs text-navy-600">Last run {workflow.lastRun}</p>
@@ -64,11 +110,33 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
 }
 
 export default function Workflows() {
+  const [query, setQuery] = useState("");
+  const filtered = workflows.filter(
+    (w) =>
+      w.name.toLowerCase().includes(query.toLowerCase()) ||
+      w.filename.toLowerCase().includes(query.toLowerCase()),
+  );
+
   return (
-    <div className="mx-auto max-w-3xl space-y-3">
-      {workflows.map((workflow) => (
-        <WorkflowCard key={workflow.filename} workflow={workflow} />
-      ))}
+    <div className="space-y-4">
+      <div className="relative">
+        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+        <input
+          type="text"
+          placeholder="Search workflows..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-lg border border-white/[0.06] bg-navy-800/80 py-2 pl-9 pr-3 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+        />
+      </div>
+      <div className="space-y-3">
+        {filtered.map((workflow) => (
+          <WorkflowCard key={workflow.filename} workflow={workflow} />
+        ))}
+        {filtered.length === 0 && (
+          <p className="py-8 text-center text-sm text-navy-600">No workflows match "{query}"</p>
+        )}
+      </div>
     </div>
   );
 }
