@@ -7,7 +7,7 @@ use crate::tool_registry::{RegisteredTool, ToolRegistry};
 use llm::types::ToolDefinition;
 use crate::tools::{
     make_glob_tool, make_grep_tool, make_read_file_tool, make_shell_tool, make_web_fetch_tool,
-    make_web_search_tool, make_write_file_tool,
+    make_web_search_tool, make_write_file_tool, WebFetchSummarizer,
 };
 use std::sync::Arc;
 
@@ -21,6 +21,11 @@ pub struct OpenAiProfile {
 impl OpenAiProfile {
     #[must_use]
     pub fn new(model: impl Into<String>) -> Self {
+        Self::with_summarizer(model, None)
+    }
+
+    #[must_use]
+    pub fn with_summarizer(model: impl Into<String>, summarizer: Option<WebFetchSummarizer>) -> Self {
         let mut registry = ToolRegistry::new();
 
         registry.register(make_read_file_tool());
@@ -30,7 +35,7 @@ impl OpenAiProfile {
         registry.register(make_glob_tool());
         registry.register(make_apply_patch_tool());
         registry.register(make_web_search_tool());
-        registry.register(make_web_fetch_tool());
+        registry.register(make_web_fetch_tool(summarizer));
 
         Self {
             base: BaseProfile {
@@ -151,7 +156,8 @@ Find files by name pattern.
 Search the web using Brave Search. Returns titles, URLs, and descriptions.
 
 ## web_fetch
-Fetch content from a URL. URLs must start with http:// or https://.
+Fetch content from a URL and optionally summarize it. Pass a prompt to extract specific \
+information instead of returning the full page. URLs must start with http:// or https://.
 
 # Coding Best Practices
 

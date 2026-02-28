@@ -8,6 +8,7 @@ use crate::tool_registry::ToolRegistry;
 use crate::tools::{
     make_edit_file_tool, make_glob_tool, make_grep_tool, make_read_file_tool,
     make_shell_tool_with_config, make_web_fetch_tool, make_web_search_tool, make_write_file_tool,
+    WebFetchSummarizer,
 };
 
 use super::EnvContext;
@@ -19,6 +20,11 @@ pub struct AnthropicProfile {
 impl AnthropicProfile {
     #[must_use]
     pub fn new(model: impl Into<String>) -> Self {
+        Self::with_summarizer(model, None)
+    }
+
+    #[must_use]
+    pub fn with_summarizer(model: impl Into<String>, summarizer: Option<WebFetchSummarizer>) -> Self {
         let config = SessionConfig {
             default_command_timeout_ms: 120_000,
             ..SessionConfig::default()
@@ -32,7 +38,7 @@ impl AnthropicProfile {
         registry.register(make_grep_tool());
         registry.register(make_glob_tool());
         registry.register(make_web_search_tool());
-        registry.register(make_web_fetch_tool());
+        registry.register(make_web_fetch_tool(summarizer));
 
         Self {
             base: BaseProfile {
@@ -137,7 +143,8 @@ finding files rather than using shell find or ls commands.
 Search the web using Brave Search. Returns titles, URLs, and descriptions.
 
 ## web_fetch
-Fetch content from a URL. URLs must start with http:// or https://.
+Fetch content from a URL and optionally summarize it. Pass a prompt to extract specific \
+information instead of returning the full page. URLs must start with http:// or https://.
 
 # Coding Best Practices
 

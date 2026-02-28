@@ -142,12 +142,27 @@ fn build_tool_approval(
     })
 }
 
-fn build_profile(provider: &str, model: &str) -> Box<dyn ProviderProfile> {
-    match provider {
-        "openai" => Box::new(OpenAiProfile::new(model)),
-        "gemini" => Box::new(GeminiProfile::new(model)),
+fn build_summarizer(provider: &str, llm_client: Option<Client>) -> Option<crate::tools::WebFetchSummarizer> {
+    let client = llm_client?;
+    let model = match provider {
+        "openai" => "gpt-4o-mini",
+        "gemini" => "gemini-2.0-flash",
         // anthropic and unknown providers
-        _ => Box::new(AnthropicProfile::new(model)),
+        _ => "claude-haiku-4-5-20251001",
+    };
+    Some(crate::tools::WebFetchSummarizer {
+        client,
+        model: model.into(),
+    })
+}
+
+fn build_profile(provider: &str, model: &str, llm_client: Option<Client>) -> Box<dyn ProviderProfile> {
+    let summarizer = build_summarizer(provider, llm_client);
+    match provider {
+        "openai" => Box::new(OpenAiProfile::with_summarizer(model, summarizer)),
+        "gemini" => Box::new(GeminiProfile::with_summarizer(model, summarizer)),
+        // anthropic and unknown providers
+        _ => Box::new(AnthropicProfile::with_summarizer(model, summarizer)),
     }
 }
 
@@ -335,7 +350,7 @@ pub async fn run() -> anyhow::Result<()> {
         "{}Using model: {model}{}",
         styles.dim, styles.reset,
     );
-    let mut profile = build_profile(&cli.provider, model);
+    let mut profile = build_profile(&cli.provider, model, Some(client.clone()));
 
     // Build execution environment
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -363,10 +378,11 @@ pub async fn run() -> anyhow::Result<()> {
     let factory_env = Arc::clone(&env);
     let factory_approval = config.tool_approval.clone();
     let factory: SessionFactory = Arc::new(move || {
+        let child_summarizer = build_summarizer(&factory_provider, Some(factory_client.clone()));
         let child_profile: Arc<dyn ProviderProfile> = match factory_provider.as_str() {
-            "openai" => Arc::new(OpenAiProfile::new(&factory_model)),
-            "gemini" => Arc::new(GeminiProfile::new(&factory_model)),
-            _ => Arc::new(AnthropicProfile::new(&factory_model)),
+            "openai" => Arc::new(OpenAiProfile::with_summarizer(&factory_model, child_summarizer)),
+            "gemini" => Arc::new(GeminiProfile::with_summarizer(&factory_model, child_summarizer)),
+            _ => Arc::new(AnthropicProfile::with_summarizer(&factory_model, child_summarizer)),
         };
         Session::new(
             factory_client.clone(),
@@ -628,19 +644,19 @@ mod tests {
 
     #[test]
     fn build_profile_anthropic() {
-        let profile = build_profile("anthropic", "model");
+        let profile = build_profile("anthropic", "model", None);
         assert_eq!(profile.id(), "anthropic");
     }
 
     #[test]
     fn build_profile_openai() {
-        let profile = build_profile("openai", "model");
+        let profile = build_profile("openai", "model", None);
         assert_eq!(profile.id(), "openai");
     }
 
     #[test]
     fn build_profile_gemini() {
-        let profile = build_profile("gemini", "model");
+        let profile = build_profile("gemini", "model", None);
         assert_eq!(profile.id(), "gemini");
     }
 
@@ -648,7 +664,7 @@ mod tests {
 
     #[test]
     fn build_profile_can_register_subagent_tools() {
-        let mut profile = build_profile("anthropic", "model");
+        let mut profile = build_profile("anthropic", "model", None);
         let manager = Arc::new(tokio::sync::Mutex::new(SubAgentManager::new(1)));
         let factory: SessionFactory = Arc::new(|| {
             panic!("factory should not be called in this test");

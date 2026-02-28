@@ -1,12 +1,39 @@
 use crate::config::SessionConfig;
 use crate::execution_env::GrepOptions;
 use crate::tool_registry::RegisteredTool;
+use llm::client::Client;
+use llm::types::{Message, Request, ToolDefinition};
 use std::borrow::Cow;
 use std::fmt::Write;
 use std::sync::Arc;
-use llm::types::ToolDefinition;
 
 const MAX_WEB_FETCH_BYTES: usize = 100 * 1024;
+
+/// Configuration for the optional LLM-based summarizer used by `web_fetch`.
+#[derive(Clone)]
+pub struct WebFetchSummarizer {
+    pub client: Client,
+    pub model: String,
+}
+
+/// Returns true if the input looks like it contains HTML markup.
+fn looks_like_html(text: &str) -> bool {
+    let trimmed = text.trim_start();
+    trimmed.starts_with("<!") || trimmed.starts_with("<html") || trimmed.starts_with("<HTML")
+        || trimmed.contains("</div>") || trimmed.contains("</p>") || trimmed.contains("</body>")
+}
+
+/// Converts HTML to Markdown, stripping script/style tags.
+/// Non-HTML content (JSON, plain text) passes through unchanged.
+fn html_to_markdown(text: &str) -> String {
+    if !looks_like_html(text) {
+        return text.to_string();
+    }
+    let converter = htmd::HtmlToMarkdown::builder()
+        .skip_tags(vec!["script", "style"])
+        .build();
+    converter.convert(text).unwrap_or_else(|_| text.to_string())
+}
 
 pub(crate) fn required_str<'a>(args: &'a serde_json::Value, key: &str) -> Result<&'a str, String> {
     args.get(key)
@@ -426,23 +453,26 @@ fn make_web_search_tool_with_api_key(api_key: Option<String>) -> RegisteredTool 
 }
 
 #[must_use]
-pub(crate) fn make_web_fetch_tool() -> RegisteredTool {
+pub(crate) fn make_web_fetch_tool(summarizer: Option<WebFetchSummarizer>) -> RegisteredTool {
     RegisteredTool {
         definition: ToolDefinition {
             name: "web_fetch".into(),
-            description: "Fetch content from a URL".into(),
+            description: "Fetch content from a URL and optionally summarize it. Pass a prompt to extract specific information instead of returning the full page.".into(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "url": {"type": "string", "description": "URL to fetch (must be http:// or https://)"},
+                    "prompt": {"type": "string", "description": "A question or instruction about the page content. When provided, returns a concise answer instead of the full page."},
                     "timeout_ms": {"type": "integer", "description": "Timeout in milliseconds (default 30000, max 60000)"}
                 },
                 "required": ["url"]
             }),
         },
-        executor: Arc::new(|args, env, cancel| {
+        executor: Arc::new(move |args, env, cancel| {
+            let summarizer = summarizer.clone();
             Box::pin(async move {
                 let url = required_str(&args, "url")?;
+                let prompt = args.get("prompt").and_then(serde_json::Value::as_str);
                 let timeout_ms = args
                     .get("timeout_ms")
                     .and_then(serde_json::Value::as_u64)
@@ -471,13 +501,41 @@ pub(crate) fn make_web_fetch_tool() -> RegisteredTool {
                     ));
                 }
 
-                let mut output = result.stdout;
-                if output.len() > MAX_WEB_FETCH_BYTES {
-                    output.truncate(MAX_WEB_FETCH_BYTES);
-                    output.push_str("\n\n[Output truncated at 100KB]");
+                let mut content = html_to_markdown(&result.stdout);
+                if content.len() > MAX_WEB_FETCH_BYTES {
+                    content.truncate(MAX_WEB_FETCH_BYTES);
+                    content.push_str("\n\n[Output truncated at 100KB]");
                 }
 
-                Ok(output)
+                match (prompt, &summarizer) {
+                    (Some(user_prompt), Some(s)) => {
+                        let summarization_prompt = format!(
+                            "Content from {url}:\n---\n{content}\n---\n\n{user_prompt}\n\nRespond concisely based only on the content above."
+                        );
+                        let request = Request {
+                            model: s.model.clone(),
+                            messages: vec![Message::user(summarization_prompt)],
+                            provider: None,
+                            tools: None,
+                            tool_choice: None,
+                            response_format: None,
+                            temperature: None,
+                            top_p: None,
+                            max_tokens: None,
+                            stop_sequences: None,
+                            reasoning_effort: None,
+                            metadata: None,
+                            provider_options: None,
+                        };
+                        let response = s.client.complete(&request).await.map_err(|e| format!("Summarization failed: {e}"))?;
+                        Ok(response.text())
+                    }
+                    (Some(_), None) => {
+                        // Graceful degradation: return content with a note
+                        Ok(format!("[Note: prompt summarization unavailable, returning full content]\n\n{content}"))
+                    }
+                    (None, _) => Ok(content),
+                }
             })
         }),
     }
@@ -783,10 +841,10 @@ mod tests {
 
     #[tokio::test]
     async fn web_fetch_builds_curl_command() {
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env = Arc::new(MockExecutionEnvironment {
             exec_result: ExecResult {
-                stdout: "<html>hello</html>".into(),
+                stdout: "<html><body><h1>hello</h1></body></html>".into(),
                 stderr: String::new(),
                 exit_code: 0,
                 timed_out: false,
@@ -801,7 +859,9 @@ mod tests {
             CancellationToken::new(),
         )
         .await;
-        assert_eq!(result.unwrap(), "<html>hello</html>");
+        let output = result.unwrap();
+        assert!(output.contains("# hello"), "HTML should be converted to markdown, got: {output}");
+        assert!(!output.contains("<html>"), "raw HTML tags should be removed, got: {output}");
         let cmd = env.captured_command.lock().unwrap().clone().unwrap();
         assert!(cmd.starts_with("curl -sL --max-time 30 "), "command should start with curl flags, got: {cmd}");
         assert!(cmd.contains("https://example.com"), "command should contain the URL");
@@ -810,7 +870,7 @@ mod tests {
 
     #[tokio::test]
     async fn web_fetch_rejects_non_http_url() {
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env: Arc<dyn ExecutionEnvironment> = Arc::new(MockExecutionEnvironment::default());
         let result = (tool.executor)(
             serde_json::json!({"url": "ftp://example.com/file"}),
@@ -824,7 +884,7 @@ mod tests {
 
     #[tokio::test]
     async fn web_fetch_timeout_flows_through() {
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env = Arc::new(MockExecutionEnvironment::default());
         let env_clone: Arc<dyn ExecutionEnvironment> = env.clone();
         let _result = (tool.executor)(
@@ -840,7 +900,7 @@ mod tests {
 
     #[tokio::test]
     async fn web_fetch_timeout_capped_at_60s() {
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env = Arc::new(MockExecutionEnvironment::default());
         let env_clone: Arc<dyn ExecutionEnvironment> = env.clone();
         let _result = (tool.executor)(
@@ -857,7 +917,7 @@ mod tests {
     #[tokio::test]
     async fn web_fetch_truncates_large_output() {
         let large_content = "x".repeat(150 * 1024);
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env: Arc<dyn ExecutionEnvironment> = Arc::new(MockExecutionEnvironment {
             exec_result: ExecResult {
                 stdout: large_content,
@@ -881,7 +941,7 @@ mod tests {
 
     #[tokio::test]
     async fn web_fetch_returns_error_on_nonzero_exit() {
-        let tool = make_web_fetch_tool();
+        let tool = make_web_fetch_tool(None);
         let env: Arc<dyn ExecutionEnvironment> = Arc::new(MockExecutionEnvironment {
             exec_result: ExecResult {
                 stdout: String::new(),
@@ -901,6 +961,88 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.contains("exit code 6"), "error should contain exit code, got: {err}");
         assert!(err.contains("Could not resolve host"), "error should contain stderr, got: {err}");
+    }
+
+    #[tokio::test]
+    async fn web_fetch_prompt_with_summarizer_returns_llm_answer() {
+        use crate::test_support::{make_client, MockLlmProvider, text_response};
+
+        let provider = Arc::new(MockLlmProvider::new(vec![
+            text_response("Rust is a systems programming language focused on safety and performance."),
+        ]));
+        let client = make_client(provider).await;
+        let summarizer = WebFetchSummarizer {
+            client,
+            model: "mock-model".into(),
+        };
+
+        let tool = make_web_fetch_tool(Some(summarizer));
+        let env: Arc<dyn ExecutionEnvironment> = Arc::new(MockExecutionEnvironment {
+            exec_result: ExecResult {
+                stdout: "<html><body><p>Lots of content about Rust...</p></body></html>".into(),
+                stderr: String::new(),
+                exit_code: 0,
+                timed_out: false,
+                duration_ms: 100,
+            },
+            ..Default::default()
+        });
+        let result = (tool.executor)(
+            serde_json::json!({"url": "https://example.com", "prompt": "What is Rust?"}),
+            env,
+            CancellationToken::new(),
+        )
+        .await;
+        let output = result.unwrap();
+        assert_eq!(output, "Rust is a systems programming language focused on safety and performance.");
+    }
+
+    #[tokio::test]
+    async fn web_fetch_prompt_without_summarizer_returns_content_with_note() {
+        let tool = make_web_fetch_tool(None);
+        let env: Arc<dyn ExecutionEnvironment> = Arc::new(MockExecutionEnvironment {
+            exec_result: ExecResult {
+                stdout: "<html><body><p>Rust is a systems programming language.</p></body></html>".into(),
+                stderr: String::new(),
+                exit_code: 0,
+                timed_out: false,
+                duration_ms: 100,
+            },
+            ..Default::default()
+        });
+        let result = (tool.executor)(
+            serde_json::json!({"url": "https://example.com", "prompt": "What is Rust?"}),
+            env,
+            CancellationToken::new(),
+        )
+        .await;
+        let output = result.unwrap();
+        assert!(output.contains("summarization unavailable"), "should note unavailability, got: {output}");
+        assert!(output.contains("Rust is a systems programming language"), "should contain page content, got: {output}");
+    }
+
+    #[test]
+    fn html_to_markdown_converts_basic_html() {
+        let result = html_to_markdown("<h1>Hello</h1><p>World</p>");
+        assert_eq!(result, "# Hello\n\nWorld");
+    }
+
+    #[test]
+    fn html_to_markdown_strips_script_and_style() {
+        let html = "<html><head><style>body{color:red}</style></head><body><script>alert(1)</script><p>Content</p></body></html>";
+        let result = html_to_markdown(html);
+        assert!(!result.contains("alert"), "script content should be stripped");
+        assert!(!result.contains("color:red"), "style content should be stripped");
+        assert!(result.contains("Content"), "paragraph text should remain");
+    }
+
+    #[test]
+    fn html_to_markdown_passes_through_non_html() {
+        let json = r#"{"key": "value", "items": [1, 2, 3]}"#;
+        assert_eq!(html_to_markdown(json), json);
+
+        let plain = "Just some plain text\nwith newlines";
+        assert_eq!(html_to_markdown(plain), plain);
     }
 
     #[tokio::test]

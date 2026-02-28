@@ -7,7 +7,7 @@ use crate::tool_registry::ToolRegistry;
 use crate::tools::{
     make_edit_file_tool, make_glob_tool, make_grep_tool, make_list_dir_tool,
     make_read_file_tool, make_read_many_files_tool, make_shell_tool, make_web_fetch_tool,
-    make_web_search_tool, make_write_file_tool,
+    make_web_search_tool, make_write_file_tool, WebFetchSummarizer,
 };
 
 use super::EnvContext;
@@ -19,6 +19,11 @@ pub struct GeminiProfile {
 impl GeminiProfile {
     #[must_use]
     pub fn new(model: impl Into<String>) -> Self {
+        Self::with_summarizer(model, None)
+    }
+
+    #[must_use]
+    pub fn with_summarizer(model: impl Into<String>, summarizer: Option<WebFetchSummarizer>) -> Self {
         let mut registry = ToolRegistry::new();
 
         registry.register(make_read_file_tool());
@@ -30,7 +35,7 @@ impl GeminiProfile {
         registry.register(make_glob_tool());
         registry.register(make_list_dir_tool());
         registry.register(make_web_search_tool());
-        registry.register(make_web_fetch_tool());
+        registry.register(make_web_fetch_tool(summarizer));
 
         Self {
             base: BaseProfile {
@@ -160,7 +165,8 @@ List directory contents with depth control.
 Search the web for information.
 
 ## web_fetch
-Fetch content from a URL.
+Fetch content from a URL and optionally summarize it. Pass a prompt to extract specific \
+information instead of returning the full page.
 
 # Project Docs
 

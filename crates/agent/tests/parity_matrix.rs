@@ -3,19 +3,36 @@ use std::sync::Arc;
 
 use agent::{
     AnthropicProfile, GeminiProfile, LocalExecutionEnvironment, OpenAiProfile, ProviderProfile,
-    Session, SessionConfig, SubAgentManager,
+    Session, SessionConfig, SubAgentManager, WebFetchSummarizer,
 };
 use llm::client::Client;
+
+fn build_summarizer(provider: &str, client: &Client) -> WebFetchSummarizer {
+    let summarizer_model = match provider {
+        "openai" => "gpt-4o-mini",
+        "gemini" => "gemini-2.0-flash",
+        _ => "claude-haiku-4-5-20251001",
+    };
+    WebFetchSummarizer {
+        client: client.clone(),
+        model: summarizer_model.into(),
+    }
+}
+
+fn build_profile(provider: &str, model: &str, client: &Client) -> Box<dyn ProviderProfile> {
+    let summarizer = Some(build_summarizer(provider, client));
+    match provider {
+        "anthropic" => Box::new(AnthropicProfile::with_summarizer(model, summarizer)),
+        "openai" => Box::new(OpenAiProfile::with_summarizer(model, summarizer)),
+        "gemini" => Box::new(GeminiProfile::with_summarizer(model, summarizer)),
+        _ => panic!("unknown provider: {provider}"),
+    }
+}
 
 async fn make_session(provider: &str, model: &str, cwd: &Path) -> Session {
     dotenvy::dotenv().ok();
     let client = Client::from_env().await.expect("Client::from_env failed");
-    let mut profile: Box<dyn ProviderProfile> = match provider {
-        "anthropic" => Box::new(AnthropicProfile::new(model)),
-        "openai" => Box::new(OpenAiProfile::new(model)),
-        "gemini" => Box::new(GeminiProfile::new(model)),
-        _ => panic!("unknown provider: {provider}"),
-    };
+    let mut profile = build_profile(provider, model, &client);
     let env = Arc::new(LocalExecutionEnvironment::new(cwd.to_path_buf()));
 
     // Register subagent tools so spawn_agent / wait / send_input / close_agent are available
@@ -28,11 +45,14 @@ async fn make_session(provider: &str, model: &str, cwd: &Path) -> Session {
         let provider = factory_provider.to_string();
         let model = factory_model;
         Arc::new(move || {
-            let sub_profile: Arc<dyn ProviderProfile> = match provider.as_str() {
-                "anthropic" => Arc::new(AnthropicProfile::new(&model)),
-                "openai" => Arc::new(OpenAiProfile::new(&model)),
-                "gemini" => Arc::new(GeminiProfile::new(&model)),
-                _ => panic!("unknown provider: {provider}"),
+            let sub_profile: Arc<dyn ProviderProfile> = {
+                let summarizer = Some(build_summarizer(&provider, &factory_client));
+                match provider.as_str() {
+                    "anthropic" => Arc::new(AnthropicProfile::with_summarizer(&model, summarizer)),
+                    "openai" => Arc::new(OpenAiProfile::with_summarizer(&model, summarizer)),
+                    "gemini" => Arc::new(GeminiProfile::with_summarizer(&model, summarizer)),
+                    _ => panic!("unknown provider: {provider}"),
+                }
             };
             let sub_env = Arc::new(LocalExecutionEnvironment::new(factory_cwd.clone()));
             Session::new(
@@ -61,12 +81,7 @@ async fn make_session_with_config(
 ) -> Session {
     dotenvy::dotenv().ok();
     let client = Client::from_env().await.expect("Client::from_env failed");
-    let profile: Arc<dyn ProviderProfile> = match provider {
-        "anthropic" => Arc::new(AnthropicProfile::new(model)),
-        "openai" => Arc::new(OpenAiProfile::new(model)),
-        "gemini" => Arc::new(GeminiProfile::new(model)),
-        _ => panic!("unknown provider: {provider}"),
-    };
+    let profile: Arc<dyn ProviderProfile> = Arc::from(build_profile(provider, model, &client));
     let env = Arc::new(LocalExecutionEnvironment::new(cwd.to_path_buf()));
     Session::new(client, profile, env, config)
 }
@@ -395,19 +410,35 @@ async fn scenario_error_recovery(session: &mut Session, dir: &Path) {
 // Scenario 15: web_fetch
 // ---------------------------------------------------------------------------
 async fn scenario_web_fetch(session: &mut Session, dir: &Path) {
+    // Test basic fetch (HTML-to-markdown conversion)
     session
         .process_input(
-            "Use the web_fetch tool to fetch https://example.com and write its content to a file called fetched.html",
+            "Use the web_fetch tool to fetch https://example.com and write its content to a file called fetched.txt",
         )
         .await
         .expect("process_input failed");
-    let path = dir.join("fetched.html");
-    assert!(path.exists(), "fetched.html should have been created");
-    let content = std::fs::read_to_string(&path).expect("failed to read fetched.html");
+    let path = dir.join("fetched.txt");
+    assert!(path.exists(), "fetched.txt should have been created");
+    let content = std::fs::read_to_string(&path).expect("failed to read fetched.txt");
     assert!(
         content.contains("Example Domain"),
         "Expected 'Example Domain' in fetched content, got first 200 chars: {}",
         &content[..content.len().min(200)]
+    );
+
+    // Test fetch with prompt parameter (LLM summarization)
+    session
+        .process_input(
+            "Use the web_fetch tool with the prompt parameter to fetch https://example.com and answer: 'What is the title heading on this page?' Write only the answer to a file called answer.txt",
+        )
+        .await
+        .expect("process_input failed for prompt test");
+    let answer_path = dir.join("answer.txt");
+    assert!(answer_path.exists(), "answer.txt should have been created");
+    let answer = std::fs::read_to_string(&answer_path).expect("failed to read answer.txt");
+    assert!(
+        answer.to_lowercase().contains("example domain"),
+        "Expected answer to mention 'example domain', got: {answer}"
     );
 }
 
