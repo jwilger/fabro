@@ -1,5 +1,5 @@
 use std::time::SystemTime;
-use llm::types::{ContentPart, ToolCall, ToolResult, Usage};
+use llm::types::{ContentPart, ThinkingData, ToolCall, ToolResult, Usage};
 use serde::{Deserialize, Serialize};
 
 mod system_time_iso8601 {
@@ -34,9 +34,9 @@ pub enum Turn {
     Assistant {
         content: String,
         tool_calls: Vec<ToolCall>,
-        reasoning: Option<String>,
-        /// Opaque provider-specific content parts (e.g. `OpenAI` reasoning items)
-        /// that must be preserved for round-tripping but don't map to standard fields.
+        /// Provider-specific content parts (e.g. `OpenAI` reasoning items,
+        /// `Anthropic` thinking blocks with signatures) preserved for round-tripping.
+        /// Reasoning/thinking text is stored here as `ContentPart::Thinking`.
         provider_parts: Vec<ContentPart>,
         usage: Usage,
         response_id: String,
@@ -57,6 +57,23 @@ pub enum Turn {
         content: String,
         timestamp: SystemTime,
     },
+}
+
+impl Turn {
+    /// Extract the first non-redacted thinking/reasoning text from an `Assistant` turn's
+    /// `provider_parts`, if any.
+    #[must_use]
+    pub fn reasoning_text(&self) -> Option<&str> {
+        let Turn::Assistant { provider_parts, .. } = self else {
+            return None;
+        };
+        provider_parts.iter().find_map(|p| match p {
+            ContentPart::Thinking(ThinkingData {
+                text, redacted: false, ..
+            }) => Some(text.as_str()),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

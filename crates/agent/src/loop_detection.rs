@@ -101,7 +101,6 @@ mod tests {
         Turn::Assistant {
             content: String::new(),
             tool_calls: vec![ToolCall::new("call_1", name, args)],
-            reasoning: None,
             provider_parts: vec![],
             usage: Usage::default(),
             response_id: "resp".into(),

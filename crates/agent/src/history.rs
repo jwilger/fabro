@@ -38,7 +38,6 @@ impl History {
                 Turn::Assistant {
                     content,
                     tool_calls,
-                    reasoning,
                     provider_parts,
                     ..
                 } => {
@@ -47,22 +46,6 @@ impl History {
                     // Anthropic thinking blocks with signatures) must precede
                     // function calls for correct round-tripping.
                     parts.extend(provider_parts.iter().cloned());
-                    // Only reconstruct thinking from plain text if provider_parts
-                    // doesn't already contain thinking blocks (which preserve signatures).
-                    let has_thinking_parts = provider_parts
-                        .iter()
-                        .any(|p| matches!(p, ContentPart::Thinking(_)));
-                    if !has_thinking_parts {
-                        if let Some(reasoning_text) = reasoning {
-                            parts.push(ContentPart::Thinking(
-                                llm::types::ThinkingData {
-                                    text: reasoning_text.clone(),
-                                    signature: None,
-                                    redacted: false,
-                                },
-                            ));
-                        }
-                    }
                     if !content.is_empty() {
                         parts.push(ContentPart::text(content));
                     }
@@ -193,7 +176,6 @@ mod tests {
         history.push(Turn::Assistant {
             content: "Hi there".into(),
             tool_calls: vec![],
-            reasoning: None,
             provider_parts: vec![],
             usage: Usage::default(),
             response_id: "resp_1".into(),
@@ -212,7 +194,6 @@ mod tests {
         history.push(Turn::Assistant {
             content: "Let me read that".into(),
             tool_calls: vec![tc],
-            reasoning: None,
             provider_parts: vec![],
             usage: Usage::default(),
             response_id: "resp_2".into(),
@@ -229,13 +210,17 @@ mod tests {
     }
 
     #[test]
-    fn assistant_turn_with_reasoning() {
+    fn assistant_turn_with_reasoning_in_provider_parts() {
         let mut history = History::default();
+        let thinking = ContentPart::Thinking(llm::types::ThinkingData {
+            text: "Let me think about this...".into(),
+            signature: None,
+            redacted: false,
+        });
         history.push(Turn::Assistant {
             content: "The answer is 42".into(),
             tool_calls: vec![],
-            reasoning: Some("Let me think about this...".into()),
-            provider_parts: vec![],
+            provider_parts: vec![thinking],
             usage: Usage::default(),
             response_id: "resp_3".into(),
             timestamp: SystemTime::now(),
@@ -260,7 +245,6 @@ mod tests {
         history.push(Turn::Assistant {
             content: "The answer".into(),
             tool_calls: vec![],
-            reasoning: Some("Let me think...".into()),
             provider_parts: vec![thinking],
             usage: Usage::default(),
             response_id: "resp_4".into(),
@@ -292,7 +276,6 @@ mod tests {
         history.push(Turn::Assistant {
             content: String::new(),
             tool_calls: vec![tc],
-            reasoning: None,
             provider_parts: vec![reasoning_item],
             usage: Usage::default(),
             response_id: "resp_1".into(),
@@ -357,7 +340,6 @@ mod tests {
         history.push(Turn::Assistant {
             content: "Second".into(),
             tool_calls: vec![],
-            reasoning: None,
             provider_parts: vec![],
             usage: Usage::default(),
             response_id: "resp_1".into(),
@@ -380,8 +362,11 @@ mod tests {
                 "shell",
                 serde_json::json!({"cmd": "ls"}),
             )],
-            reasoning: Some("thinking...".into()),
-            provider_parts: vec![],
+            provider_parts: vec![ContentPart::Thinking(llm::types::ThinkingData {
+                text: "thinking...".into(),
+                signature: None,
+                redacted: false,
+            })],
             usage: Usage {
                 input_tokens: 10,
                 output_tokens: 5,

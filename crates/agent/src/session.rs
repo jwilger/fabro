@@ -1,4 +1,4 @@
-use crate::config::{SessionConfig, ToolApprovalFn};
+use crate::config::SessionConfig;
 use crate::error::AgentError;
 use crate::event::EventEmitter;
 use crate::execution_env::ExecutionEnvironment;
@@ -463,7 +463,6 @@ impl Session {
             // Record assistant turn
             let text = response.text();
             let tool_calls = response.tool_calls();
-            let reasoning = response.reasoning();
             let provider_parts: Vec<_> = response
                 .message
                 .content
@@ -482,7 +481,6 @@ impl Session {
             self.history.push(Turn::Assistant {
                 content: text.clone(),
                 tool_calls: tool_calls.clone(),
-                reasoning,
                 provider_parts,
                 usage,
                 response_id: response.id.clone(),
@@ -501,9 +499,25 @@ impl Session {
             );
 
             // Check context window usage and compact if needed
-            let over_threshold = self.check_context_usage();
+            let over_threshold = crate::compaction::check_context_usage(
+                &self.system_prompt,
+                &self.history,
+                self.provider_profile.as_ref(),
+                self.config.compaction_threshold_percent,
+                &self.event_emitter,
+                &self.id,
+            );
             if over_threshold && self.config.enable_context_compaction {
-                if let Err(e) = self.compact_context().await {
+                if let Err(e) = crate::compaction::compact_context(
+                    &mut self.history,
+                    &self.llm_client,
+                    self.provider_profile.as_ref(),
+                    &self.system_prompt,
+                    &self.file_tracker,
+                    self.config.compaction_preserve_turns,
+                    &self.event_emitter,
+                    &self.id,
+                ).await {
                     self.event_emitter.emit(
                         self.id.clone(),
                         AgentEvent::Error {
@@ -521,7 +535,18 @@ impl Session {
             round_count += 1;
 
             // Execute tool calls (parallel or sequential based on provider)
-            let results = self.execute_tool_calls(&tool_calls).await;
+            let results = crate::tool_execution::execute_tool_calls(
+                &tool_calls,
+                self.provider_profile.supports_parallel_tool_calls(),
+                self.provider_profile.tool_registry(),
+                self.execution_env.clone(),
+                self.config.tool_approval.as_ref(),
+                &self.cancel_token,
+                &self.config,
+                &self.event_emitter,
+                &self.id,
+            )
+            .await;
 
             // Track file operations from tool calls
             self.file_tracker.record_from_tool_calls(&tool_calls, &results);
@@ -557,90 +582,6 @@ impl Session {
                     .emit(self.id.clone(), AgentEvent::LoopDetected);
             }
         }
-
-        Ok(())
-    }
-
-    async fn compact_context(&mut self) -> Result<(), AgentError> {
-        let estimated_tokens = self.estimate_token_count();
-        let context_window = self.provider_profile.context_window_size();
-        let original_turn_count = self.history.turns().len();
-
-        self.event_emitter.emit(
-            self.id.clone(),
-            AgentEvent::CompactionStarted {
-                estimated_tokens,
-                context_window_size: context_window,
-            },
-        );
-
-        let preserve_count = self.config.compaction_preserve_turns;
-
-        // Determine turns to summarize
-        if original_turn_count <= preserve_count {
-            return Ok(());
-        }
-        let turns_to_summarize = &self.history.turns()[..original_turn_count - preserve_count];
-        let rendered = render_turns_for_summary(turns_to_summarize);
-
-        // Build structured summarization prompt
-        let file_ops_section = if self.file_tracker.is_empty() {
-            String::new()
-        } else {
-            format!("\n## File Operations\nCOPY THIS SECTION VERBATIM into your summary.\n\n{}", self.file_tracker.render())
-        };
-
-        let system_prompt = format!(
-            "You are summarizing a coding assistant conversation to provide continuity. A new context \
-window will continue this work with only your summary and the most recent messages.\n\n\
-Write a summary using EXACTLY these sections:\n\n\
-## Goal\nWhat the user asked for and any constraints or preferences stated.\n\n\
-## Progress\nWhat was accomplished, with file paths and key decisions.\n\n\
-## Key Decisions\nImportant choices made and their rationale.\n\n\
-## Failed Approaches\nWhat was tried and didn't work, and why.\n\n\
-## Open Issues\nBugs, edge cases, or TODOs that remain.\n\n\
-## Next Steps\nWhat should happen next to make progress.\n\n\
-Be specific — include file paths, function names, and error messages. Omit pleasantries \
-and conversational filler.{file_ops_section}"
-        );
-
-        let summary_request = Request {
-            model: self.provider_profile.model().to_string(),
-            messages: vec![
-                Message::system(system_prompt),
-                Message::user(format!("Here is the conversation to summarize:\n\n{rendered}")),
-            ],
-            provider: Some(self.provider_profile.id().to_string()),
-            tools: None,
-            tool_choice: None,
-            response_format: None,
-            temperature: Some(0.0),
-            top_p: None,
-            max_tokens: Some(4096),
-            stop_sequences: None,
-            reasoning_effort: None,
-            metadata: None,
-            provider_options: None,
-        };
-
-        let response = self.llm_client.complete(&summary_request).await
-            .map_err(AgentError::Llm)?;
-
-        let summary_text = response.text();
-        let summary_content = format!("[Context Summary]\n{summary_text}");
-        let summary_token_estimate = summary_content.len() / 4;
-
-        self.history.compact(preserve_count, summary_content);
-
-        self.event_emitter.emit(
-            self.id.clone(),
-            AgentEvent::CompactionCompleted {
-                original_turn_count,
-                preserved_turn_count: preserve_count,
-                summary_token_estimate,
-                tracked_file_count: self.file_tracker.file_count(),
-            },
-        );
 
         Ok(())
     }
@@ -692,246 +633,6 @@ and conversational filler.{file_ops_section}"
         }
     }
 
-    async fn execute_tool_calls(
-        &mut self,
-        tool_calls: &[llm::types::ToolCall],
-    ) -> Vec<ToolResult> {
-        if self.provider_profile.supports_parallel_tool_calls() && tool_calls.len() > 1 {
-            self.execute_tool_calls_parallel(tool_calls).await
-        } else {
-            self.execute_tool_calls_sequential(tool_calls).await
-        }
-    }
-
-    async fn execute_tool_calls_sequential(
-        &self,
-        tool_calls: &[llm::types::ToolCall],
-    ) -> Vec<ToolResult> {
-        let mut results = Vec::new();
-        for tc in tool_calls {
-            if self.cancel_token.is_cancelled() {
-                results.push(ToolResult::error(tc.id.clone(), "Cancelled"));
-                continue;
-            }
-
-            let result = execute_and_emit_one_tool(
-                tc,
-                self.provider_profile.tool_registry(),
-                self.execution_env.clone(),
-                self.config.tool_approval.as_ref(),
-                self.cancel_token.child_token(),
-                &self.config,
-                &self.event_emitter,
-                &self.id,
-            )
-            .await;
-            results.push(result);
-        }
-        results
-    }
-
-    async fn execute_tool_calls_parallel(
-        &self,
-        tool_calls: &[llm::types::ToolCall],
-    ) -> Vec<ToolResult> {
-        let emitter = self.event_emitter.clone();
-        let env = self.execution_env.clone();
-        let profile = self.provider_profile.clone();
-        let session_id = self.id.clone();
-        let config = self.config.clone();
-        let cancel_token = self.cancel_token.clone();
-
-        let futures: Vec<_> = tool_calls
-            .iter()
-            .map(|tc| {
-                let emitter = emitter.clone();
-                let env = env.clone();
-                let profile = profile.clone();
-                let session_id = session_id.clone();
-                let config = config.clone();
-                let cancel_token = cancel_token.clone();
-                let tc = tc.clone();
-                async move {
-                    execute_and_emit_one_tool(
-                        &tc,
-                        profile.tool_registry(),
-                        env,
-                        config.tool_approval.as_ref(),
-                        cancel_token.child_token(),
-                        &config,
-                        &emitter,
-                        &session_id,
-                    )
-                    .await
-                }
-            })
-            .collect();
-
-        futures::future::join_all(futures).await
-    }
-
-    fn estimate_token_count(&self) -> usize {
-        let mut total_chars = self.system_prompt.len();
-
-        for turn in self.history.turns() {
-            match turn {
-                Turn::User { content, .. } => total_chars += content.len(),
-                Turn::Assistant {
-                    content,
-                    tool_calls,
-                    reasoning,
-                    ..
-                } => {
-                    total_chars += content.len();
-                    if let Some(r) = reasoning {
-                        total_chars += r.len();
-                    }
-                    for tc in tool_calls {
-                        total_chars += tc.name.len();
-                        total_chars += tc.arguments.to_string().len();
-                    }
-                }
-                Turn::ToolResults { results, .. } => {
-                    for r in results {
-                        total_chars += r.content.to_string().len();
-                    }
-                }
-                Turn::System { content, .. } | Turn::Steering { content, .. } => {
-                    total_chars += content.len();
-                }
-            }
-        }
-
-        total_chars / 4 // rough estimate: ~4 chars per token
-    }
-
-    fn check_context_usage(&self) -> bool {
-        let estimated_tokens = self.estimate_token_count();
-        let context_window = self.provider_profile.context_window_size();
-        let threshold = context_window * self.config.compaction_threshold_percent / 100;
-
-        if estimated_tokens > threshold {
-            self.event_emitter.emit(
-                self.id.clone(),
-                AgentEvent::ContextWindowWarning {
-                    estimated_tokens,
-                    context_window_size: context_window,
-                    usage_percent: estimated_tokens * 100 / context_window,
-                },
-            );
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// Execute a single tool call with event emission and output truncation.
-/// Shared by both sequential and parallel execution paths.
-#[allow(clippy::too_many_arguments)]
-async fn execute_and_emit_one_tool(
-    tc: &llm::types::ToolCall,
-    registry: &ToolRegistry,
-    env: Arc<dyn ExecutionEnvironment>,
-    tool_approval: Option<&ToolApprovalFn>,
-    cancel_token: CancellationToken,
-    config: &SessionConfig,
-    emitter: &EventEmitter,
-    session_id: &str,
-) -> ToolResult {
-    emitter.emit(
-        session_id.to_owned(),
-        AgentEvent::ToolCallStarted {
-            tool_name: tc.name.clone(),
-            tool_call_id: tc.id.clone(),
-            arguments: tc.arguments.clone(),
-        },
-    );
-
-    let result = execute_one_tool(
-        &tc.id,
-        &tc.name,
-        &tc.arguments,
-        registry,
-        env,
-        tool_approval,
-        cancel_token,
-    )
-    .await;
-
-    emitter.emit(
-        session_id.to_owned(),
-        AgentEvent::ToolCallOutputDelta {
-            delta: result.content.to_string(),
-        },
-    );
-
-    emitter.emit(
-        session_id.to_owned(),
-        AgentEvent::ToolCallCompleted {
-            tool_name: tc.name.clone(),
-            tool_call_id: tc.id.clone(),
-            output: result.content.clone(),
-            is_error: result.is_error,
-        },
-    );
-
-    truncate_tool_result(&result, &tc.name, config)
-}
-
-/// Execute a single tool call: registry lookup, argument validation, and execution.
-async fn execute_one_tool(
-    tool_call_id: &str,
-    tool_name: &str,
-    arguments: &serde_json::Value,
-    registry: &ToolRegistry,
-    env: Arc<dyn ExecutionEnvironment>,
-    tool_approval: Option<&ToolApprovalFn>,
-    cancel_token: CancellationToken,
-) -> ToolResult {
-    if let Some(approval_fn) = tool_approval {
-        if let Err(denial_message) = approval_fn(tool_name, arguments) {
-            return ToolResult::error(tool_call_id, denial_message);
-        }
-    }
-
-    match registry.get(tool_name) {
-        Some(registered_tool) => {
-            if let Err(validation_error) =
-                validate_tool_args(&registered_tool.definition.parameters, arguments)
-            {
-                return ToolResult::error(tool_call_id, validation_error);
-            }
-
-            match (registered_tool.executor)(arguments.clone(), env, cancel_token).await {
-                Ok(output) => ToolResult::success(tool_call_id, serde_json::json!(output)),
-                Err(err) => ToolResult::error(tool_call_id, err),
-            }
-        }
-        None => ToolResult::error(tool_call_id, format!("Unknown tool: {tool_name}")),
-    }
-}
-
-/// Truncate tool output for history storage while preserving identity fields.
-fn truncate_tool_result(
-    result: &ToolResult,
-    tool_name: &str,
-    config: &SessionConfig,
-) -> ToolResult {
-    let truncated_content = match &result.content {
-        serde_json::Value::String(s) => {
-            serde_json::json!(truncate_tool_output(s, tool_name, config))
-        }
-        other => other.clone(),
-    };
-
-    ToolResult {
-        tool_call_id: result.tool_call_id.clone(),
-        content: truncated_content,
-        is_error: result.is_error,
-        image_data: result.image_data.clone(),
-        image_media_type: result.image_media_type.clone(),
-    }
 }
 
 const fn is_auth_error(err: &SdkError) -> bool {
@@ -939,79 +640,6 @@ const fn is_auth_error(err: &SdkError) -> bool {
         err.provider_kind(),
         Some(ProviderErrorKind::Authentication | ProviderErrorKind::AccessDenied)
     )
-}
-
-fn render_turns_for_summary(turns: &[Turn]) -> String {
-    let mut out = String::new();
-    for turn in turns {
-        match turn {
-            Turn::User { content, .. } => {
-                out.push_str(&format!("User: {content}\n"));
-            }
-            Turn::Assistant {
-                content,
-                tool_calls,
-                ..
-            } => {
-                if !content.is_empty() {
-                    out.push_str(&format!("Assistant: {content}\n"));
-                }
-                for tc in tool_calls {
-                    let args_str = tc.arguments.to_string();
-                    let truncated = if args_str.len() > 500 {
-                        format!("{}...", &args_str[..500])
-                    } else {
-                        args_str
-                    };
-                    out.push_str(&format!("[Tool call: {}] {truncated}\n", tc.name));
-                }
-            }
-            Turn::ToolResults { results, .. } => {
-                for r in results {
-                    let content_str = r.content.to_string();
-                    let truncated = if content_str.len() > 500 {
-                        format!("{}...", &content_str[..500])
-                    } else {
-                        content_str
-                    };
-                    out.push_str(&format!("[Tool result: {}] {truncated}\n", r.tool_call_id));
-                }
-            }
-            Turn::System { content, .. } => {
-                out.push_str(&format!("System: {content}\n"));
-            }
-            Turn::Steering { content, .. } => {
-                out.push_str(&format!("Steering: {content}\n"));
-            }
-        }
-    }
-    out
-}
-
-fn validate_tool_args(schema: &serde_json::Value, args: &serde_json::Value) -> Result<(), String> {
-    // Skip validation for empty/trivial schemas
-    if schema.is_null() {
-        return Ok(());
-    }
-    if let Some(obj) = schema.as_object() {
-        if obj.is_empty() {
-            return Ok(());
-        }
-    }
-
-    let validator = jsonschema::validator_for(schema)
-        .map_err(|e| format!("Invalid tool schema: {e}"))?;
-
-    let errors: Vec<String> = validator.iter_errors(args).map(|e| e.to_string()).collect();
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Tool argument validation failed: {}",
-            errors.join("; ")
-        ))
-    }
 }
 
 #[cfg(test)]
@@ -1602,89 +1230,6 @@ mod tests {
             }
         }
         assert!(!found_warning);
-    }
-
-    #[test]
-    fn render_turns_produces_labeled_text() {
-        use llm::types::{ToolCall, ToolResult, Usage};
-
-        let turns = vec![
-            Turn::User {
-                content: "Hello".into(),
-                timestamp: SystemTime::now(),
-            },
-            Turn::Assistant {
-                content: "Let me check".into(),
-                tool_calls: vec![ToolCall::new("c1", "read_file", serde_json::json!({"path": "foo.rs"}))],
-                reasoning: None,
-                provider_parts: vec![],
-                usage: Usage::default(),
-                response_id: "resp_1".into(),
-                timestamp: SystemTime::now(),
-            },
-            Turn::ToolResults {
-                results: vec![ToolResult {
-                    tool_call_id: "c1".into(),
-                    content: serde_json::json!("file contents here"),
-                    is_error: false,
-                    image_data: None,
-                    image_media_type: None,
-                }],
-                timestamp: SystemTime::now(),
-            },
-        ];
-        let rendered = render_turns_for_summary(&turns);
-        assert!(rendered.contains("User:"));
-        assert!(rendered.contains("Hello"));
-        assert!(rendered.contains("Assistant:"));
-        assert!(rendered.contains("Let me check"));
-        assert!(rendered.contains("[Tool call: read_file]"));
-        assert!(rendered.contains("[Tool result: c1]"));
-    }
-
-    #[test]
-    fn render_turns_truncates_long_tool_output() {
-        use llm::types::ToolResult;
-
-        let long_output = "x".repeat(1000);
-        let turns = vec![Turn::ToolResults {
-            results: vec![ToolResult {
-                tool_call_id: "c1".into(),
-                content: serde_json::json!(long_output),
-                is_error: false,
-                image_data: None,
-                image_media_type: None,
-            }],
-            timestamp: SystemTime::now(),
-        }];
-        let rendered = render_turns_for_summary(&turns);
-        // Should be truncated to 500 chars + "..."
-        assert!(rendered.len() < 1000);
-        assert!(rendered.contains("..."));
-    }
-
-    #[tokio::test]
-    async fn check_context_usage_returns_true_over_threshold() {
-        let large_input = "x".repeat(400);
-        let responses = vec![text_response("OK")];
-
-        let provider = Arc::new(MockLlmProvider::new(responses));
-        let client = make_client(provider).await;
-        let registry = ToolRegistry::new();
-        let profile = Arc::new(TestProfile::parallel_with_context_window(registry, 100));
-        let env = Arc::new(MockExecutionEnvironment::default());
-        let config = SessionConfig {
-            enable_context_compaction: false, // disable compaction to isolate check
-            ..Default::default()
-        };
-        let mut session = Session::new(client, profile, env, config);
-
-        session.system_prompt = "You are a test assistant.".to_string();
-
-        // Push a user turn to populate history
-        session.process_input(&large_input).await.unwrap();
-
-        assert!(session.check_context_usage());
     }
 
     #[tokio::test]
