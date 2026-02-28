@@ -26,6 +26,7 @@ clap.workspace = true
 anyhow.workspace = true
 dotenvy.workspace = true
 llm = { path = "../llm" }
+mcp = { path = "../mcp" }
 util = { path = "../util" }
 thiserror.workspace = true
 serde.workspace = true

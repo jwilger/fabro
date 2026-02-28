@@ -10,6 +10,7 @@ pub mod file_tracker;
 pub mod history;
 pub mod local_env;
 pub mod loop_detection;
+pub mod mcp_integration;
 pub mod profiles;
 pub mod project_docs;
 pub mod read_before_write_env;
@@ -23,6 +24,7 @@ pub mod truncation;
 pub mod types;
 
 pub use config::{SessionConfig, ToolApprovalFn};
+pub use mcp::config::McpServerConfig;
 pub use error::AgentError;
 pub use event::EventEmitter;
 pub use execution_env::{format_lines_numbered, DirEntry, ExecEnvEventCallback, ExecResult, ExecutionEnvEvent, ExecutionEnvironment, GrepOptions};

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use mcp::config::McpServerConfig;
+
 /// Callback invoked before each tool execution. Return `Ok(())` to allow,
 /// `Err(message)` to deny with the given message.
 pub type ToolApprovalFn =
@@ -26,6 +28,8 @@ pub struct SessionConfig {
     pub compaction_preserve_turns: usize,
     /// Skill directories. `None` = use convention defaults, `Some(dirs)` = use these instead.
     pub skill_dirs: Option<Vec<String>>,
+    /// MCP server configurations to connect to on session startup.
+    pub mcp_servers: Vec<McpServerConfig>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -57,6 +61,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("compaction_threshold_percent", &self.compaction_threshold_percent)
             .field("compaction_preserve_turns", &self.compaction_preserve_turns)
             .field("skill_dirs", &self.skill_dirs)
+            .field("mcp_servers", &self.mcp_servers.len())
             .finish()
     }
 }
@@ -81,6 +86,7 @@ impl Default for SessionConfig {
             compaction_threshold_percent: 80,
             compaction_preserve_turns: 6,
             skill_dirs: None,
+            mcp_servers: Vec::new(),
         }
     }
 }
@@ -103,6 +109,7 @@ mod tests {
         assert_eq!(config.loop_detection_window, 10);
         assert_eq!(config.max_subagent_depth, 1);
         assert!(config.user_instructions.is_none());
+        assert!(config.mcp_servers.is_empty());
     }
 
     #[test]

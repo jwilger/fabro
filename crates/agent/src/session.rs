@@ -106,6 +106,43 @@ impl Session {
             }
         }
 
+        // Start MCP servers and register their tools
+        if !self.config.mcp_servers.is_empty() {
+            let mut manager = mcp::connection_manager::McpConnectionManager::new();
+            let results = manager.start_servers(&self.config.mcp_servers).await;
+
+            for (server_name, result) in &results {
+                match result {
+                    Ok(tool_count) => {
+                        self.event_emitter.emit(
+                            self.id.clone(),
+                            AgentEvent::McpServerReady {
+                                server_name: server_name.clone(),
+                                tool_count: *tool_count,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        self.event_emitter.emit(
+                            self.id.clone(),
+                            AgentEvent::McpServerFailed {
+                                server_name: server_name.clone(),
+                                error: e.to_string(),
+                            },
+                        );
+                    }
+                }
+            }
+
+            let manager = Arc::new(manager);
+            let mcp_tools = crate::mcp_integration::make_mcp_tools(manager);
+            if let Some(profile) = Arc::get_mut(&mut self.provider_profile) {
+                for tool in mcp_tools {
+                    profile.tool_registry_mut().register(tool);
+                }
+            }
+        }
+
         // Populate environment context
         self.env_context = self.build_env_context().await;
 
@@ -2269,5 +2306,112 @@ mod tests {
             }
         }
         assert!(found_tracked_count, "CompactionCompleted event should be emitted");
+    }
+
+    #[tokio::test]
+    async fn mcp_end_to_end_tool_call() {
+        use std::collections::HashMap;
+        use mcp::config::{McpServerConfig, McpTransport};
+
+        let test_server = format!(
+            "{}/../mcp/tests/test_mcp_server.py",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let config = SessionConfig {
+            mcp_servers: vec![McpServerConfig {
+                name: "test-echo".into(),
+                transport: McpTransport::Stdio {
+                    command: "python3".into(),
+                    args: vec![test_server],
+                    env: HashMap::new(),
+                },
+                startup_timeout_secs: 10,
+                tool_timeout_secs: 30,
+            }],
+            enable_loop_detection: false,
+            ..Default::default()
+        };
+
+        // Mock LLM: first call returns tool call for the MCP tool, second returns text
+        let responses = vec![
+            tool_call_response(
+                "mcp__test_echo__echo",
+                "mcp_call_1",
+                serde_json::json!({"message": "hello from llm"}),
+            ),
+            text_response("The echo server replied!"),
+        ];
+
+        let provider = Arc::new(MockLlmProvider::new(responses));
+        let client = make_client(provider).await;
+        let profile: Arc<dyn crate::provider_profile::ProviderProfile> =
+            Arc::new(TestProfile::new());
+        let env: Arc<dyn crate::execution_env::ExecutionEnvironment> =
+            Arc::new(MockExecutionEnvironment::default());
+        let mut session = Session::new(client, profile, env, config);
+
+        // Subscribe to events before initialize
+        let mut rx = session.subscribe();
+
+        // Initialize starts the MCP server and registers tools
+        session.initialize().await;
+
+        // Verify McpServerReady event was emitted
+        let mut mcp_ready = false;
+        while let Ok(event) = rx.try_recv() {
+            if let AgentEvent::McpServerReady { server_name, tool_count } = &event.event {
+                assert_eq!(server_name, "test-echo");
+                assert_eq!(*tool_count, 1);
+                mcp_ready = true;
+            }
+        }
+        assert!(mcp_ready, "McpServerReady event should be emitted");
+
+        // Process input — LLM calls MCP tool, gets result, responds
+        session.process_input("Call the echo tool").await.unwrap();
+
+        // Verify turn sequence
+        let turns = session.history().turns();
+        assert_eq!(turns.len(), 4, "Expected User + Assistant(tool) + ToolResults + Assistant(text)");
+        assert!(matches!(&turns[0], Turn::User { .. }));
+        assert!(
+            matches!(&turns[1], Turn::Assistant { tool_calls, .. } if tool_calls.len() == 1)
+        );
+        assert!(
+            matches!(&turns[2], Turn::ToolResults { results, .. } if results.len() == 1)
+        );
+        assert!(
+            matches!(&turns[3], Turn::Assistant { content, .. } if content == "The echo server replied!")
+        );
+
+        // Verify the MCP tool result content — the echo server returns the message
+        if let Turn::ToolResults { results, .. } = &turns[2] {
+            assert_eq!(results[0].tool_call_id, "mcp_call_1");
+            assert!(!results[0].is_error);
+            let output = results[0].content.as_str().unwrap_or("");
+            assert_eq!(output, "hello from llm");
+        } else {
+            panic!("expected ToolResults turn");
+        }
+
+        // Verify tool call events
+        let mut tool_started = false;
+        let mut tool_completed = false;
+        while let Ok(event) = rx.try_recv() {
+            match &event.event {
+                AgentEvent::ToolCallStarted { tool_name, .. } => {
+                    assert_eq!(tool_name, "mcp__test_echo__echo");
+                    tool_started = true;
+                }
+                AgentEvent::ToolCallCompleted { tool_name, is_error, .. } => {
+                    assert_eq!(tool_name, "mcp__test_echo__echo");
+                    assert!(!is_error);
+                    tool_completed = true;
+                }
+                _ => {}
+            }
+        }
+        assert!(tool_started, "ToolCallStarted should be emitted for MCP tool");
+        assert!(tool_completed, "ToolCallCompleted should be emitted for MCP tool");
     }
 }

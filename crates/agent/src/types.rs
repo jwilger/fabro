@@ -158,6 +158,14 @@ pub enum AgentEvent {
         depth: usize,
         event: Box<AgentEvent>,
     },
+    McpServerReady {
+        server_name: String,
+        tool_count: usize,
+    },
+    McpServerFailed {
+        server_name: String,
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -299,6 +307,37 @@ mod tests {
         let deserialized: SessionEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.session_id, "sess_42");
         assert!(matches!(deserialized.event, AgentEvent::SessionStarted));
+    }
+
+    #[test]
+    fn mcp_server_ready_constructible() {
+        let event = AgentEvent::McpServerReady {
+            server_name: "filesystem".into(),
+            tool_count: 3,
+        };
+        assert!(matches!(event, AgentEvent::McpServerReady { tool_count: 3, .. }));
+    }
+
+    #[test]
+    fn mcp_server_failed_constructible() {
+        let event = AgentEvent::McpServerFailed {
+            server_name: "broken".into(),
+            error: "connection refused".into(),
+        };
+        assert!(matches!(event, AgentEvent::McpServerFailed { server_name, .. } if server_name == "broken"));
+    }
+
+    #[test]
+    fn mcp_events_serde_round_trip() {
+        let events = vec![
+            AgentEvent::McpServerReady { server_name: "fs".into(), tool_count: 5 },
+            AgentEvent::McpServerFailed { server_name: "bad".into(), error: "timeout".into() },
+        ];
+        let json = serde_json::to_string(&events).unwrap();
+        let deserialized: Vec<AgentEvent> = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.len(), 2);
+        assert!(matches!(&deserialized[0], AgentEvent::McpServerReady { tool_count: 5, .. }));
+        assert!(matches!(&deserialized[1], AgentEvent::McpServerFailed { .. }));
     }
 
     #[test]

@@ -30,6 +30,8 @@ bollard = "0.18"
 tar = "0.4"
 dialoguer = "0.12"
 git2 = "0.19"
+tracing = "0.1"
+rmcp = { version = "0.15.0", default-features = false }
 walkdir = "2"
 regex = "1"
 aho-corasick = "1"
