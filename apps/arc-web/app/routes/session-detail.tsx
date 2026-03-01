@@ -30,6 +30,7 @@ interface Session {
   id: string;
   title: string;
   repo: string;
+  model: string;
   time: string;
   turns: Turn[];
 }
@@ -39,6 +40,7 @@ const sessions: Record<string, Session> = {
     id: "s1",
     title: "Add rate limiting to auth endpoints",
     repo: "api-server",
+    model: "Opus 4.6",
     time: "2h ago",
     turns: [
       {
@@ -103,6 +105,7 @@ const sessions: Record<string, Session> = {
     id: "s2",
     title: "Fix config parsing for nested values",
     repo: "cli-tools",
+    model: "Sonnet 4.6",
     time: "4h ago",
     turns: [
       {
@@ -152,6 +155,7 @@ const sessions: Record<string, Session> = {
     id: "s3",
     title: "Migrate to React Router v7",
     repo: "web-dashboard",
+    model: "Opus 4.6",
     time: "1d ago",
     turns: [
       { kind: "user", content: "Help me migrate our app from React Router v6 to v7. We're using createBrowserRouter with data loaders." },
@@ -174,6 +178,7 @@ function makeFallbackSession(id: string): Session {
     id,
     title: "Session",
     repo: "unknown",
+    model: "Opus 4.6",
     time: "",
     turns: [
       { kind: "user", content: "Hello, let's get started." },
@@ -338,6 +343,7 @@ export default function SessionDetail() {
           <h1 className="text-sm font-medium text-ice-100">{session.title}</h1>
           <span className="font-mono text-xs text-teal-500">{session.repo}</span>
           <span className="text-xs text-navy-600">{session.time}</span>
+          <span className="ml-auto font-mono text-xs text-navy-600">{session.model}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -352,6 +358,26 @@ export default function SessionDetail() {
                   return <div key={i} className="pl-10"><ToolBlock tools={turn.tools} /></div>;
               }
             })}
+          </div>
+        </div>
+
+        <div className="border-t border-white/[0.06] px-6 py-4">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-navy-800/80 px-4 py-3 focus-within:border-teal-500/40">
+              <textarea
+                placeholder="Send a message..."
+                rows={1}
+                className="flex-1 resize-none bg-transparent text-sm text-ice-100 placeholder-navy-600 outline-none"
+              />
+              <button
+                type="button"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md bg-teal-500 text-white transition-colors hover:bg-teal-400"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="size-4" aria-hidden="true">
+                  <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95l14.095-5.637a.75.75 0 0 0 0-1.395L3.105 2.289Z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
