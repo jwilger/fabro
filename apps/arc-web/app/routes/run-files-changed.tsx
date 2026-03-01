@@ -1,6 +1,16 @@
+import { useState } from "react";
+import { ChevronDownIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { MultiFileDiff } from "@pierre/diffs/react";
 
 export const handle = { wide: true };
+
+const checkpoints = [
+  { id: "all", label: "All changes" },
+  { id: "cp-4", label: "Checkpoint 4 — Apply Changes" },
+  { id: "cp-3", label: "Checkpoint 3 — Review Changes" },
+  { id: "cp-2", label: "Checkpoint 2 — Propose Changes" },
+  { id: "cp-1", label: "Checkpoint 1 — Detect Drift" },
+];
 
 const files = [
   {
@@ -201,9 +211,59 @@ export async function execute(
   },
 ];
 
+const BLOCK_COUNT = 5;
+
+function DiffStat({ additions, deletions }: { additions: number; deletions: number }) {
+  const total = additions + deletions;
+  const addBlocks = total === 0 ? 0 : Math.round((additions / total) * BLOCK_COUNT);
+  const delBlocks = BLOCK_COUNT - addBlocks;
+
+  return (
+    <div className="flex items-center gap-2 font-mono text-xs">
+      <span className="font-semibold text-mint">+{additions.toLocaleString()}</span>
+      <span className="font-semibold text-coral">-{deletions.toLocaleString()}</span>
+      <div className="flex gap-0.5">
+        {Array.from({ length: BLOCK_COUNT }, (_, i) => (
+          <span
+            key={i}
+            className={`inline-block size-2.5 rounded-sm ${i < addBlocks ? "bg-mint" : "bg-coral"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function RunFilesChanged() {
+  const [checkpoint, setCheckpoint] = useState(checkpoints[0].id);
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <select
+            value={checkpoint}
+            onChange={(e) => setCheckpoint(e.target.value)}
+            className="appearance-none rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-3 pr-8 text-sm text-ice-100 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+          >
+            {checkpoints.map((cp) => (
+              <option key={cp.id} value={cp.id}>{cp.label}</option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <DiffStat additions={567} deletions={234} />
+          <button
+            type="button"
+            title="Settings"
+            className="flex size-8 items-center justify-center rounded-md border border-white/[0.06] bg-navy-800/80 text-ice-300 transition-colors hover:bg-white/[0.04] hover:text-white"
+          >
+            <Cog6ToothIcon className="size-4" />
+          </button>
+        </div>
+      </div>
+
       {files.map(({ oldFile, newFile }) => (
         <div
           key={newFile.name}
