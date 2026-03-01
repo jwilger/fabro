@@ -1,3 +1,11 @@
+import { useState } from "react";
+import {
+  Cog6ToothIcon,
+  CodeBracketIcon,
+  CpuChipIcon,
+  BellIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
 import type { Route } from "./+types/settings";
 
 export function meta({}: Route.MetaArgs) {
@@ -19,6 +27,8 @@ interface SettingGroup {
   id: string;
   name: string;
   description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accentColor: string;
   fields: SettingField[];
 }
 
@@ -27,6 +37,8 @@ const settingGroups: SettingGroup[] = [
     id: "general",
     name: "General",
     description: "Core platform settings and defaults.",
+    icon: Cog6ToothIcon,
+    accentColor: "teal",
     fields: [
       { key: "org_name", label: "Organization name", value: "Acme Corp", type: "text" },
       { key: "default_branch", label: "Default branch", value: "main", type: "text" },
@@ -38,6 +50,8 @@ const settingGroups: SettingGroup[] = [
     id: "git",
     name: "Git & VCS",
     description: "Version control integration and repository settings.",
+    icon: CodeBracketIcon,
+    accentColor: "mint",
     fields: [
       { key: "github_org", label: "GitHub organization", value: "acme-corp", type: "text" },
       { key: "clone_protocol", label: "Clone protocol", value: "SSH", type: "select", options: ["SSH", "HTTPS"] },
@@ -50,6 +64,8 @@ const settingGroups: SettingGroup[] = [
     id: "compute",
     name: "Compute",
     description: "Resource allocation and execution environment.",
+    icon: CpuChipIcon,
+    accentColor: "amber",
     fields: [
       { key: "default_cpu", label: "Default CPU", value: "4", type: "select", options: ["2", "4", "8", "16"] },
       { key: "default_memory", label: "Default memory", value: "8 GB", type: "select", options: ["4 GB", "8 GB", "16 GB", "32 GB"] },
@@ -62,6 +78,8 @@ const settingGroups: SettingGroup[] = [
     id: "notifications",
     name: "Notifications",
     description: "Alerts and notification delivery preferences.",
+    icon: BellIcon,
+    accentColor: "teal",
     fields: [
       { key: "slack_webhook", label: "Slack webhook URL", value: "https://hooks.slack.com/services/T00/B00/xxxx", type: "text" },
       { key: "notify_on_failure", label: "Notify on failure", value: "true", type: "toggle" },
@@ -74,6 +92,8 @@ const settingGroups: SettingGroup[] = [
     id: "security",
     name: "Security",
     description: "Access control and security policies.",
+    icon: ShieldCheckIcon,
+    accentColor: "coral",
     fields: [
       { key: "sso_provider", label: "SSO provider", value: "Okta", type: "select", options: ["None", "Okta", "Azure AD", "Google Workspace", "OneLogin"] },
       { key: "mfa_required", label: "Require MFA", value: "true", type: "toggle" },
@@ -84,24 +104,52 @@ const settingGroups: SettingGroup[] = [
   },
 ];
 
-function ToggleSwitch({ enabled }: { enabled: boolean }) {
+const accentMap: Record<string, { icon: string; glow: string; toggle: string; border: string }> = {
+  teal: {
+    icon: "text-teal-500",
+    glow: "bg-teal-500/8",
+    toggle: "bg-teal-500",
+    border: "border-teal-500/20",
+  },
+  mint: {
+    icon: "text-mint",
+    glow: "bg-mint/8",
+    toggle: "bg-mint",
+    border: "border-mint/20",
+  },
+  amber: {
+    icon: "text-amber",
+    glow: "bg-amber/8",
+    toggle: "bg-amber",
+    border: "border-amber/20",
+  },
+  coral: {
+    icon: "text-coral",
+    glow: "bg-coral/8",
+    toggle: "bg-coral",
+    border: "border-coral/20",
+  },
+};
+
+function ToggleSwitch({ enabled, accent }: { enabled: boolean; accent: string }) {
+  const colors = accentMap[accent];
   return (
     <button
       type="button"
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${enabled ? "bg-teal-500" : "bg-white/[0.08]"}`}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${enabled ? colors.toggle : "bg-white/[0.08]"}`}
       role="switch"
       aria-checked={enabled}
     >
       <span
-        className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-4" : "translate-x-0"}`}
+        className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${enabled ? "translate-x-4" : "translate-x-0"}`}
       />
     </button>
   );
 }
 
-function SettingRow({ field }: { field: SettingField }) {
+function SettingRow({ field, accent, isLast }: { field: SettingField; accent: string; isLast: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-8 py-3.5">
+    <div className={`flex items-center justify-between gap-8 px-5 py-3.5 ${isLast ? "" : "border-b border-white/[0.04]"}`}>
       <div className="min-w-0">
         <p className="text-sm text-ice-100">{field.label}</p>
         {field.description != null && (
@@ -111,11 +159,11 @@ function SettingRow({ field }: { field: SettingField }) {
 
       <div className="shrink-0">
         {field.type === "toggle" ? (
-          <ToggleSwitch enabled={field.value === "true"} />
+          <ToggleSwitch enabled={field.value === "true"} accent={accent} />
         ) : field.type === "select" ? (
           <select
             defaultValue={field.value}
-            className="appearance-none rounded-md border border-white/[0.06] bg-navy-800/80 py-1.5 pl-3 pr-8 text-sm text-ice-100 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+            className="appearance-none rounded-md border border-white/[0.06] bg-navy-950/60 py-1.5 pl-3 pr-8 text-sm text-ice-100 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
           >
             {field.options?.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
@@ -125,7 +173,7 @@ function SettingRow({ field }: { field: SettingField }) {
           <input
             type="text"
             defaultValue={field.value}
-            className="w-64 rounded-md border border-white/[0.06] bg-navy-800/80 px-3 py-1.5 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+            className="w-64 rounded-md border border-white/[0.06] bg-navy-950/60 px-3 py-1.5 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
           />
         )}
       </div>
@@ -133,28 +181,103 @@ function SettingRow({ field }: { field: SettingField }) {
   );
 }
 
-function SettingsSection({ group }: { group: SettingGroup }) {
+function SettingsSection({ group, isActive, onVisible }: { group: SettingGroup; isActive: boolean; onVisible: () => void }) {
+  const colors = accentMap[group.accentColor];
+  const Icon = group.icon;
+
   return (
-    <section className="rounded-lg border border-white/[0.06] bg-navy-800/50">
-      <div className="border-b border-white/[0.06] px-5 py-4">
-        <h2 className="text-sm font-semibold text-ice-100">{group.name}</h2>
-        <p className="mt-0.5 text-xs text-navy-600">{group.description}</p>
+    <section
+      id={`section-${group.id}`}
+      ref={(el) => {
+        if (!el) return;
+        const observer = new IntersectionObserver(
+          ([entry]) => { if (entry.isIntersecting) onVisible(); },
+          { rootMargin: "-40% 0px -50% 0px" }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+      }}
+      className={`rounded-xl border transition-colors duration-300 ${
+        isActive
+          ? `${colors.border} bg-navy-800/60`
+          : "border-white/[0.06] bg-navy-800/40"
+      }`}
+    >
+      <div className="flex items-center gap-3 px-5 py-4">
+        <div className={`flex items-center justify-center size-8 rounded-lg ${colors.glow}`}>
+          <Icon className={`size-4.5 ${colors.icon}`} />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-ice-100">{group.name}</h2>
+          <p className="text-xs text-navy-600">{group.description}</p>
+        </div>
       </div>
-      <div className="divide-y divide-white/[0.06] px-5">
-        {group.fields.map((field) => (
-          <SettingRow key={field.key} field={field} />
+      <div className="border-t border-white/[0.04]">
+        {group.fields.map((field, i) => (
+          <SettingRow
+            key={field.key}
+            field={field}
+            accent={group.accentColor}
+            isLast={i === group.fields.length - 1}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-export default function Settings() {
+function SidebarNav({ activeId }: { activeId: string }) {
   return (
-    <div className="space-y-6">
-      {settingGroups.map((group) => (
-        <SettingsSection key={group.id} group={group} />
-      ))}
+    <nav className="sticky top-8 w-44 shrink-0 hidden lg:block">
+      <p className="px-3 mb-3 text-[11px] font-medium uppercase tracking-wider text-navy-600">
+        Settings
+      </p>
+      <ul className="space-y-0.5">
+        {settingGroups.map((group) => {
+          const colors = accentMap[group.accentColor];
+          const Icon = group.icon;
+          const active = activeId === group.id;
+          return (
+            <li key={group.id}>
+              <a
+                href={`#section-${group.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById(`section-${group.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+                  active
+                    ? `${colors.glow} ${colors.icon} font-medium`
+                    : "text-ice-300 hover:text-ice-100 hover:bg-white/[0.04]"
+                }`}
+              >
+                <Icon className={`size-4 ${active ? colors.icon : "text-navy-600"}`} />
+                {group.name}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+export default function Settings() {
+  const [activeSection, setActiveSection] = useState(settingGroups[0].id);
+
+  return (
+    <div className="flex gap-10 items-start">
+      <SidebarNav activeId={activeSection} />
+      <div className="flex-1 min-w-0 space-y-5">
+        {settingGroups.map((group) => (
+          <SettingsSection
+            key={group.id}
+            group={group}
+            isActive={activeSection === group.id}
+            onVisible={() => setActiveSection(group.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
