@@ -1,11 +1,15 @@
 import { useState, type ComponentType } from "react";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
 import { ChevronDownIcon, PlusIcon } from "@heroicons/react/20/solid";
+import { ChevronDownIcon as ChevronDownOutline } from "@heroicons/react/24/outline";
 import {
   ArrowsRightLeftIcon,
+  ClockIcon,
   CodeBracketIcon,
   MagnifyingGlassIcon,
+  PauseIcon,
   RocketLaunchIcon,
+  ShieldCheckIcon,
   WrenchIcon,
 } from "@heroicons/react/24/outline";
 import { Link } from "react-router";
@@ -62,6 +66,8 @@ interface Workflow {
   lastRun: string;
   icon: ComponentType<{ className?: string }>;
   color: string;
+  schedule?: string;
+  nextRun?: string;
 }
 
 const workflows: Workflow[] = [
@@ -69,6 +75,8 @@ const workflows: Workflow[] = [
   { name: "Implement Feature", slug: "implement", filename: "implement.dot", lastRun: "4 days ago", icon: CodeBracketIcon, color: "#67B2D7" },
   { name: "Sync Drift", slug: "sync_drift", filename: "sync_drift.dot", lastRun: "1 day ago", icon: ArrowsRightLeftIcon, color: "#5AC8A8" },
   { name: "Expand Product", slug: "expand", filename: "expand.dot", lastRun: "2 weeks ago", icon: RocketLaunchIcon, color: "#E86B6B" },
+  { name: "Security Scan", slug: "security_scan", filename: "security_scan.dot", lastRun: "9 hours ago", icon: ShieldCheckIcon, color: "#67B2D7", schedule: "Daily at 09:00", nextRun: "Starts in 3 hours" },
+  { name: "Dependency Audit", slug: "dep_audit", filename: "dep_audit.dot", lastRun: "1 day ago", icon: ClockIcon, color: "#F0A45B", schedule: "Weekly on Mon 08:00", nextRun: "Starts in 2 days" },
 ];
 
 function PlayIcon({ className }: { className?: string }) {
@@ -103,18 +111,36 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-ice-100 group-hover:text-white">{workflow.name}</span>
             <span className="font-mono text-xs text-navy-600">{workflow.filename}</span>
+            {workflow.schedule && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 text-[11px] font-medium text-teal-300">
+                <ClockIcon className="size-3" />
+                {workflow.schedule}
+              </span>
+            )}
           </div>
-          <p className="mt-1 text-xs text-navy-600">Last run {workflow.lastRun}</p>
+          <p className="mt-1 text-xs text-navy-600">
+            {workflow.nextRun ?? `Last run ${workflow.lastRun}`}
+          </p>
         </div>
       </Link>
 
-      <button
-        type="button"
-        title="Run workflow"
-        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-mint/20 text-mint transition-colors hover:border-mint/50 hover:bg-mint/10 hover:text-white"
-      >
-        <PlayIcon className="size-3.5" />
-      </button>
+      {workflow.schedule ? (
+        <button
+          type="button"
+          title="Pause schedule"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-amber/20 text-amber transition-colors hover:border-amber/50 hover:bg-amber/10 hover:text-white"
+        >
+          <PauseIcon className="size-3.5" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          title="Run workflow"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-mint/20 text-mint transition-colors hover:border-mint/50 hover:bg-mint/10 hover:text-white"
+        >
+          <PlayIcon className="size-3.5" />
+        </button>
+      )}
 
       <button
         type="button"
@@ -127,25 +153,45 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
   );
 }
 
+type TriggerFilter = "all" | "scheduled" | "manual";
+
 export default function Workflows() {
   const [query, setQuery] = useState("");
+  const [triggerFilter, setTriggerFilter] = useState<TriggerFilter>("all");
   const filtered = workflows.filter(
     (w) =>
-      w.name.toLowerCase().includes(query.toLowerCase()) ||
-      w.filename.toLowerCase().includes(query.toLowerCase()),
+      (triggerFilter === "all" ||
+        (triggerFilter === "scheduled" && w.schedule != null) ||
+        (triggerFilter === "manual" && w.schedule == null)) &&
+      (w.name.toLowerCase().includes(query.toLowerCase()) ||
+        w.filename.toLowerCase().includes(query.toLowerCase())),
   );
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
-        <input
-          type="text"
-          placeholder="Search workflows..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-9 pr-3 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
-        />
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+          <input
+            type="text"
+            placeholder="Search workflows..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-9 pr-3 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+          />
+        </div>
+        <div className="relative">
+          <select
+            value={triggerFilter}
+            onChange={(e) => setTriggerFilter(e.target.value as TriggerFilter)}
+            className="appearance-none rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-3 pr-8 text-sm text-ice-100 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+          >
+            <option value="all">All triggers</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="manual">Manual</option>
+          </select>
+          <ChevronDownOutline className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+        </div>
       </div>
       <div className="space-y-3">
         {filtered.map((workflow) => (

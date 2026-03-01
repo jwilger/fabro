@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router";
+import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { columns, ciConfig } from "../data/runs";
 import type { CiStatus, RunItem } from "../data/runs";
 import type { Route } from "./+types/pipelines";
@@ -206,12 +208,57 @@ function BoardColumn({ column }: { column: (typeof columns)[number] }) {
   );
 }
 
+const allRepos = [...new Set(columns.flatMap((col) => col.items.map((item) => item.repo)))].sort();
+
 export default function Pipelines() {
+  const [query, setQuery] = useState("");
+  const [repoFilter, setRepoFilter] = useState("all");
+  const lowerQuery = query.toLowerCase();
+
+  const filteredColumns = columns.map((col) => ({
+    ...col,
+    items: col.items.filter(
+      (item) =>
+        (repoFilter === "all" || item.repo === repoFilter) &&
+        (!query ||
+          item.title.toLowerCase().includes(lowerQuery) ||
+          item.repo.toLowerCase().includes(lowerQuery) ||
+          (item.number != null && `#${item.number}`.includes(lowerQuery))),
+    ),
+  }));
+
   return (
-    <div className="flex gap-5 overflow-x-auto pb-4">
-      {columns.map((col) => (
-        <BoardColumn key={col.id} column={col} />
-      ))}
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+          <input
+            type="text"
+            placeholder="Search runs..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-9 pr-3 text-sm text-ice-100 placeholder-navy-600 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+          />
+        </div>
+        <div className="relative">
+          <select
+            value={repoFilter}
+            onChange={(e) => setRepoFilter(e.target.value)}
+            className="appearance-none rounded-md border border-white/[0.06] bg-navy-800/80 py-2 pl-3 pr-8 text-sm text-ice-100 outline-none transition-colors focus:border-teal-500/40 focus:ring-0"
+          >
+            <option value="all">All repos</option>
+            {allRepos.map((repo) => (
+              <option key={repo} value={repo}>{repo}</option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
+        </div>
+      </div>
+      <div className="flex gap-5 overflow-x-auto pb-4">
+        {filteredColumns.map((col) => (
+          <BoardColumn key={col.id} column={col} />
+        ))}
+      </div>
     </div>
   );
 }

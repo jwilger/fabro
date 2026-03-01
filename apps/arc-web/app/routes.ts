@@ -9,6 +9,7 @@ export default [
   index("routes/redirect-home.tsx"),
   layout("layouts/app-shell.tsx", [
     route("start", "routes/start.tsx"),
+    route("sessions/:sessionId", "routes/session-detail.tsx"),
     route("workflows", "routes/workflows.tsx"),
     route("workflows/:name", "routes/workflow-detail.tsx", [
       index("routes/workflow-definition.tsx"),

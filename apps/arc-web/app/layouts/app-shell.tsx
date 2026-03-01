@@ -12,6 +12,7 @@ import {
   Cog6ToothIcon,
   PlayIcon,
   RectangleStackIcon,
+  SparklesIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Link, Outlet, useLocation, useMatches } from "react-router";
@@ -24,6 +25,7 @@ const user = {
 };
 
 const navigation = [
+  { name: "Start", href: "/start", icon: SparklesIcon },
   { name: "Workflows", href: "/workflows", icon: RectangleStackIcon },
   { name: "Runs", href: "/runs", icon: PlayIcon },
   { name: "Settings", href: "/settings", icon: Cog6ToothIcon },
