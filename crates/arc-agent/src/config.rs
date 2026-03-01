@@ -17,6 +17,9 @@ pub struct SessionConfig {
     pub reasoning_effort: Option<String>,
     pub tool_output_limits: HashMap<String, usize>,
     pub tool_line_limits: HashMap<String, usize>,
+    /// Override the provider's default max_tokens when set.
+    /// Node-level attribute takes priority over the model catalog default.
+    pub max_tokens: Option<i64>,
     pub enable_loop_detection: bool,
     pub loop_detection_window: usize,
     pub max_subagent_depth: usize,
@@ -45,6 +48,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.default_command_timeout_ms,
             )
             .field("max_command_timeout_ms", &self.max_command_timeout_ms)
+            .field("max_tokens", &self.max_tokens)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("tool_output_limits", &self.tool_output_limits)
             .field("tool_line_limits", &self.tool_line_limits)
@@ -73,6 +77,7 @@ impl Default for SessionConfig {
             max_tool_rounds_per_input: 200,
             default_command_timeout_ms: 10_000,
             max_command_timeout_ms: 600_000,
+            max_tokens: None,
             reasoning_effort: None,
             tool_output_limits: HashMap::new(),
             tool_line_limits: HashMap::new(),

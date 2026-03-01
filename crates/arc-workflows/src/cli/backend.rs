@@ -59,6 +59,7 @@ impl AgentBackend {
         let mut profile = self.build_profile();
 
         let config = SessionConfig {
+            max_tokens: node.max_tokens(),
             reasoning_effort: Some(node.reasoning_effort().to_string()),
             ..SessionConfig::default()
         };
@@ -131,7 +132,8 @@ impl CodergenBackend for AgentBackend {
             .map(String::from)
             .or_else(|| Some(self.provider.as_str().to_string()));
 
-        let max_tokens = arc_llm::catalog::get_model_info(model).and_then(|m| m.max_output);
+        let max_tokens = node.max_tokens().or_else(||
+            arc_llm::catalog::get_model_info(model).and_then(|m| m.max_output));
 
         let request = arc_llm::types::Request {
             model: model.to_string(),

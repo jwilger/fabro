@@ -205,7 +205,12 @@ impl Node {
         self.str_attr("llm_provider")
     }
 
-    #[must_use] 
+    #[must_use]
+    pub fn max_tokens(&self) -> Option<i64> {
+        self.int_attr("max_tokens").filter(|&v| v > 0)
+    }
+
+    #[must_use]
     pub fn reasoning_effort(&self) -> &str {
         self.str_attr("reasoning_effort").unwrap_or("high")
     }

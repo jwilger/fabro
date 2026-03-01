@@ -622,8 +622,9 @@ impl Session {
             response_format: None,
             temperature: None,
             top_p: None,
-            max_tokens: arc_llm::catalog::get_model_info(self.provider_profile.model())
-                .and_then(|m| m.max_output),
+            max_tokens: self.config.max_tokens.or_else(||
+                arc_llm::catalog::get_model_info(self.provider_profile.model())
+                    .and_then(|m| m.max_output)),
             stop_sequences: None,
             reasoning_effort: self.config.reasoning_effort.clone(),
             metadata: None,
