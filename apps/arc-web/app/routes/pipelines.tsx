@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { columns, ciConfig } from "../data/runs";
-import type { CiStatus, RunItem } from "../data/runs";
+import { ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { columns, ciConfig, statusColors } from "../data/runs";
+import type { CiStatus, RunItem, RunWithStatus } from "../data/runs";
 import type { Route } from "./+types/pipelines";
 
 export function meta({}: Route.MetaArgs) {
@@ -208,11 +208,53 @@ function BoardColumn({ column }: { column: (typeof columns)[number] }) {
   );
 }
 
+type ViewMode = "columns" | "list";
+
+function RunRow({ run }: { run: RunWithStatus }) {
+  return (
+    <Link to={`/runs/${run.id}`} className="grid items-center rounded-md border border-white/[0.06] bg-navy-800/80 px-4 py-3 transition-all duration-200 hover:border-white/[0.12] hover:bg-navy-800" style={{ gridColumn: "1 / -1", gridTemplateColumns: "subgrid" }}>
+      <span className={`font-mono text-xs pr-2 ${run.elapsedWarning ? "text-amber" : "text-navy-600"}`}>
+        {run.elapsed}
+      </span>
+
+      <span className="flex items-center gap-2 min-w-0">
+        <span className="font-mono text-xs font-medium text-teal-500">{run.repo}</span>
+        <span className="truncate text-sm text-ice-100">{run.title}</span>
+        {run.comments != null && run.comments > 0 && (
+          <span className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-navy-600">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="size-3" aria-hidden="true">
+              <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h4.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z" />
+            </svg>
+            {run.comments}
+          </span>
+        )}
+      </span>
+
+      <span className="flex items-center justify-end gap-2 pr-4 font-mono text-xs tabular-nums">
+        {run.additions != null && <span className="text-mint">+{run.additions.toLocaleString()}</span>}
+        {run.deletions != null && <span className="text-coral">-{run.deletions.toLocaleString()}</span>}
+      </span>
+
+      <span className="inline-flex items-center justify-end gap-1.5 font-mono text-xs text-navy-600">
+        {run.number != null && (
+          <>
+            <GitPullRequestIcon className="size-3" />
+            #{run.number}
+            {run.ci != null && <span className={`size-1.5 rounded-full ${ciConfig[run.ci].dot}`} />}
+          </>
+        )}
+      </span>
+    </Link>
+  );
+}
+
 const allRepos = [...new Set(columns.flatMap((col) => col.items.map((item) => item.repo)))].sort();
 
 export default function Pipelines() {
   const [query, setQuery] = useState("");
   const [repoFilter, setRepoFilter] = useState("all");
+  const [view, setView] = useState<ViewMode>("columns");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const lowerQuery = query.toLowerCase();
 
   const filteredColumns = columns.map((col) => ({
@@ -253,12 +295,75 @@ export default function Pipelines() {
           </select>
           <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-navy-600" />
         </div>
+        <div className="flex rounded-md border border-white/[0.06] bg-navy-800/80">
+          <button
+            type="button"
+            onClick={() => setView("columns")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === "columns" ? "text-teal-500" : "text-navy-600 hover:text-ice-300"}`}
+            aria-label="Columns view"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="size-4" aria-hidden="true">
+              <path d="M2 4.75A.75.75 0 0 1 2.75 4h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V4.75ZM8.25 4a.75.75 0 0 0-.75.75v10.5c0 .414.336.75.75.75h2.5a.75.75 0 0 0 .75-.75V4.75a.75.75 0 0 0-.75-.75h-2.5ZM14 4.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V4.75Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === "list" ? "text-teal-500" : "text-navy-600 hover:text-ice-300"}`}
+            aria-label="List view"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="size-4" aria-hidden="true">
+              <path fillRule="evenodd" d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div className="flex gap-5 overflow-x-auto pb-4">
-        {filteredColumns.map((col) => (
-          <BoardColumn key={col.id} column={col} />
-        ))}
-      </div>
+
+      {view === "columns" ? (
+        <div className="flex gap-5 overflow-x-auto pb-4">
+          {filteredColumns.map((col) => (
+            <BoardColumn key={col.id} column={col} />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredColumns.map((col) => {
+            const isCollapsed = collapsed.has(col.id);
+            return (
+              <div key={col.id}>
+                <button
+                  type="button"
+                  onClick={() => setCollapsed((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(col.id)) next.delete(col.id);
+                    else next.add(col.id);
+                    return next;
+                  })}
+                  className="mb-3 flex w-full items-center gap-2 text-left"
+                >
+                  {isCollapsed
+                    ? <ChevronRightIcon className="size-3.5 text-navy-600" />
+                    : <ChevronDownIcon className="size-3.5 text-navy-600" />}
+                  <div className={`h-2.5 w-2.5 rounded-full ${col.accent}`} />
+                  <h3 className="text-sm font-semibold tracking-wide text-ice-100">{col.name}</h3>
+                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-xs text-navy-600">
+                    {col.items.length}
+                  </span>
+                </button>
+                {!isCollapsed && (col.items.length > 0 ? (
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "5rem 1fr 8rem auto" }}>
+                    {col.items.map((item) => (
+                      <RunRow key={item.id} run={{ ...item, status: col.id, statusLabel: col.name }} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-4 text-center text-sm text-navy-600">No runs</p>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
