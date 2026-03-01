@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use arc_attractor::parser::parse;
+use arc_workflows::parser::parse;
 
-fn parse_kilroy_dot(filename: &str) -> Result<arc_attractor::graph::types::Graph, String> {
+fn parse_kilroy_dot(filename: &str) -> Result<arc_workflows::graph::types::Graph, String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../test/kilroy")
         .join(filename);

@@ -30,7 +30,7 @@ export function meta({}: Route.MetaArgs) {
 
 const projects = [
   { id: "arc-web", name: "arc-web" },
-  { id: "arc-attractor", name: "arc-attractor" },
+  { id: "arc-workflows", name: "arc-workflows" },
   { id: "arc-cli", name: "arc-cli" },
 ];
 

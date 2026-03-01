@@ -7,7 +7,7 @@ openssl pkey -in arc-jwt-private.pem -pubout -out arc-jwt-public.pem
 echo ""
 echo "Generated:"
 echo "  arc-jwt-private.pem  (private key — for arc-web / ARC_JWT_PRIVATE_KEY)"
-echo "  arc-jwt-public.pem   (public key  — for arc-attractor / ARC_JWT_PUBLIC_KEY)"
+echo "  arc-jwt-public.pem   (public key  — for arc-workflows / ARC_JWT_PUBLIC_KEY)"
 echo ""
 echo "Set env vars with the PEM contents (including header/footer lines):"
 echo ""

@@ -2,32 +2,32 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
 
-use arc_attractor::checkpoint::Checkpoint;
-use arc_attractor::context::Context;
-use arc_attractor::engine::{PipelineEngine, RunConfig};
-use arc_attractor::error::AttractorError;
-use arc_attractor::event::{EventEmitter, PipelineEvent};
-use arc_attractor::graph::{AttrValue, Edge, Graph, Node};
-use arc_attractor::handler::codergen::{CodergenBackend, CodergenHandler, CodergenResult};
-use arc_attractor::handler::conditional::ConditionalHandler;
-use arc_attractor::handler::exit::ExitHandler;
-use arc_attractor::handler::manager_loop::ManagerLoopHandler;
-use arc_attractor::handler::start::StartHandler;
-use arc_attractor::handler::script::ScriptHandler;
-use arc_attractor::handler::wait_human::WaitHumanHandler;
-use arc_attractor::handler::{Handler, HandlerRegistry};
-use arc_attractor::interviewer::auto_approve::AutoApproveInterviewer;
-use arc_attractor::interviewer::queue::QueueInterviewer;
-use arc_attractor::interviewer::recording::RecordingInterviewer;
-use arc_attractor::interviewer::{Answer, AnswerValue, Interviewer};
-use arc_attractor::outcome::{Outcome, StageStatus};
-use arc_attractor::parser::parse;
-use arc_attractor::stylesheet::{apply_stylesheet, parse_stylesheet};
-use arc_attractor::transform::{StylesheetApplicationTransform, Transform, VariableExpansionTransform};
-use arc_attractor::cli::backend::AgentBackend;
-use arc_attractor::handler::default_registry;
+use arc_workflows::checkpoint::Checkpoint;
+use arc_workflows::context::Context;
+use arc_workflows::engine::{PipelineEngine, RunConfig};
+use arc_workflows::error::AttractorError;
+use arc_workflows::event::{EventEmitter, PipelineEvent};
+use arc_workflows::graph::{AttrValue, Edge, Graph, Node};
+use arc_workflows::handler::codergen::{CodergenBackend, CodergenHandler, CodergenResult};
+use arc_workflows::handler::conditional::ConditionalHandler;
+use arc_workflows::handler::exit::ExitHandler;
+use arc_workflows::handler::manager_loop::ManagerLoopHandler;
+use arc_workflows::handler::start::StartHandler;
+use arc_workflows::handler::script::ScriptHandler;
+use arc_workflows::handler::wait_human::WaitHumanHandler;
+use arc_workflows::handler::{Handler, HandlerRegistry};
+use arc_workflows::interviewer::auto_approve::AutoApproveInterviewer;
+use arc_workflows::interviewer::queue::QueueInterviewer;
+use arc_workflows::interviewer::recording::RecordingInterviewer;
+use arc_workflows::interviewer::{Answer, AnswerValue, Interviewer};
+use arc_workflows::outcome::{Outcome, StageStatus};
+use arc_workflows::parser::parse;
+use arc_workflows::stylesheet::{apply_stylesheet, parse_stylesheet};
+use arc_workflows::transform::{StylesheetApplicationTransform, Transform, VariableExpansionTransform};
+use arc_workflows::cli::backend::AgentBackend;
+use arc_workflows::handler::default_registry;
 use arc_llm::provider::Provider;
-use arc_attractor::validation::{validate, validate_or_raise, Severity};
+use arc_workflows::validation::{validate, validate_or_raise, Severity};
 use arc_util::terminal::Styles;
 
 fn local_env() -> Arc<dyn arc_agent::ExecutionEnvironment> {
@@ -66,7 +66,7 @@ fn parse_and_validate_simple_linear() {
     let diagnostics = validate_or_raise(&graph, &[]).expect("validation should pass");
     let errors: Vec<_> = diagnostics
         .iter()
-        .filter(|d| d.severity == arc_attractor::validation::Severity::Error)
+        .filter(|d| d.severity == arc_workflows::validation::Severity::Error)
         .collect();
     assert!(errors.is_empty(), "expected no validation errors");
 }
@@ -112,7 +112,7 @@ fn parse_and_validate_branching_with_conditions() {
     let diagnostics = validate_or_raise(&graph, &[]).expect("validation should pass");
     let errors: Vec<_> = diagnostics
         .iter()
-        .filter(|d| d.severity == arc_attractor::validation::Severity::Error)
+        .filter(|d| d.severity == arc_workflows::validation::Severity::Error)
         .collect();
     assert!(errors.is_empty(), "expected no validation errors");
 }
@@ -151,7 +151,7 @@ fn parse_and_validate_human_gate() {
     let diagnostics = validate_or_raise(&graph, &[]).expect("validation should pass");
     let errors: Vec<_> = diagnostics
         .iter()
-        .filter(|d| d.severity == arc_attractor::validation::Severity::Error)
+        .filter(|d| d.severity == arc_workflows::validation::Severity::Error)
         .collect();
     assert!(errors.is_empty(), "expected no validation errors");
 }
@@ -456,11 +456,11 @@ impl Handler for AlwaysFailHandler {
     async fn execute(
         &self,
         node: &Node,
-        _context: &arc_attractor::context::Context,
+        _context: &arc_workflows::context::Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
-    ) -> Result<Outcome, arc_attractor::error::AttractorError> {
+        _services: &arc_workflows::handler::EngineServices,
+    ) -> Result<Outcome, arc_workflows::error::AttractorError> {
         Ok(Outcome::fail(format!("forced failure for {}", node.id)))
     }
 }
@@ -570,11 +570,11 @@ async fn goal_gate_routes_to_retry_target_when_present() {
         async fn execute(
             &self,
             _node: &Node,
-            _context: &arc_attractor::context::Context,
+            _context: &arc_workflows::context::Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
-        ) -> Result<Outcome, arc_attractor::error::AttractorError> {
+            _services: &arc_workflows::handler::EngineServices,
+        ) -> Result<Outcome, arc_workflows::error::AttractorError> {
             let count = self
                 .call_count
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -895,7 +895,7 @@ async fn retry_on_failure_then_succeed() {
             _context: &Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
+            _services: &arc_workflows::handler::EngineServices,
         ) -> Result<Outcome, AttractorError> {
             let count = self
                 .call_count
@@ -1135,7 +1135,7 @@ impl Handler for CounterHandler {
         _context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
+        _services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let count = self
             .call_count
@@ -1159,7 +1159,7 @@ impl Handler for LargeOutputHandler {
         _context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
+        _services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let mut outcome = Outcome::success();
         // 150KB string — well above the 100KB artifact threshold
@@ -1183,7 +1183,7 @@ impl Handler for ContextSetterHandler {
         _context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
+        _services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let mut outcome = Outcome::success();
         outcome
@@ -1391,8 +1391,8 @@ async fn smoke_test_with_mock_codergen_backend() {
 
 #[tokio::test]
 async fn end_to_end_parallel_fan_out_fan_in() {
-    use arc_attractor::handler::fan_in::FanInHandler;
-    use arc_attractor::handler::parallel::ParallelHandler;
+    use arc_workflows::handler::fan_in::FanInHandler;
+    use arc_workflows::handler::parallel::ParallelHandler;
 
     let input = r#"digraph parallel_test {
         start [shape=Mdiamond]
@@ -1946,7 +1946,7 @@ async fn branching_loop_back_on_failure() {
             _context: &Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
+            _services: &arc_workflows::handler::EngineServices,
         ) -> Result<Outcome, AttractorError> {
             let count = self
                 .call_count
@@ -2174,8 +2174,8 @@ async fn scenario_ship_a_feature() {
 
 #[tokio::test]
 async fn scenario_parallel_expert_review() {
-    use arc_attractor::handler::fan_in::FanInHandler;
-    use arc_attractor::handler::parallel::ParallelHandler;
+    use arc_workflows::handler::fan_in::FanInHandler;
+    use arc_workflows::handler::parallel::ParallelHandler;
 
     let input = r#"digraph ParallelReview {
         start [shape=Mdiamond]
@@ -2262,7 +2262,7 @@ async fn scenario_node_retries_on_retry_status() {
             _context: &Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
+            _services: &arc_workflows::handler::EngineServices,
         ) -> Result<Outcome, AttractorError> {
             let count = self
                 .call_count
@@ -2507,7 +2507,7 @@ async fn manager_loop_stop_condition_satisfied_e2e() {
             _context: &Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
+            _services: &arc_workflows::handler::EngineServices,
         ) -> Result<Outcome, AttractorError> {
             let mut outcome = Outcome::success();
             outcome
@@ -2979,7 +2979,7 @@ async fn custom_handler_registration_and_execution() {
             _context: &Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
+            _services: &arc_workflows::handler::EngineServices,
         ) -> Result<Outcome, AttractorError> {
             let mut outcome = Outcome::success();
             outcome
@@ -3108,13 +3108,13 @@ mod server_lifecycle {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use arc_attractor::handler::codergen::CodergenHandler;
-    use arc_attractor::handler::exit::ExitHandler;
-    use arc_attractor::handler::start::StartHandler;
-    use arc_attractor::handler::wait_human::WaitHumanHandler;
-    use arc_attractor::handler::HandlerRegistry;
-    use arc_attractor::interviewer::Interviewer;
-    use arc_attractor::server::{build_router, create_app_state};
+    use arc_workflows::handler::codergen::CodergenHandler;
+    use arc_workflows::handler::exit::ExitHandler;
+    use arc_workflows::handler::start::StartHandler;
+    use arc_workflows::handler::wait_human::WaitHumanHandler;
+    use arc_workflows::handler::HandlerRegistry;
+    use arc_workflows::interviewer::Interviewer;
+    use arc_workflows::server::{build_router, create_app_state};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt;
@@ -3152,7 +3152,7 @@ mod server_lifecycle {
     #[tokio::test]
     async fn full_http_lifecycle_approve_and_complete() {
         let state = create_app_state(gate_registry);
-        let app = build_router(Arc::clone(&state), arc_attractor::jwt_auth::AuthMode::Disabled);
+        let app = build_router(Arc::clone(&state), arc_workflows::jwt_auth::AuthMode::Disabled);
 
         // 1. Start pipeline
         let req = Request::builder()
@@ -3251,7 +3251,7 @@ mod server_lifecycle {
     #[tokio::test]
     async fn full_http_lifecycle_cancel() {
         let state = create_app_state(gate_registry);
-        let app = build_router(Arc::clone(&state), arc_attractor::jwt_auth::AuthMode::Disabled);
+        let app = build_router(Arc::clone(&state), arc_workflows::jwt_auth::AuthMode::Disabled);
 
         // Start a pipeline that will block at the human gate
         let req = Request::builder()
@@ -3301,12 +3301,12 @@ mod sse_events {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use arc_attractor::handler::codergen::CodergenHandler;
-    use arc_attractor::handler::exit::ExitHandler;
-    use arc_attractor::handler::start::StartHandler;
-    use arc_attractor::handler::HandlerRegistry;
-    use arc_attractor::interviewer::Interviewer;
-    use arc_attractor::server::{build_router, create_app_state};
+    use arc_workflows::handler::codergen::CodergenHandler;
+    use arc_workflows::handler::exit::ExitHandler;
+    use arc_workflows::handler::start::StartHandler;
+    use arc_workflows::handler::HandlerRegistry;
+    use arc_workflows::interviewer::Interviewer;
+    use arc_workflows::server::{build_router, create_app_state};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
@@ -3331,7 +3331,7 @@ mod sse_events {
     #[tokio::test]
     async fn sse_stream_contains_expected_event_types() {
         let state = create_app_state(simple_registry);
-        let app = build_router(Arc::clone(&state), arc_attractor::jwt_auth::AuthMode::Disabled);
+        let app = build_router(Arc::clone(&state), arc_workflows::jwt_auth::AuthMode::Disabled);
 
         // Start pipeline
         let req = Request::builder()
@@ -3444,9 +3444,9 @@ mod serve_dry_run {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use arc_attractor::handler::default_registry;
-    use arc_attractor::interviewer::Interviewer;
-    use arc_attractor::server::{build_router, create_app_state};
+    use arc_workflows::handler::default_registry;
+    use arc_workflows::interviewer::Interviewer;
+    use arc_workflows::server::{build_router, create_app_state};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt;
@@ -3464,7 +3464,7 @@ mod serve_dry_run {
             default_registry(interviewer, || None)
         };
         let state = create_app_state(factory);
-        build_router(state, arc_attractor::jwt_auth::AuthMode::Disabled)
+        build_router(state, arc_workflows::jwt_auth::AuthMode::Disabled)
     }
 
     async fn body_json(body: Body) -> serde_json::Value {
@@ -3534,7 +3534,7 @@ mod serve_dry_run {
 
 #[tokio::test]
 async fn sub_pipeline_e2e_through_engine() {
-    use arc_attractor::handler::sub_pipeline::SubPipelineHandler;
+    use arc_workflows::handler::sub_pipeline::SubPipelineHandler;
 
     let input = r#"digraph SubPipelineE2E {
         graph [goal="Test sub-pipeline"]
@@ -3598,7 +3598,7 @@ async fn sub_pipeline_e2e_through_engine() {
 
 #[tokio::test]
 async fn manager_loop_with_child_observer_e2e() {
-    use arc_attractor::handler::manager_loop::{ChildObserver, ManagerLoopHandler};
+    use arc_workflows::handler::manager_loop::{ChildObserver, ManagerLoopHandler};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     struct SimulatingChildObserver {
@@ -3612,16 +3612,16 @@ async fn manager_loop_with_child_observer_e2e() {
             &self,
             _dotfile: &str,
             _workdir: &str,
-            _context: &arc_attractor::context::Context,
-        ) -> Result<(), arc_attractor::error::AttractorError> {
+            _context: &arc_workflows::context::Context,
+        ) -> Result<(), arc_workflows::error::AttractorError> {
             self.launch_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
         async fn observe(
             &self,
-            context: &arc_attractor::context::Context,
-        ) -> Result<(), arc_attractor::error::AttractorError> {
+            context: &arc_workflows::context::Context,
+        ) -> Result<(), arc_workflows::error::AttractorError> {
             let cycle = self.observe_count.fetch_add(1, Ordering::SeqCst);
             if cycle >= 2 {
                 context.set(
@@ -3638,9 +3638,9 @@ async fn manager_loop_with_child_observer_e2e() {
 
         async fn steer(
             &self,
-            _context: &arc_attractor::context::Context,
-            _node: &arc_attractor::graph::Node,
-        ) -> Result<(), arc_attractor::error::AttractorError> {
+            _context: &arc_workflows::context::Context,
+            _node: &arc_workflows::graph::Node,
+        ) -> Result<(), arc_workflows::error::AttractorError> {
             Ok(())
         }
     }
@@ -3744,7 +3744,7 @@ async fn manager_loop_with_child_observer_e2e() {
 
 #[tokio::test]
 async fn graph_merge_e2e_through_engine() {
-    use arc_attractor::transform::GraphMergeTransform;
+    use arc_workflows::transform::GraphMergeTransform;
 
     // Module "val": lint -> test
     let mut val_graph = Graph::new("val");
@@ -3924,7 +3924,7 @@ impl Handler for FidelityCapturingHandler {
         context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
+        _services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let fidelity = context.get_string("internal.fidelity", "none");
         self.captures
@@ -5421,10 +5421,10 @@ mod real_llm {
 
     use async_trait::async_trait;
 
-    use arc_attractor::context::Context;
-    use arc_attractor::error::AttractorError;
-    use arc_attractor::graph::Node;
-    use arc_attractor::handler::codergen::{CodergenBackend, CodergenHandler, CodergenResult};
+    use arc_workflows::context::Context;
+    use arc_workflows::error::AttractorError;
+    use arc_workflows::graph::Node;
+    use arc_workflows::handler::codergen::{CodergenBackend, CodergenHandler, CodergenResult};
 
     use arc_llm::client::Client;
     use arc_llm::types::{Message, Request};
@@ -5489,16 +5489,16 @@ mod real_llm {
     }
 
     use super::local_env;
-    use arc_attractor::checkpoint::Checkpoint;
-    use arc_attractor::engine::{PipelineEngine, RunConfig};
-    use arc_attractor::event::EventEmitter;
-    use arc_attractor::graph::{AttrValue, Edge, Graph};
-    use arc_attractor::handler::exit::ExitHandler;
-    use arc_attractor::handler::start::StartHandler;
-    use arc_attractor::handler::wait_human::WaitHumanHandler;
-    use arc_attractor::handler::HandlerRegistry;
-    use arc_attractor::interviewer::auto_approve::AutoApproveInterviewer;
-    use arc_attractor::outcome::StageStatus;
+    use arc_workflows::checkpoint::Checkpoint;
+    use arc_workflows::engine::{PipelineEngine, RunConfig};
+    use arc_workflows::event::EventEmitter;
+    use arc_workflows::graph::{AttrValue, Edge, Graph};
+    use arc_workflows::handler::exit::ExitHandler;
+    use arc_workflows::handler::start::StartHandler;
+    use arc_workflows::handler::wait_human::WaitHumanHandler;
+    use arc_workflows::handler::HandlerRegistry;
+    use arc_workflows::interviewer::auto_approve::AutoApproveInterviewer;
+    use arc_workflows::outcome::StageStatus;
 
     #[tokio::test]
     #[ignore]
@@ -7028,7 +7028,7 @@ async fn attractor_e2e_with_real_llm() {
             Provider::Anthropic,
             0,
             &TEST_STYLES,
-        )) as Box<dyn arc_attractor::handler::codergen::CodergenBackend>)
+        )) as Box<dyn arc_workflows::handler::codergen::CodergenBackend>)
     });
 
     let logs_dir = tempfile::tempdir().unwrap();
@@ -7302,7 +7302,7 @@ async fn large_context_values_are_offloaded_to_artifact_store() {
     assert_eq!(outcome.status, StageStatus::Success);
 
     // The checkpoint context should contain an artifact pointer, not the full value
-    let checkpoint = arc_attractor::checkpoint::Checkpoint::load(&dir.path().join("checkpoint.json"))
+    let checkpoint = arc_workflows::checkpoint::Checkpoint::load(&dir.path().join("checkpoint.json"))
         .expect("checkpoint should load");
     let pointer_value = checkpoint
         .context_values
@@ -7519,11 +7519,11 @@ async fn node_dir_uses_visit_count_on_revisit() {
         async fn execute(
             &self,
             _node: &Node,
-            _context: &arc_attractor::context::Context,
+            _context: &arc_workflows::context::Context,
             _graph: &Graph,
             _logs_root: &Path,
-            _services: &arc_attractor::handler::EngineServices,
-        ) -> Result<Outcome, arc_attractor::error::AttractorError> {
+            _services: &arc_workflows::handler::EngineServices,
+        ) -> Result<Outcome, arc_workflows::error::AttractorError> {
             let n = self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if n == 0 {
                 Ok(Outcome::fail("first attempt fails"))
@@ -7612,7 +7612,7 @@ async fn node_dir_uses_visit_count_on_revisit() {
 // CLI Backend end-to-end tests
 // ---------------------------------------------------------------------------
 
-use arc_attractor::cli::cli_backend::{BackendRouter, CliBackend};
+use arc_workflows::cli::cli_backend::{BackendRouter, CliBackend};
 
 /// A mock execution environment for CLI backend e2e tests.
 /// Records all exec_command and write_file calls, and returns configurable
@@ -8255,7 +8255,7 @@ async fn stylesheet_backend_property_routes_to_cli() {
 // Real CLI backend e2e tests (require actual CLI tools installed)
 // ---------------------------------------------------------------------------
 
-use arc_attractor::cli::cli_backend::parse_cli_response;
+use arc_workflows::cli::cli_backend::parse_cli_response;
 
 /// Run a real CLI tool via LocalExecutionEnvironment and verify the full flow.
 async fn run_real_cli_test(provider: Provider, model: &str) {
@@ -8357,7 +8357,7 @@ fn parse_real_gemini_json() {
 // Git checkpoint e2e — Host mode (Docker / Local)
 // ---------------------------------------------------------------------------
 
-use arc_attractor::engine::GitCheckpointMode;
+use arc_workflows::engine::GitCheckpointMode;
 
 /// End-to-end test: pipeline with `GitCheckpointMode::Host` emits `GitCheckpoint`
 /// events with valid commit SHAs and writes `diff.patch` per stage.
@@ -8500,7 +8500,7 @@ async fn git_checkpoint_host_emits_events_and_diff_patch() {
 /// shadow branch with checkpoint data and includes `Arc-Checkpoint` trailer in run-branch commits.
 #[tokio::test]
 async fn git_checkpoint_host_writes_shadow_branch() {
-    use arc_attractor::git::MetadataStore;
+    use arc_workflows::git::MetadataStore;
 
     // 1. Create a temporary git repo with an initial commit
     let repo = tempfile::tempdir().unwrap();

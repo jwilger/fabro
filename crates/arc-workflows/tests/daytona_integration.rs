@@ -8,18 +8,18 @@ use std::path::Path;
 use std::sync::Arc;
 
 use arc_agent::ExecutionEnvironment;
-use arc_attractor::artifact::sync_artifacts_to_env;
-use arc_attractor::checkpoint::Checkpoint;
-use arc_attractor::context::Context;
-use arc_attractor::daytona_env::{DaytonaConfig, DaytonaExecutionEnvironment};
-use arc_attractor::engine::{PipelineEngine, RunConfig};
-use arc_attractor::error::AttractorError;
-use arc_attractor::event::EventEmitter;
-use arc_attractor::graph::{AttrValue, Edge, Graph, Node};
-use arc_attractor::handler::exit::ExitHandler;
-use arc_attractor::handler::start::StartHandler;
-use arc_attractor::handler::{Handler, HandlerRegistry};
-use arc_attractor::outcome::{Outcome, StageStatus};
+use arc_workflows::artifact::sync_artifacts_to_env;
+use arc_workflows::checkpoint::Checkpoint;
+use arc_workflows::context::Context;
+use arc_workflows::daytona_env::{DaytonaConfig, DaytonaExecutionEnvironment};
+use arc_workflows::engine::{PipelineEngine, RunConfig};
+use arc_workflows::error::AttractorError;
+use arc_workflows::event::EventEmitter;
+use arc_workflows::graph::{AttrValue, Edge, Graph, Node};
+use arc_workflows::handler::exit::ExitHandler;
+use arc_workflows::handler::start::StartHandler;
+use arc_workflows::handler::{Handler, HandlerRegistry};
+use arc_workflows::outcome::{Outcome, StageStatus};
 use arc_llm::provider::Provider;
 
 async fn create_env() -> DaytonaExecutionEnvironment {
@@ -117,7 +117,7 @@ async fn daytona_full_lifecycle() {
 #[tokio::test]
 #[ignore]
 async fn daytona_snapshot_sandbox() {
-    use arc_attractor::daytona_env::{DaytonaSnapshotConfig, DaytonaSandboxConfig};
+    use arc_workflows::daytona_env::{DaytonaSnapshotConfig, DaytonaSandboxConfig};
 
     dotenvy::dotenv().ok();
     let client = daytona_sdk::Client::new()
@@ -219,7 +219,7 @@ impl Handler for LargeOutputHandler {
         _context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        _services: &arc_attractor::handler::EngineServices,
+        _services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let mut outcome = Outcome::success();
         let large_value = "x".repeat(150 * 1024);
@@ -318,7 +318,7 @@ async fn daytona_pipeline_artifact_offload_and_sync() {
 // CLI Backend on Daytona — real CLI tools via exec_command
 // ---------------------------------------------------------------------------
 
-use arc_attractor::engine::GitCheckpointMode;
+use arc_workflows::engine::GitCheckpointMode;
 
 // ---------------------------------------------------------------------------
 // Git checkpoint E2E on Daytona (Remote mode)
@@ -335,7 +335,7 @@ impl Handler for FileWriterHandler {
         _context: &Context,
         _graph: &Graph,
         _logs_root: &Path,
-        services: &arc_attractor::handler::EngineServices,
+        services: &arc_workflows::handler::EngineServices,
     ) -> Result<Outcome, AttractorError> {
         let content = format!("output from {}", node.id);
         let cmd = format!("echo '{content}' > {}.txt", node.id);
@@ -447,7 +447,7 @@ async fn daytona_git_checkpoint_remote_emits_events() {
     let git_events: Vec<_> = events
         .iter()
         .filter_map(|e| {
-            if let arc_attractor::event::PipelineEvent::GitCheckpoint { node_id, git_commit_sha, .. } = e {
+            if let arc_workflows::event::PipelineEvent::GitCheckpoint { node_id, git_commit_sha, .. } = e {
                 Some((node_id.clone(), git_commit_sha.clone()))
             } else {
                 None
@@ -489,8 +489,8 @@ async fn daytona_git_checkpoint_remote_emits_events() {
 // CLI Backend on Daytona — real CLI tools via exec_command
 // ---------------------------------------------------------------------------
 
-use arc_attractor::cli::cli_backend::CliBackend;
-use arc_attractor::handler::codergen::{CodergenBackend, CodergenResult};
+use arc_workflows::cli::cli_backend::CliBackend;
+use arc_workflows::handler::codergen::{CodergenBackend, CodergenResult};
 
 /// Helper: run a real CLI backend test on Daytona.
 ///
@@ -602,7 +602,7 @@ async fn daytona_cli_gemini() {
 // Daytona shadow commit E2E — Remote mode with MetadataStore
 // ---------------------------------------------------------------------------
 
-use arc_attractor::git::MetadataStore;
+use arc_workflows::git::MetadataStore;
 
 /// End-to-end test: pipeline with `GitCheckpointMode::Remote(host_repo_path)` + `meta_branch`
 /// writes shadow branch on the host repo and includes `Arc-Checkpoint` trailer in sandbox commits.

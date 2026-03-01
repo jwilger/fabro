@@ -1,5 +1,5 @@
 [package]
-name = "arc-attractor"
+name = "arc-workflows"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

@@ -22,11 +22,11 @@ enum Command {
     /// Run an agentic coding session
     Agent(arc_agent::cli::AgentArgs),
     /// Launch a pipeline
-    Run(arc_attractor::cli::RunArgs),
+    Run(arc_workflows::cli::RunArgs),
     /// Validate a pipeline
-    Validate(arc_attractor::cli::ValidateArgs),
+    Validate(arc_workflows::cli::ValidateArgs),
     /// Start the HTTP API server
-    Serve(arc_attractor::cli::ServeArgs),
+    Serve(arc_workflows::cli::ServeArgs),
 }
 
 #[derive(Subcommand)]
@@ -56,16 +56,16 @@ async fn main() -> Result<()> {
         Command::Run(args) => {
             let styles: &'static arc_util::terminal::Styles =
                 Box::leak(Box::new(arc_util::terminal::Styles::detect_stderr()));
-            arc_attractor::cli::run::run_command(args, styles).await?;
+            arc_workflows::cli::run::run_command(args, styles).await?;
         }
         Command::Validate(args) => {
             let styles = arc_util::terminal::Styles::detect_stderr();
-            arc_attractor::cli::validate::validate_command(&args, &styles)?;
+            arc_workflows::cli::validate::validate_command(&args, &styles)?;
         }
         Command::Serve(args) => {
             let styles: &'static arc_util::terminal::Styles =
                 Box::leak(Box::new(arc_util::terminal::Styles::detect_stderr()));
-            arc_attractor::cli::serve::serve_command(args, styles).await?;
+            arc_workflows::cli::serve::serve_command(args, styles).await?;
         }
     }
 

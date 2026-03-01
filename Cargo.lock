@@ -129,55 +129,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-attractor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arc-agent",
- "arc-git-storage",
- "arc-llm",
- "arc-util",
- "assert_cmd",
- "async-trait",
- "axum",
- "base64",
- "chrono",
- "clap",
- "daytona-api-client",
- "daytona-sdk",
- "dialoguer",
- "dirs",
- "dotenvy",
- "futures",
- "git2",
- "http-body-util",
- "jsonwebtoken",
- "nom",
- "predicates",
- "rand 0.8.5",
- "scopeguard",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "toml",
- "tower",
- "ulid",
- "uuid",
-]
-
-[[package]]
 name = "arc-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "arc-agent",
- "arc-attractor",
  "arc-llm",
  "arc-util",
+ "arc-workflows",
  "assert_cmd",
  "clap",
  "dotenvy",
@@ -244,6 +203,47 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "arc-workflows"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-agent",
+ "arc-git-storage",
+ "arc-llm",
+ "arc-util",
+ "assert_cmd",
+ "async-trait",
+ "axum",
+ "base64",
+ "chrono",
+ "clap",
+ "daytona-api-client",
+ "daytona-sdk",
+ "dialoguer",
+ "dirs",
+ "dotenvy",
+ "futures",
+ "git2",
+ "http-body-util",
+ "jsonwebtoken",
+ "nom",
+ "predicates",
+ "rand 0.8.5",
+ "scopeguard",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "toml",
+ "tower",
+ "ulid",
+ "uuid",
 ]
 
 [[package]]

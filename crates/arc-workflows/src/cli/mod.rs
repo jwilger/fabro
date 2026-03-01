@@ -55,7 +55,7 @@ impl FromStr for ExecutionEnvKind {
 }
 
 #[derive(Parser)]
-#[command(name = "arc-attractor", version, about = "DOT-based pipeline runner for AI workflows")]
+#[command(name = "arc-workflows", version, about = "DOT-based pipeline runner for AI workflows")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
