@@ -7,26 +7,30 @@ info:
 tags:
   - name: Runs
     description: Run management operations
+  - name: Run Outputs
+    description: Files and verifications produced by runs
   - name: Run Internals
     description: Internal run details (stages, turns, context, configuration)
   - name: Human-in-the-Loop
     description: Questions, answers, and steering for runs
-  - name: Usage
-    description: Token and cost usage
   - name: Workflows
     description: Workflow definitions and execution
   - name: Verifications
     description: Verification categories and controls
-  - name: Retros
-    description: Run retrospectives
-  - name: Sessions
-    description: Interactive chat sessions
+  - name: Sandbox
+    description: Sandbox preview URLs
+  - name: Usage
+    description: Token and cost usage
   - name: Insights
     description: SQL query editor and history
-  - name: Settings
-    description: Platform configuration
+  - name: Sessions
+    description: Interactive chat sessions
   - name: Projects
     description: Project and branch management
+  - name: Settings
+    description: Platform configuration
+  - name: Retros
+    description: Run retrospectives
 
 paths:
   # ── Runs ──────────────────────────────────────────────────────────────
