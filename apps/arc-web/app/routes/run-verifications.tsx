@@ -89,7 +89,7 @@ function CategoryCard({ category }: { category: VerificationCategory }) {
               {category.criteria.map((criterion) => (
                 <tr
                   key={criterion.name}
-                  className="border-b border-line last:border-b-0 transition-colors hover:bg-overlay"
+                  className="border-b border-line last:border-b-0 cursor-pointer transition-colors hover:bg-overlay"
                 >
                   <td className="w-8 py-2.5 pl-5 pr-0">
                     <span

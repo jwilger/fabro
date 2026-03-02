@@ -267,7 +267,7 @@ function DiffHeaderToggles({
         onClick={() => onDiffStyleChange(diffStyle === "split" ? "unified" : "split")}
         title={diffStyle === "split" ? "Switch to unified" : "Switch to split"}
         aria-label={diffStyle === "split" ? "Switch to unified" : "Switch to split"}
-        className="cursor-pointer p-1 opacity-60 hover:opacity-100"
+        className="p-1 opacity-60 hover:opacity-100"
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16">
           <path d="M14 0H8.5v16H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2m-1.5 6.5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1 0-1h1v-1a.5.5 0 0 1 1 0" />
@@ -279,7 +279,7 @@ function DiffHeaderToggles({
         onClick={() => onDisableBackgroundChange(!disableBackground)}
         title={disableBackground ? "Enable background" : "Disable background"}
         aria-label={disableBackground ? "Enable background" : "Disable background"}
-        className="cursor-pointer p-1 opacity-60 hover:opacity-100"
+        className="p-1 opacity-60 hover:opacity-100"
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="16" height="16">
           <path d="M0 2.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H.75A.75.75 0 0 1 0 2.25" opacity="0.4" />

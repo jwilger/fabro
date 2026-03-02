@@ -136,7 +136,7 @@ function ToggleSwitch({ enabled, accent }: { enabled: boolean; accent: string })
   return (
     <button
       type="button"
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${enabled ? colors.toggle : "bg-overlay-strong"}`}
+      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${enabled ? colors.toggle : "bg-overlay-strong"}`}
       role="switch"
       aria-checked={enabled}
     >

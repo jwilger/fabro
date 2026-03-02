@@ -193,7 +193,7 @@ export default function Start() {
                   <button
                     onClick={handleSubmit}
                     disabled={!prompt.trim()}
-                    className="flex items-center justify-center size-8 rounded-lg bg-teal-500 text-navy-950 transition-all duration-200 hover:bg-teal-300 disabled:opacity-30 disabled:hover:bg-teal-500 cursor-pointer disabled:cursor-default"
+                    className="flex items-center justify-center size-8 rounded-lg bg-teal-500 text-navy-950 transition-all duration-200 hover:bg-teal-300 disabled:opacity-30 disabled:hover:bg-teal-500 disabled:cursor-default"
                   >
                     <ArrowUpIcon className="size-4" />
                   </button>
@@ -208,7 +208,7 @@ export default function Start() {
                 <button
                   key={cat.label}
                   onClick={() => setOpenCategory(openCategory === cat.label ? null : cat.label)}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors ${
                     openCategory === cat.label
                       ? "border-teal-500/30 bg-teal-500/10 text-teal-300"
                       : "border-line bg-panel/50 text-fg-3 hover:bg-panel hover:border-line-strong"
@@ -301,7 +301,7 @@ function CategoryPanel({
         <span className="text-sm font-medium text-fg-2">{category.label}</span>
         <button
           onClick={onClose}
-          className="ml-auto flex items-center justify-center size-6 rounded-md text-fg-muted hover:text-fg-3 hover:bg-overlay transition-colors cursor-pointer"
+          className="ml-auto flex items-center justify-center size-6 rounded-md text-fg-muted hover:text-fg-3 hover:bg-overlay transition-colors"
         >
           <XMarkIcon className="size-4" />
         </button>
@@ -311,7 +311,7 @@ function CategoryPanel({
           <li key={item.title} className={i > 0 ? "border-t border-line" : ""}>
             <button
               onClick={() => onSelect(item.prompt)}
-              className="w-full px-4 py-3 text-left text-sm text-fg-3 transition-colors hover:bg-overlay hover:text-fg-2 cursor-pointer"
+              className="w-full px-4 py-3 text-left text-sm text-fg-3 transition-colors hover:bg-overlay hover:text-fg-2"
             >
               {item.title}
             </button>
@@ -336,7 +336,7 @@ function Picker<T extends { id: string; name: string }>({
   return (
     <Listbox value={value} onChange={onChange}>
       <div className="relative">
-        <ListboxButton className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-fg-3 bg-page/60 border border-line hover:border-line-strong hover:bg-page/80 transition-colors cursor-pointer">
+        <ListboxButton className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-fg-3 bg-page/60 border border-line hover:border-line-strong hover:bg-page/80 transition-colors">
           {icon}
           <span className="max-w-[120px] truncate">{value.name}</span>
           <ChevronUpDownIcon className="size-3.5 text-fg-muted" />
@@ -347,7 +347,7 @@ function Picker<T extends { id: string; name: string }>({
             <ListboxOption
               key={option.id}
               value={option}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg-3 cursor-pointer data-focus:bg-overlay data-selected:text-teal-300"
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg-3 data-focus:bg-overlay data-selected:text-teal-300"
             >
               {option.name}
             </ListboxOption>

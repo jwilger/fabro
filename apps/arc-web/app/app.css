@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@layer base {
+  a[href],
+  button,
+  select,
+  summary,
+  [role="button"],
+  [role="link"],
+  [role="option"],
+  [role="menuitem"],
+  [role="tab"] {
+    cursor: pointer;
+  }
+}
+
 @theme {
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";

@@ -281,7 +281,7 @@ export default function VerificationDetail() {
             </thead>
             <tbody>
               {recentResults.map((run) => (
-                <tr key={run.runId} className="border-b border-line last:border-b-0 transition-colors hover:bg-overlay">
+                <tr key={run.runId} className="border-b border-line last:border-b-0 cursor-pointer transition-colors hover:bg-overlay">
                   <td className="py-2.5 pl-4 pr-3">
                     <Link to={`/runs/${run.runId}`} className="font-medium text-fg-2 hover:text-fg">
                       {run.runTitle}
@@ -340,7 +340,7 @@ export default function VerificationDetail() {
                   const SibIcon = criterionIcons[sibling.name];
                   const sibPerf = criterionPerformance[sibling.name];
                   return (
-                    <tr key={sibling.name} className="border-b border-line last:border-b-0 transition-colors hover:bg-overlay">
+                    <tr key={sibling.name} className="border-b border-line last:border-b-0 cursor-pointer transition-colors hover:bg-overlay">
                       <td className="w-8 py-2.5 pl-4 pr-0">
                         {SibIcon && <SibIcon className="size-4 text-fg-3" />}
                       </td>

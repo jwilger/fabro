@@ -230,7 +230,7 @@ function ToolRow({ tool }: { tool: ToolUse }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left transition-colors hover:bg-overlay cursor-pointer"
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left transition-colors hover:bg-overlay"
       >
         <ChevronRightIcon className={`size-3 shrink-0 text-fg-muted transition-transform duration-150 ${open ? "rotate-90" : ""}`} />
         <WrenchScrewdriverIcon className="size-3.5 shrink-0 text-fg-muted" />
