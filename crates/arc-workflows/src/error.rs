@@ -238,7 +238,7 @@ pub fn normalize_failure_reason(reason: &str) -> String {
     let s = WHITESPACE_RE.replace_all(&s, " ");
     let s = s.trim();
     if s.len() > 240 {
-        s[..240].to_string()
+        s[..s.floor_char_boundary(240)].to_string()
     } else {
         s.to_string()
     }
@@ -1311,6 +1311,25 @@ mod tests {
         let long = "a".repeat(300);
         let result = normalize_failure_reason(&long);
         assert_eq!(result.len(), 240);
+    }
+
+    #[test]
+    fn normalize_truncation_respects_utf8_boundaries() {
+        // Build a string of 2-byte chars ("é" is 2 bytes in UTF-8) that crosses
+        // the 240 byte boundary mid-character.
+        let input = "é".repeat(200); // 400 bytes, each char is 2 bytes
+        let result = normalize_failure_reason(&input);
+        assert!(result.len() <= 240);
+        // Must be valid UTF-8 (String guarantees this, but verify length is even
+        // since every char is 2 bytes)
+        assert_eq!(result.len() % 2, 0);
+
+        // Also test with a mix: 239 ASCII bytes + a 2-byte char
+        let input2 = format!("{}{}", "a".repeat(239), "é");
+        let result2 = normalize_failure_reason(&input2);
+        assert!(result2.len() <= 240);
+        // Should truncate to 239 (dropping the 2-byte char that would push to 241)
+        assert_eq!(result2.len(), 239);
     }
 
     #[test]

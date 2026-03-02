@@ -1172,7 +1172,12 @@ impl Handler for CounterHandler {
             .call_count
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if count == 0 {
-            Ok(Outcome::fail("first call fails"))
+            let mut outcome = Outcome::fail("first call fails");
+            outcome.context_updates.insert(
+                "failure_class".to_string(),
+                serde_json::json!("transient_infra"),
+            );
+            Ok(outcome)
         } else {
             Ok(Outcome::success())
         }
@@ -9947,10 +9952,12 @@ async fn e2e_circuit_breaker_loop_restart() {
         "pipeline should abort, not restart forever"
     );
     let err = result.unwrap_err().to_string();
-    // Either the loop or restart circuit breaker fires
+    // The loop_restart guard blocks non-transient_infra failures immediately
     assert!(
-        err.contains("failure cycle detected") || err.contains("circuit breaker"),
-        "a circuit breaker should fire on repeated restart, got: {err}"
+        err.contains("loop_restart blocked")
+            || err.contains("failure cycle detected")
+            || err.contains("circuit breaker"),
+        "expected loop_restart guard or circuit breaker error, got: {err}"
     );
 }
 
@@ -10405,6 +10412,262 @@ async fn e2e_circuit_breaker_multi_stage_impl_verify_cycle() {
     assert!(
         err.contains("verify|deterministic|"),
         "signature should name the verify node, got: {err}"
+    );
+}
+
+// --- E2E Tests: loop_restart guard (only transient_infra may restart) ---
+
+/// Handler that fails with an explicit failure_class hint and succeeds on the Nth call.
+struct ClassifiedFailHandler {
+    failure_class: &'static str,
+    succeed_on: u32,
+    counter: std::sync::atomic::AtomicU32,
+}
+
+impl ClassifiedFailHandler {
+    fn always(failure_class: &'static str) -> Self {
+        Self {
+            failure_class,
+            succeed_on: u32::MAX,
+            counter: std::sync::atomic::AtomicU32::new(0),
+        }
+    }
+
+    fn succeed_on(failure_class: &'static str, n: u32) -> Self {
+        Self {
+            failure_class,
+            succeed_on: n,
+            counter: std::sync::atomic::AtomicU32::new(0),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Handler for ClassifiedFailHandler {
+    async fn execute(
+        &self,
+        _node: &Node,
+        _context: &Context,
+        _graph: &Graph,
+        _logs_root: &Path,
+        _services: &arc_workflows::handler::EngineServices,
+    ) -> Result<Outcome, ArcError> {
+        let n = self
+            .counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if n >= self.succeed_on {
+            return Ok(Outcome::success());
+        }
+        let mut outcome = Outcome::fail("classified failure");
+        outcome.context_updates.insert(
+            "failure_class".to_string(),
+            serde_json::json!(self.failure_class),
+        );
+        Ok(outcome)
+    }
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_blocked_for_deterministic_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::always("deterministic")),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-blocked-det".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(result.is_err(), "deterministic failure should not loop_restart");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("loop_restart blocked"),
+        "expected loop_restart blocked error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_blocked_for_structural_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::always("structural")),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-blocked-struct".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(result.is_err(), "structural failure should not loop_restart");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("loop_restart blocked"),
+        "expected loop_restart blocked error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_blocked_for_budget_exhausted_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::always("budget_exhausted")),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-blocked-budget".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(result.is_err(), "budget_exhausted failure should not loop_restart");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("loop_restart blocked"),
+        "expected loop_restart blocked error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_blocked_for_canceled_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::always("canceled")),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-blocked-canceled".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(result.is_err(), "canceled failure should not loop_restart");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("loop_restart blocked"),
+        "expected loop_restart blocked error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_blocked_for_compilation_loop_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::always("compilation_loop")),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-blocked-comploop".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(result.is_err(), "compilation_loop failure should not loop_restart");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("loop_restart blocked"),
+        "expected loop_restart blocked error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn e2e_loop_restart_allowed_for_transient_infra() {
+    let dir = tempfile::tempdir().unwrap();
+    let graph = circuit_breaker_restart_graph(Some(10));
+
+    let mut registry = HandlerRegistry::new(Box::new(StartHandler));
+    registry.register("start", Box::new(StartHandler));
+    registry.register("exit", Box::new(ExitHandler));
+    // Fails with transient_infra on first call, succeeds on second
+    registry.register(
+        "test_handler",
+        Box::new(ClassifiedFailHandler::succeed_on("transient_infra", 1)),
+    );
+
+    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let config = RunConfig {
+        logs_root: dir.path().to_path_buf(),
+        cancel_token: None,
+        dry_run: false,
+        run_id: "e2e-restart-allowed-transient".into(),
+        git_checkpoint: None,
+        base_sha: None,
+        run_branch: None,
+        meta_branch: None,
+    };
+
+    let result = engine.run(&graph, &config).await;
+    assert!(
+        result.is_ok(),
+        "transient_infra failure should be allowed to loop_restart, got: {:?}",
+        result.unwrap_err()
     );
 }
 

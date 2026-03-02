@@ -1505,6 +1505,16 @@ impl PipelineEngine {
                     incoming_edge = Some(edge);
                     // Gap #6: Handle loop_restart by recursively running from the target
                     if edge.loop_restart() {
+                        // Guard: only transient_infra failures may loop_restart (matches Kilroy)
+                        if let Some(fc) = outcome_failure_class {
+                            if fc != FailureClass::TransientInfra {
+                                return Err(ArcError::Engine(format!(
+                                    "loop_restart blocked: failure_class={fc} (requires transient_infra), node={}, failure_reason={}",
+                                    node.id,
+                                    outcome.failure_reason.as_deref().unwrap_or("none"),
+                                )));
+                            }
+                        }
                         // Circuit breaker: check restart failure signatures
                         if let Some(ref sig) = failure_sig {
                             let count = loop_state
@@ -3815,10 +3825,12 @@ mod tests {
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        // A circuit breaker fires (loop or restart) rather than looping indefinitely
+        // The loop_restart guard blocks non-transient_infra failures immediately
         assert!(
-            err.contains("failure cycle detected") || err.contains("circuit breaker"),
-            "expected circuit breaker error, got: {err}"
+            err.contains("loop_restart blocked")
+                || err.contains("failure cycle detected")
+                || err.contains("circuit breaker"),
+            "expected loop_restart guard or circuit breaker error, got: {err}"
         );
     }
 
