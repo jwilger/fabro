@@ -286,10 +286,10 @@ async fn test_models(provider: Option<&str>, model: Option<&str>) -> Result<()> 
         let params = GenerateParams::new(&info.id)
             .provider(&info.provider)
             .prompt("Say OK")
-            .max_tokens(5);
+            .max_tokens(16);
 
         let result =
-            tokio::time::timeout(Duration::from_secs(10), generate::generate(params)).await;
+            tokio::time::timeout(Duration::from_secs(30), generate::generate(params)).await;
 
         let status = match result {
             Ok(Ok(_)) => "ok".to_string(),
@@ -299,7 +299,7 @@ async fn test_models(provider: Option<&str>, model: Option<&str>) -> Result<()> 
             }
             Err(_) => {
                 failures += 1;
-                "error: timeout (10s)".to_string()
+                "error: timeout (30s)".to_string()
             }
         };
 
