@@ -205,11 +205,25 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
             if let crate::event::WorkflowRunEvent::WorkflowRunStarted { run_id, .. } = event {
                 *run_id_clone.lock().unwrap() = run_id.clone();
             }
-            let envelope = serde_json::json!({
-                "timestamp": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                "run_id": *run_id_clone.lock().unwrap(),
-                "event": event,
-            });
+            let (event_name, event_fields) = crate::event::flatten_event(event);
+            let mut envelope = serde_json::Map::new();
+            envelope.insert(
+                "timestamp".to_string(),
+                serde_json::Value::String(
+                    Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                ),
+            );
+            envelope.insert(
+                "run_id".to_string(),
+                serde_json::Value::String(run_id_clone.lock().unwrap().clone()),
+            );
+            envelope.insert(
+                "event".to_string(),
+                serde_json::Value::String(event_name),
+            );
+            envelope.extend(event_fields);
+            let envelope = serde_json::Value::Object(envelope);
             // Append to progress.jsonl
             if let Ok(line) = serde_json::to_string(&envelope) {
                 let line = arc_util::redact::redact_jsonl_line(&line);

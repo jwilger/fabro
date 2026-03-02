@@ -543,7 +543,7 @@ fn dry_run_writes_jsonl_and_live_json() {
     // Events should contain WorkflowRunStarted (may not be first due to exec env events)
     let has_run_started = lines.iter().any(|line| {
         let parsed: serde_json::Value = serde_json::from_str(line).unwrap();
-        parsed["event"].get("WorkflowRunStarted").is_some()
+        parsed["event"].as_str() == Some("WorkflowRunStarted")
     });
     assert!(
         has_run_started,

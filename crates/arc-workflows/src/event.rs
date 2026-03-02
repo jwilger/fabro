@@ -438,6 +438,161 @@ impl WorkflowRunEvent {
     }
 }
 
+/// Flatten a `WorkflowRunEvent` into its event name and a map of top-level fields.
+///
+/// Simple variants like `StageStarted` return `("StageStarted", {fields})`.
+/// Wrapper variants use dot notation:
+/// - `Agent { stage, event: ToolCallStarted { .. } }` → `"Agent.ToolCallStarted"`
+/// - `Sandbox { event: Initializing { .. } }` → `"Sandbox.Initializing"`
+/// - `Agent { stage, event: SubAgentEvent { event: inner, .. } }` → `"Agent.SubAgentEvent.{Inner}"`
+///   with one level of flattening; deeper nesting stays as JSON.
+pub fn flatten_event(
+    event: &WorkflowRunEvent,
+) -> (String, serde_json::Map<String, serde_json::Value>) {
+    let value = serde_json::to_value(event).expect("WorkflowRunEvent must serialize");
+    match value {
+        serde_json::Value::Object(map) => {
+            // Externally-tagged enum: { "VariantName": { fields } }
+            let (variant_name, inner) = map.into_iter().next().expect("enum must have one key");
+            match variant_name.as_str() {
+                "Agent" => flatten_agent(inner),
+                "Sandbox" => flatten_sandbox(inner),
+                _ => {
+                    let fields = match inner {
+                        serde_json::Value::Object(m) => m,
+                        _ => serde_json::Map::new(),
+                    };
+                    (variant_name, fields)
+                }
+            }
+        }
+        // Unit variants serialize as strings
+        serde_json::Value::String(name) => (name, serde_json::Map::new()),
+        _ => ("Unknown".to_string(), serde_json::Map::new()),
+    }
+}
+
+fn flatten_agent(inner: serde_json::Value) -> (String, serde_json::Map<String, serde_json::Value>) {
+    let serde_json::Value::Object(mut agent_fields) = inner else {
+        return ("Agent".to_string(), serde_json::Map::new());
+    };
+    let stage = agent_fields.remove("stage");
+    let agent_event = agent_fields.remove("event").unwrap_or(serde_json::Value::Null);
+
+    match agent_event {
+        serde_json::Value::Object(event_map) => {
+            let (inner_name, inner_value) = event_map
+                .into_iter()
+                .next()
+                .expect("agent event must have one key");
+            if inner_name == "SubAgentEvent" {
+                flatten_sub_agent_event(stage, inner_value)
+            } else {
+                let mut fields = match inner_value {
+                    serde_json::Value::Object(m) => m,
+                    _ => serde_json::Map::new(),
+                };
+                if let Some(s) = stage {
+                    fields.insert("stage".to_string(), s);
+                }
+                (format!("Agent.{inner_name}"), fields)
+            }
+        }
+        // Unit variant inside Agent (e.g. SessionStarted)
+        serde_json::Value::String(name) => {
+            let mut fields = serde_json::Map::new();
+            if let Some(s) = stage {
+                fields.insert("stage".to_string(), s);
+            }
+            (format!("Agent.{name}"), fields)
+        }
+        _ => {
+            let mut fields = serde_json::Map::new();
+            if let Some(s) = stage {
+                fields.insert("stage".to_string(), s);
+            }
+            ("Agent".to_string(), fields)
+        }
+    }
+}
+
+fn flatten_sandbox(
+    inner: serde_json::Value,
+) -> (String, serde_json::Map<String, serde_json::Value>) {
+    let serde_json::Value::Object(mut sandbox_fields) = inner else {
+        return ("Sandbox".to_string(), serde_json::Map::new());
+    };
+    let sandbox_event = sandbox_fields
+        .remove("event")
+        .unwrap_or(serde_json::Value::Null);
+
+    match sandbox_event {
+        serde_json::Value::Object(event_map) => {
+            let (inner_name, inner_value) = event_map
+                .into_iter()
+                .next()
+                .expect("sandbox event must have one key");
+            let fields = match inner_value {
+                serde_json::Value::Object(m) => m,
+                _ => serde_json::Map::new(),
+            };
+            (format!("Sandbox.{inner_name}"), fields)
+        }
+        serde_json::Value::String(name) => (format!("Sandbox.{name}"), serde_json::Map::new()),
+        _ => ("Sandbox".to_string(), serde_json::Map::new()),
+    }
+}
+
+fn flatten_sub_agent_event(
+    stage: Option<serde_json::Value>,
+    inner_value: serde_json::Value,
+) -> (String, serde_json::Map<String, serde_json::Value>) {
+    let serde_json::Value::Object(mut sub_fields) = inner_value else {
+        let mut fields = serde_json::Map::new();
+        if let Some(s) = stage {
+            fields.insert("stage".to_string(), s);
+        }
+        return ("Agent.SubAgentEvent".to_string(), fields);
+    };
+    let agent_id = sub_fields.remove("agent_id");
+    let depth = sub_fields.remove("depth");
+    let nested_event = sub_fields.remove("event").unwrap_or(serde_json::Value::Null);
+
+    let (nested_name, nested_fields) = match &nested_event {
+        serde_json::Value::Object(event_map) => {
+            let (name, value) = event_map
+                .iter()
+                .next()
+                .expect("nested event must have one key");
+            let fields = match value {
+                serde_json::Value::Object(m) => m.clone(),
+                _ => serde_json::Map::new(),
+            };
+            (Some(name.clone()), fields)
+        }
+        serde_json::Value::String(name) => (Some(name.clone()), serde_json::Map::new()),
+        _ => (None, serde_json::Map::new()),
+    };
+
+    let event_name = match &nested_name {
+        Some(name) => format!("Agent.SubAgentEvent.{name}"),
+        None => "Agent.SubAgentEvent".to_string(),
+    };
+
+    let mut fields = nested_fields;
+    if let Some(s) = stage {
+        fields.insert("stage".to_string(), s);
+    }
+    if let Some(id) = agent_id {
+        fields.insert("agent_id".to_string(), id);
+    }
+    if let Some(d) = depth {
+        fields.insert("depth".to_string(), d);
+    }
+
+    (event_name, fields)
+}
+
 /// Current time as epoch milliseconds.
 fn epoch_millis() -> i64 {
     std::time::SystemTime::now()
@@ -1030,6 +1185,86 @@ mod tests {
         assert!(
             matches!(deserialized, WorkflowRunEvent::StallWatchdogTimeout { node, idle_seconds } if node == "work" && idle_seconds == 600)
         );
+    }
+
+    #[test]
+    fn flatten_event_simple_variant() {
+        let event = WorkflowRunEvent::StageStarted {
+            name: "plan".to_string(),
+            index: 0,
+            handler_type: Some("codergen".to_string()),
+            attempt: 1,
+            max_attempts: 3,
+        };
+        let (name, fields) = flatten_event(&event);
+        assert_eq!(name, "StageStarted");
+        assert_eq!(fields["name"], "plan");
+        assert_eq!(fields["index"], 0);
+        assert_eq!(fields["handler_type"], "codergen");
+        assert_eq!(fields["attempt"], 1);
+        assert_eq!(fields["max_attempts"], 3);
+    }
+
+    #[test]
+    fn flatten_event_agent_tool_call_started() {
+        let event = WorkflowRunEvent::Agent {
+            stage: "code".to_string(),
+            event: AgentEvent::ToolCallStarted {
+                tool_name: "read_file".to_string(),
+                tool_call_id: "call_1".to_string(),
+                arguments: serde_json::json!({"path": "/tmp/test.txt"}),
+            },
+        };
+        let (name, fields) = flatten_event(&event);
+        assert_eq!(name, "Agent.ToolCallStarted");
+        assert_eq!(fields["stage"], "code");
+        assert_eq!(fields["tool_name"], "read_file");
+        assert_eq!(fields["tool_call_id"], "call_1");
+    }
+
+    #[test]
+    fn flatten_event_sandbox_initializing() {
+        let event = WorkflowRunEvent::Sandbox {
+            event: SandboxEvent::Initializing {
+                provider: "docker".into(),
+            },
+        };
+        let (name, fields) = flatten_event(&event);
+        assert_eq!(name, "Sandbox.Initializing");
+        assert_eq!(fields["provider"], "docker");
+    }
+
+    #[test]
+    fn flatten_event_agent_sub_agent_event() {
+        let event = WorkflowRunEvent::Agent {
+            stage: "code".to_string(),
+            event: AgentEvent::SubAgentEvent {
+                agent_id: "sub_1".to_string(),
+                depth: 1,
+                event: Box::new(AgentEvent::ToolCallStarted {
+                    tool_name: "write_file".to_string(),
+                    tool_call_id: "call_2".to_string(),
+                    arguments: serde_json::json!({}),
+                }),
+            },
+        };
+        let (name, fields) = flatten_event(&event);
+        assert_eq!(name, "Agent.SubAgentEvent.ToolCallStarted");
+        assert_eq!(fields["stage"], "code");
+        assert_eq!(fields["agent_id"], "sub_1");
+        assert_eq!(fields["depth"], 1);
+        assert_eq!(fields["tool_name"], "write_file");
+    }
+
+    #[test]
+    fn flatten_event_agent_session_started() {
+        let event = WorkflowRunEvent::Agent {
+            stage: "plan".to_string(),
+            event: AgentEvent::SessionStarted,
+        };
+        let (name, fields) = flatten_event(&event);
+        assert_eq!(name, "Agent.SessionStarted");
+        assert_eq!(fields["stage"], "plan");
     }
 
     #[test]

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::Checkpoint;
 use crate::error::{ArcError, Result};
-use crate::event::WorkflowRunEvent;
 use crate::outcome::StageStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,18 +182,16 @@ pub fn extract_stage_durations(logs_root: &Path) -> HashMap<String, u64> {
         let Ok(envelope) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
-        let Some(event_value) = envelope.get("event") else {
+        if envelope.get("event").and_then(|v| v.as_str()) != Some("StageCompleted") {
             continue;
-        };
-        let Ok(event) = serde_json::from_value::<WorkflowRunEvent>(event_value.clone()) else {
-            continue;
-        };
-        if let WorkflowRunEvent::StageCompleted {
-            name, duration_ms, ..
-        } = event
-        {
-            durations.insert(name, duration_ms);
         }
+        let Some(name) = envelope.get("name").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(duration_ms) = envelope.get("duration_ms").and_then(|v| v.as_u64()) else {
+            continue;
+        };
+        durations.insert(name.to_string(), duration_ms);
     }
     durations
 }
@@ -524,44 +521,38 @@ mod tests {
         let event1 = serde_json::json!({
             "timestamp": "2025-01-01T00:00:00.000Z",
             "run_id": "r1",
-            "event": {
-                "StageCompleted": {
-                    "name": "plan",
-                    "index": 0,
-                    "duration_ms": 5000,
-                    "status": "success",
-                    "preferred_label": null,
-                    "suggested_next_ids": [],
-                    "usage": null,
-                    "failure_reason": null,
-                    "notes": null,
-                    "files_touched": [],
-                    "attempt": 1,
-                    "max_attempts": 1,
-                    "failure_class": null
-                }
-            }
+            "event": "StageCompleted",
+            "name": "plan",
+            "index": 0,
+            "duration_ms": 5000,
+            "status": "success",
+            "preferred_label": null,
+            "suggested_next_ids": [],
+            "usage": null,
+            "failure_reason": null,
+            "notes": null,
+            "files_touched": [],
+            "attempt": 1,
+            "max_attempts": 1,
+            "failure_class": null
         });
         let event2 = serde_json::json!({
             "timestamp": "2025-01-01T00:00:05.000Z",
             "run_id": "r1",
-            "event": {
-                "StageCompleted": {
-                    "name": "code",
-                    "index": 1,
-                    "duration_ms": 15000,
-                    "status": "success",
-                    "preferred_label": null,
-                    "suggested_next_ids": [],
-                    "usage": null,
-                    "failure_reason": null,
-                    "notes": null,
-                    "files_touched": [],
-                    "attempt": 1,
-                    "max_attempts": 1,
-                    "failure_class": null
-                }
-            }
+            "event": "StageCompleted",
+            "name": "code",
+            "index": 1,
+            "duration_ms": 15000,
+            "status": "success",
+            "preferred_label": null,
+            "suggested_next_ids": [],
+            "usage": null,
+            "failure_reason": null,
+            "notes": null,
+            "files_touched": [],
+            "attempt": 1,
+            "max_attempts": 1,
+            "failure_class": null
         });
         let content = format!(
             "{}\n{}\n",
