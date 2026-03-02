@@ -49,7 +49,104 @@
       },
       {
         "tab": "API Reference",
-        "openapi": "api-reference/arc-api.yaml"
+        "openapi": "api-reference/arc-api.yaml",
+        "groups": [
+          {
+            "group": "Runs",
+            "pages": [
+              "GET /runs",
+              "POST /runs",
+              "GET /runs/{id}",
+              "POST /runs/{id}/cancel",
+              "GET /runs/{id}/graph",
+              "GET /runs/{id}/events"
+            ]
+          },
+          {
+            "group": "Human-in-the-Loop",
+            "pages": [
+              "GET /runs/{id}/questions",
+              "POST /runs/{id}/questions/{qid}/answer",
+              "POST /runs/{id}/steer",
+              "POST /runs/{id}/preview"
+            ]
+          },
+          {
+            "group": "Run Outputs",
+            "pages": [
+              "GET /runs/{id}/files",
+              "GET /runs/{id}/usage",
+              "GET /runs/{id}/verifications"
+            ]
+          },
+          {
+            "group": "Run Internals",
+            "pages": [
+              "GET /runs/{id}/checkpoint",
+              "GET /runs/{id}/context",
+              "GET /runs/{id}/stages",
+              "GET /runs/{id}/stages/{stageId}/turns",
+              "GET /runs/{id}/configuration"
+            ]
+          },
+          {
+            "group": "Workflows",
+            "pages": [
+              "GET /workflows",
+              "GET /workflows/{name}",
+              "GET /workflows/{name}/runs",
+              "POST /workflows/{name}/runs"
+            ]
+          },
+          {
+            "group": "Verifications",
+            "pages": [
+              "GET /verifications",
+              "GET /verifications/{slug}"
+            ]
+          },
+          {
+            "group": "Insights",
+            "pages": [
+              "GET /insights/queries",
+              "POST /insights/queries",
+              "PUT /insights/queries/{id}",
+              "DELETE /insights/queries/{id}",
+              "POST /insights/execute",
+              "GET /insights/history"
+            ]
+          },
+          {
+            "group": "Sessions",
+            "pages": [
+              "GET /sessions",
+              "POST /sessions",
+              "GET /sessions/{id}",
+              "POST /sessions/{id}/messages",
+              "GET /sessions/{id}/events"
+            ]
+          },
+          {
+            "group": "Retros",
+            "pages": [
+              "GET /runs/{id}/retro",
+              "GET /retros"
+            ]
+          },
+          {
+            "group": "Projects",
+            "pages": [
+              "GET /projects",
+              "GET /projects/{id}/branches"
+            ]
+          },
+          {
+            "group": "Settings",
+            "pages": [
+              "GET /settings"
+            ]
+          }
+        ]
       }
     ],
     "global": {
