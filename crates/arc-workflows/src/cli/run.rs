@@ -222,7 +222,11 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 "event".to_string(),
                 serde_json::Value::String(event_name),
             );
-            envelope.extend(event_fields);
+            for (k, v) in event_fields {
+                if k != "timestamp" && k != "run_id" && k != "event" {
+                    envelope.insert(k, v);
+                }
+            }
             let envelope = serde_json::Value::Object(envelope);
             // Append to progress.jsonl
             if let Ok(line) = serde_json::to_string(&envelope) {
