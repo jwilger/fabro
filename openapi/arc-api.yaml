@@ -140,7 +140,7 @@ paths:
   /runs/{id}/checkpoint:
     get:
       operationId: retrieveRunCheckpoint
-      tags: [Runs]
+      tags: [Run Internals]
       summary: Retrieve Run Checkpoint
       parameters:
         - $ref: "#/components/parameters/RunId"
