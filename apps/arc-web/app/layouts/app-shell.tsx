@@ -68,7 +68,7 @@ export default function AppShell() {
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
               <div className="shrink-0">
-                <Link to="/workflows">
+                <Link to="/start">
                   <img alt="Arc" src="/logotype.svg" className="h-8 w-auto" />
                 </Link>
               </div>
