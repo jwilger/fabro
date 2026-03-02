@@ -18,7 +18,7 @@ use crate::checkpoint::Checkpoint;
 use crate::condition::evaluate_condition;
 use crate::context::Context;
 use crate::error::{classify_failure_reason, ArcError, FailureClass, FailureSignature, Result};
-use crate::event::{EventEmitter, PipelineEvent};
+use crate::event::{EventEmitter, WorkflowRunEvent};
 use crate::graph::{Edge, Graph, Node};
 use crate::handler::{EngineServices, HandlerRegistry};
 use crate::interviewer::Interviewer;
@@ -283,16 +283,16 @@ pub fn resolve_thread_id(
 
 // --- Run directory helpers (spec 5.6) ---
 
-/// Write manifest.json at the start of a pipeline run. Returns the manifest value.
+/// Write manifest.json at the start of a workflow run. Returns the manifest value.
 fn write_manifest(logs_root: &Path, graph: &Graph, config: &RunConfig) -> serde_json::Value {
-    let pipeline_name = if graph.name.is_empty() {
+    let workflow_name = if graph.name.is_empty() {
         "unnamed"
     } else {
         &graph.name
     };
     let mut manifest = serde_json::json!({
         "run_id": config.run_id,
-        "pipeline_name": pipeline_name,
+        "workflow_name": workflow_name,
         "goal": graph.goal(),
         "start_time": Utc::now().to_rfc3339(),
         "node_count": graph.nodes.len(),
@@ -514,9 +514,9 @@ fn is_terminal(node: &Node) -> bool {
     node.shape() == "Msquare" || node.handler_type() == Some("exit")
 }
 
-// --- Pipeline engine ---
+// --- Workflow run engine ---
 
-/// Captured git state for a pipeline run, shared with handlers.
+/// Captured git state for a workflow run, shared with handlers.
 #[derive(Debug, Clone)]
 pub struct GitState {
     pub mode: GitCheckpointMode,
@@ -526,7 +526,7 @@ pub struct GitState {
     pub meta_branch: Option<String>,
 }
 
-/// How git checkpointing should be performed for a pipeline run.
+/// How git checkpointing should be performed for a workflow run.
 #[derive(Debug, Clone)]
 pub enum GitCheckpointMode {
     /// Run git commands on the host filesystem (local & Docker bind-mount).
@@ -724,12 +724,12 @@ pub async fn git_replace_worktree_remote(
     git_add_worktree_remote(exec_env, path, branch).await
 }
 
-/// Configuration for a pipeline run.
+/// Configuration for a workflow run.
 pub struct RunConfig {
     pub logs_root: PathBuf,
     pub cancel_token: Option<Arc<AtomicBool>>,
     pub dry_run: bool,
-    /// Unique identifier for this pipeline run.
+    /// Unique identifier for this workflow run.
     pub run_id: String,
     /// Git checkpoint mode (None = no checkpointing).
     pub git_checkpoint: Option<GitCheckpointMode>,
@@ -743,13 +743,13 @@ pub struct RunConfig {
     pub labels: HashMap<String, String>,
 }
 
-/// The pipeline execution engine.
-pub struct PipelineEngine {
+/// The workflow run execution engine.
+pub struct WorkflowRunEngine {
     services: EngineServices,
     pub interviewer: Option<Arc<dyn Interviewer>>,
 }
 
-impl PipelineEngine {
+impl WorkflowRunEngine {
     #[must_use]
     pub fn new(
         registry: HandlerRegistry,
@@ -884,7 +884,7 @@ impl PipelineEngine {
                     // Gap #7: Check should_retry predicate before retrying
                     if attempt < policy.max_attempts && handler.should_retry(&e) {
                         let delay = policy.backoff.delay_for_attempt(attempt);
-                        self.services.emitter.emit(&PipelineEvent::StageFailed {
+                        self.services.emitter.emit(&WorkflowRunEvent::StageFailed {
                             name: node.label().to_string(),
                             index: stage_index,
                             error: e.to_string(),
@@ -892,7 +892,7 @@ impl PipelineEngine {
                             failure_reason: None,
                             failure_class: Some(e.failure_class().to_string()),
                         });
-                        self.services.emitter.emit(&PipelineEvent::StageRetrying {
+                        self.services.emitter.emit(&WorkflowRunEvent::StageRetrying {
                             name: node.label().to_string(),
                             index: stage_index,
                             attempt: usize::try_from(attempt).unwrap_or(usize::MAX),
@@ -917,7 +917,7 @@ impl PipelineEngine {
                 StageStatus::Retry => {
                     if attempt < policy.max_attempts {
                         let delay = policy.backoff.delay_for_attempt(attempt);
-                        self.services.emitter.emit(&PipelineEvent::StageRetrying {
+                        self.services.emitter.emit(&WorkflowRunEvent::StageRetrying {
                             name: node.label().to_string(),
                             index: stage_index,
                             attempt: usize::try_from(attempt).unwrap_or(usize::MAX),
@@ -946,7 +946,7 @@ impl PipelineEngine {
         Ok((Outcome::fail("max retries exceeded"), policy.max_attempts))
     }
 
-    /// Run the pipeline. Returns the final outcome.
+    /// Run the workflow. Returns the final outcome.
     ///
     /// # Errors
     ///
@@ -959,7 +959,7 @@ impl PipelineEngine {
         Ok(outcome)
     }
 
-    /// Run a pipeline seeded with an existing context. Returns both the outcome
+    /// Run a workflow seeded with an existing context. Returns both the outcome
     /// and the final context so the caller can diff changes.
     pub async fn run_with_context(
         &self,
@@ -1028,7 +1028,7 @@ impl PipelineEngine {
         };
         self.services.set_git_state(git_state);
 
-        self.services.emitter.emit(&PipelineEvent::PipelineStarted {
+        self.services.emitter.emit(&WorkflowRunEvent::WorkflowRunStarted {
             name: graph.name.clone(),
             run_id: run_id.clone(),
             base_sha: config.base_sha.clone(),
@@ -1038,7 +1038,7 @@ impl PipelineEngine {
                 _ => None,
             },
         });
-        self.inform(&format!("Pipeline started: {}", graph.name), "pipeline");
+        self.inform(&format!("Run started: {}", graph.name), "run");
 
         // Write manifest.json (spec 5.6)
         let manifest = write_manifest(&config.logs_root, graph, config);
@@ -1205,9 +1205,9 @@ impl PipelineEngine {
                 .or_insert(0);
             *count += 1;
             if max_node_visits > 0 && *count >= max_node_visits {
-                tracing::warn!(node = %current_node_id, visits = *count, limit = max_node_visits, "Node visit limit exceeded, pipeline stuck in cycle");
+                tracing::warn!(node = %current_node_id, visits = *count, limit = max_node_visits, "Node visit limit exceeded, run stuck in cycle");
                 return Err(ArcError::Engine(format!(
-                    "node \"{}\" visited {count} times (limit {max_node_visits}); pipeline is stuck in a cycle",
+                    "node \"{}\" visited {count} times (limit {max_node_visits}); run is stuck in a cycle",
                     current_node_id
                 )));
             }
@@ -1225,7 +1225,7 @@ impl PipelineEngine {
                         let error_msg = format!(
                             "goal gate unsatisfied for node {failed_node_id} and no retry target"
                         );
-                        self.services.emitter.emit(&PipelineEvent::PipelineFailed {
+                        self.services.emitter.emit(&WorkflowRunEvent::WorkflowRunFailed {
                             error: error_msg.clone(),
                             duration_ms,
                             git_commit_sha: last_git_sha.clone(),
@@ -1273,7 +1273,7 @@ impl PipelineEngine {
             context.set("current_node", serde_json::json!(&node.id));
             let retry_policy = build_retry_policy(node, graph);
 
-            self.services.emitter.emit(&PipelineEvent::StageStarted {
+            self.services.emitter.emit(&WorkflowRunEvent::StageStarted {
                 name: node.label().to_string(),
                 index: stage_index,
                 handler_type: node.handler_type().map(String::from),
@@ -1292,7 +1292,7 @@ impl PipelineEngine {
                     ) => result?,
                     () = token.cancelled() => {
                         let idle_secs = graph.stall_timeout().map_or(0, |d| d.as_secs());
-                        self.services.emitter.emit(&PipelineEvent::StallWatchdogTimeout {
+                        self.services.emitter.emit(&WorkflowRunEvent::StallWatchdogTimeout {
                             node: node.id.clone(),
                             idle_seconds: idle_secs,
                         });
@@ -1361,7 +1361,7 @@ impl PipelineEngine {
             };
 
             if outcome.status == StageStatus::Fail {
-                self.services.emitter.emit(&PipelineEvent::StageFailed {
+                self.services.emitter.emit(&WorkflowRunEvent::StageFailed {
                     name: node.label().to_string(),
                     index: stage_index,
                     error: outcome
@@ -1374,7 +1374,7 @@ impl PipelineEngine {
                     failure_class: outcome_failure_class.map(|fc| fc.to_string()),
                 });
             } else {
-                self.services.emitter.emit(&PipelineEvent::StageCompleted {
+                self.services.emitter.emit(&WorkflowRunEvent::StageCompleted {
                     name: node.label().to_string(),
                     index: stage_index,
                     duration_ms: stage_duration_ms,
@@ -1434,7 +1434,7 @@ impl PipelineEngine {
             // Step 5: Select next edge (done before checkpoint so we can store next_node_id)
             let next_edge = select_edge(&node.id, &outcome, &context, graph);
             if let Some(edge) = next_edge {
-                self.services.emitter.emit(&PipelineEvent::EdgeSelected {
+                self.services.emitter.emit(&WorkflowRunEvent::EdgeSelected {
                     from_node: node.id.clone(),
                     to_node: edge.to.clone(),
                     label: edge.label().map(String::from),
@@ -1458,7 +1458,7 @@ impl PipelineEngine {
             if let Err(e) = checkpoint.save(&checkpoint_path) {
                 context.append_log(format!("checkpoint save failed: {e}"));
             } else {
-                self.services.emitter.emit(&PipelineEvent::CheckpointSaved {
+                self.services.emitter.emit(&WorkflowRunEvent::CheckpointSaved {
                     node_id: node.id.clone(),
                 });
             }
@@ -1539,7 +1539,7 @@ impl PipelineEngine {
                     if let Err(e) = checkpoint.save(&checkpoint_path) {
                         context.append_log(format!("checkpoint re-save with SHA failed: {e}"));
                     }
-                    self.services.emitter.emit(&PipelineEvent::GitCheckpoint {
+                    self.services.emitter.emit(&WorkflowRunEvent::GitCheckpoint {
                         run_id: run_id.clone(),
                         node_id: node.id.clone(),
                         status: outcome.status.to_string(),
@@ -1587,7 +1587,7 @@ impl PipelineEngine {
                         let duration_ms = millis_u64(run_start.elapsed());
                         let error_msg =
                             format!("stage {} failed with no outgoing fail edge", node.id);
-                        self.services.emitter.emit(&PipelineEvent::PipelineFailed {
+                        self.services.emitter.emit(&WorkflowRunEvent::WorkflowRunFailed {
                             error: error_msg.clone(),
                             duration_ms,
                             git_commit_sha: last_git_sha.clone(),
@@ -1625,7 +1625,7 @@ impl PipelineEngine {
                                 )));
                             }
                         }
-                        self.services.emitter.emit(&PipelineEvent::LoopRestart {
+                        self.services.emitter.emit(&WorkflowRunEvent::LoopRestart {
                             from_node: node.id.clone(),
                             to_node: edge.to.clone(),
                         });
@@ -1663,7 +1663,7 @@ impl PipelineEngine {
         };
         self.services
             .emitter
-            .emit(&PipelineEvent::PipelineCompleted {
+            .emit(&WorkflowRunEvent::WorkflowRunCompleted {
                 duration_ms,
                 artifact_count: artifact_store.list().len(),
                 total_cost,
@@ -2300,7 +2300,7 @@ mod tests {
         assert!(!is_terminal(&n));
     }
 
-    // --- PipelineEngine integration tests ---
+    // --- WorkflowRunEngine integration tests ---
 
     fn simple_graph() -> Graph {
         let mut g = Graph::new("test_pipeline");
@@ -2336,11 +2336,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn engine_runs_simple_pipeline() {
+    async fn engine_runs_simple_workflow() {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2361,7 +2361,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2390,7 +2390,7 @@ mod tests {
             events_clone.lock().unwrap().push(format!("{event:?}"));
         });
 
-        let engine = PipelineEngine::new(make_registry(), Arc::new(emitter), local_env());
+        let engine = WorkflowRunEngine::new(make_registry(), Arc::new(emitter), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2405,8 +2405,8 @@ mod tests {
         engine.run(&g, &config).await.unwrap();
 
         let collected = events.lock().unwrap();
-        // Should have: PipelineStarted, StageStarted (start), StageCompleted (start),
-        // CheckpointSaved, PipelineCompleted
+        // Should have: RunStarted, StageStarted (start), StageCompleted (start),
+        // CheckpointSaved, RunCompleted
         assert!(collected.len() >= 4);
     }
 
@@ -2415,7 +2415,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = Graph::new("empty");
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2436,7 +2436,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2459,7 +2459,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn engine_multi_node_pipeline() {
+    async fn engine_multi_node_workflow() {
         let dir = tempfile::tempdir().unwrap();
         let mut g = simple_graph();
         // Insert a work node between start and exit
@@ -2470,7 +2470,7 @@ mod tests {
         g.edges.push(Edge::new("work", "exit"));
 
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2528,7 +2528,7 @@ mod tests {
         g.edges.push(Edge::new("path_b", "exit"));
 
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2606,7 +2606,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2624,7 +2624,7 @@ mod tests {
         assert!(manifest_path.exists());
         let manifest: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
-        assert_eq!(manifest["pipeline_name"], "test_pipeline");
+        assert_eq!(manifest["workflow_name"], "test_pipeline");
         assert_eq!(manifest["goal"], "Run tests");
         assert!(manifest["start_time"].is_string());
         assert!(manifest["node_count"].is_number());
@@ -2636,7 +2636,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2661,7 +2661,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2686,7 +2686,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2713,7 +2713,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2868,7 +2868,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2907,7 +2907,7 @@ mod tests {
         g.edges.push(Edge::new("start", "exit"));
 
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -2964,7 +2964,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(AlwaysFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3023,7 +3023,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(AlwaysFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3086,7 +3086,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 500 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3138,7 +3138,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 10 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3191,7 +3191,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 500 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3242,11 +3242,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn engine_calls_inform_on_pipeline_start() {
+    async fn engine_calls_inform_on_run_start() {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let informer = Arc::new(RecordingInformer::new());
-        let engine = PipelineEngine::with_interviewer(
+        let engine = WorkflowRunEngine::with_interviewer(
             make_registry(),
             Arc::new(EventEmitter::new()),
             Arc::clone(&informer) as Arc<dyn crate::interviewer::Interviewer>,
@@ -3271,8 +3271,8 @@ mod tests {
         assert!(
             messages
                 .iter()
-                .any(|(msg, stage)| msg.contains("Pipeline started") && stage == "pipeline"),
-            "expected 'Pipeline started' inform call, got: {messages:?}"
+                .any(|(msg, stage)| msg.contains("Run started") && stage == "run"),
+            "expected 'Run started' inform call, got: {messages:?}"
         );
     }
 
@@ -3281,7 +3281,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let informer = Arc::new(RecordingInformer::new());
-        let engine = PipelineEngine::with_interviewer(
+        let engine = WorkflowRunEngine::with_interviewer(
             make_registry(),
             Arc::new(EventEmitter::new()),
             Arc::clone(&informer) as Arc<dyn crate::interviewer::Interviewer>,
@@ -3322,7 +3322,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3345,7 +3345,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let cancel_token = Arc::new(AtomicBool::new(true));
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
@@ -3368,7 +3368,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = simple_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let cancel_token = Arc::new(AtomicBool::new(false));
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
@@ -3386,7 +3386,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn engine_cancelled_mid_pipeline() {
+    async fn engine_cancelled_mid_run() {
         let dir = tempfile::tempdir().unwrap();
         let mut g = simple_graph();
         // Insert a work node between start and exit
@@ -3405,7 +3405,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 200 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: Some(cancel_token),
@@ -3478,7 +3478,7 @@ mod tests {
         g.attrs
             .insert("max_node_visits".to_string(), AttrValue::Integer(3));
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3504,7 +3504,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let g = cyclic_graph();
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3532,7 +3532,7 @@ mod tests {
         g.attrs
             .insert("max_node_visits".to_string(), AttrValue::Integer(2));
         let engine =
-            PipelineEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
+            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3621,7 +3621,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("panicker", Box::new(PanickingHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3846,7 +3846,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(AlwaysFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3877,7 +3877,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(TransientFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3915,7 +3915,7 @@ mod tests {
                 counter: std::sync::atomic::AtomicUsize::new(0),
             }),
         );
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -3938,7 +3938,7 @@ mod tests {
 
     #[tokio::test]
     async fn restart_circuit_breaker_aborts_on_repeated_failure() {
-        // In a pipeline with loop_restart edges, a repeating deterministic failure
+        // In a workflow with loop_restart edges, a repeating deterministic failure
         // triggers a circuit breaker (either loop or restart, depending on topology).
         let dir = tempfile::tempdir().unwrap();
         let mut g = Graph::new("restart_test");
@@ -3993,7 +3993,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(AlwaysFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -4036,7 +4036,7 @@ mod tests {
             let start = Instant::now();
             while start.elapsed() < Duration::from_millis(self.total_ms) {
                 tokio::time::sleep(Duration::from_millis(self.interval_ms)).await;
-                services.emitter.emit(&PipelineEvent::Prompt {
+                services.emitter.emit(&WorkflowRunEvent::Prompt {
                     stage: node.id.clone(),
                     text: "keepalive".to_string(),
                 });
@@ -4084,7 +4084,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 60_000 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -4150,7 +4150,7 @@ mod tests {
                 total_ms: 500,
             }),
         );
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -4205,7 +4205,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("slow", Box::new(SlowHandler { sleep_ms: 200 }));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -4224,7 +4224,7 @@ mod tests {
     #[tokio::test]
     async fn failure_signature_stored_in_context() {
         let dir = tempfile::tempdir().unwrap();
-        // Simple pipeline: start -> work (fails) -> exit (via fail edge)
+        // Simple workflow: start -> work (fails) -> exit (via fail edge)
         let mut g = Graph::new("sig_context_test");
         g.attrs
             .insert("goal".to_string(), AttrValue::String("test".to_string()));
@@ -4259,7 +4259,7 @@ mod tests {
 
         let mut registry = make_registry();
         registry.register("always_fail", Box::new(AlwaysFailHandler));
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,

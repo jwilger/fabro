@@ -7,9 +7,9 @@ use arc_util::terminal::Styles;
 use arc_workflows::checkpoint::Checkpoint;
 use arc_workflows::cli::backend::AgentApiBackend;
 use arc_workflows::context::Context;
-use arc_workflows::engine::{PipelineEngine, RunConfig};
+use arc_workflows::engine::{WorkflowRunEngine, RunConfig};
 use arc_workflows::error::ArcError;
-use arc_workflows::event::{EventEmitter, PipelineEvent};
+use arc_workflows::event::{EventEmitter, WorkflowRunEvent};
 use arc_workflows::graph::{AttrValue, Edge, Graph, Node};
 use arc_workflows::handler::codergen::{CodergenBackend, CodergenHandler, CodergenResult};
 use arc_workflows::handler::conditional::ConditionalHandler;
@@ -184,7 +184,7 @@ async fn end_to_end_linear_pipeline() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -325,7 +325,7 @@ async fn end_to_end_branching_pipeline() {
     registry.register("codergen", Box::new(CodergenHandler::new(None)));
     registry.register("conditional", Box::new(ConditionalHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -445,7 +445,7 @@ async fn end_to_end_human_gate_pipeline() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -551,7 +551,7 @@ async fn goal_gate_routes_to_retry_target_on_failure() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("always_fail", Box::new(AlwaysFailHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -670,7 +670,7 @@ async fn goal_gate_routes_to_retry_target_when_present() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -976,7 +976,7 @@ async fn retry_on_failure_then_succeed() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1045,7 +1045,7 @@ async fn pipeline_with_many_nodes() {
         .push(Edge::new(node_names.last().unwrap(), "exit"));
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -1236,7 +1236,7 @@ impl Handler for ContextSetterHandler {
     }
 }
 
-fn collect_events(emitter: &mut EventEmitter) -> Arc<std::sync::Mutex<Vec<PipelineEvent>>> {
+fn collect_events(emitter: &mut EventEmitter) -> Arc<std::sync::Mutex<Vec<WorkflowRunEvent>>> {
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let events_clone = Arc::clone(&events);
     emitter.on_event(move |event| {
@@ -1376,7 +1376,7 @@ async fn smoke_test_with_mock_codergen_backend() {
     );
     registry.register("conditional", Box::new(ConditionalHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1475,7 +1475,7 @@ async fn end_to_end_parallel_fan_out_fan_in() {
         Box::new(FanInHandler::new(Some(Box::new(MockCodergenBackend)))),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1585,7 +1585,7 @@ async fn resume_from_checkpoint_completes_pipeline() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1681,7 +1681,7 @@ async fn resume_from_checkpoint_preserves_goal_gate_outcomes() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1718,7 +1718,7 @@ async fn graph_goal_in_context() {
     }"#;
     let graph = parse(input).expect("parse");
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -1755,7 +1755,7 @@ async fn event_streaming_lifecycle() {
     let dir = tempfile::tempdir().unwrap();
     let mut emitter = EventEmitter::new();
     let events = collect_events(&mut emitter);
-    let engine = PipelineEngine::new(make_linear_registry(), Arc::new(emitter), local_env());
+    let engine = WorkflowRunEngine::new(make_linear_registry(), Arc::new(emitter), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -1772,33 +1772,33 @@ async fn event_streaming_lifecycle() {
     let collected = events.lock().unwrap();
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineStarted { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunStarted { .. })));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::StageStarted { name, .. } if name == "start")));
+        .any(|e| matches!(e, WorkflowRunEvent::StageStarted { name, .. } if name == "start")));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::StageCompleted { name, .. } if name == "start")));
+        .any(|e| matches!(e, WorkflowRunEvent::StageCompleted { name, .. } if name == "start")));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::StageStarted { name, .. } if name == "task")));
+        .any(|e| matches!(e, WorkflowRunEvent::StageStarted { name, .. } if name == "task")));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::StageCompleted { name, .. } if name == "task")));
+        .any(|e| matches!(e, WorkflowRunEvent::StageCompleted { name, .. } if name == "task")));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::CheckpointSaved { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::CheckpointSaved { .. })));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineCompleted { .. })));
-    // PipelineStarted first, PipelineCompleted last
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunCompleted { .. })));
+    // WorkflowRunStarted first, WorkflowRunCompleted last
     assert!(matches!(
         collected.first().unwrap(),
-        PipelineEvent::PipelineStarted { .. }
+        WorkflowRunEvent::WorkflowRunStarted { .. }
     ));
     assert!(matches!(
         collected.last().unwrap(),
-        PipelineEvent::PipelineCompleted { .. }
+        WorkflowRunEvent::WorkflowRunCompleted { .. }
     ));
 }
 
@@ -1828,7 +1828,7 @@ async fn context_flow_between_stages() {
     graph.edges.push(Edge::new("step_b", "exit"));
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -1878,7 +1878,7 @@ async fn tool_handler_e2e() {
 
     let dir = tempfile::tempdir().unwrap();
     let interviewer = Arc::new(AutoApproveInterviewer);
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_full_registry(interviewer),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -1947,7 +1947,7 @@ async fn auto_approve_interviewer_e2e() {
 
     let dir = tempfile::tempdir().unwrap();
     let interviewer = Arc::new(AutoApproveInterviewer);
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_full_registry(interviewer),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -1981,7 +1981,7 @@ async fn codergen_without_backend_simulated() {
     }"#;
     let graph = parse(input).expect("parse");
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -2087,7 +2087,7 @@ async fn branching_loop_back_on_failure() {
             call_count: std::sync::atomic::AtomicU32::new(0),
         }),
     );
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2169,7 +2169,7 @@ async fn human_gate_loops_back() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2220,7 +2220,7 @@ async fn scenario_ship_a_feature() {
     let dir = tempfile::tempdir().unwrap();
     let mut emitter = EventEmitter::new();
     let events = collect_events(&mut emitter);
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_full_registry(interviewer),
         Arc::new(emitter),
         local_env(),
@@ -2253,10 +2253,10 @@ async fn scenario_ship_a_feature() {
     let collected = events.lock().unwrap();
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineStarted { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunStarted { .. })));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineCompleted { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunCompleted { .. })));
 }
 
 #[tokio::test]
@@ -2307,7 +2307,7 @@ async fn scenario_parallel_expert_review() {
     );
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2384,7 +2384,7 @@ async fn scenario_node_retries_on_retry_status() {
             call_count: std::sync::atomic::AtomicU32::new(0),
         }),
     );
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2443,7 +2443,7 @@ async fn scenario_loop_restart_resets_context() {
             call_count: Arc::clone(&call_count),
         }),
     );
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2508,7 +2508,7 @@ async fn scenario_bug_triage_router() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
     registry.register("conditional", Box::new(ConditionalHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2563,7 +2563,7 @@ async fn scenario_crash_recovery() {
     let mut registry = HandlerRegistry::new(Box::new(StartHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2669,7 +2669,7 @@ async fn manager_loop_stop_condition_satisfied_e2e() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("done_setter", Box::new(DoneSetterHandler));
     registry.register("stack.manager_loop", Box::new(SubWorkflowHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2743,7 +2743,7 @@ async fn manager_loop_max_cycles_exceeded_e2e() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
     registry.register("stack.manager_loop", Box::new(SubWorkflowHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2877,7 +2877,7 @@ async fn conditional_branching_success_fail_paths() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
     registry.register("always_fail", Box::new(AlwaysFailHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2927,7 +2927,7 @@ async fn edge_selection_condition_match_wins_over_weight() {
     let mut registry = HandlerRegistry::new(Box::new(StartHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -2971,7 +2971,7 @@ async fn edge_selection_weight_breaks_ties() {
     let mut registry = HandlerRegistry::new(Box::new(StartHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3007,7 +3007,7 @@ async fn edge_selection_lexical_tiebreak() {
     let mut registry = HandlerRegistry::new(Box::new(StartHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3062,7 +3062,7 @@ async fn context_updates_visible_across_nodes() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("conditional", Box::new(ConditionalHandler));
     registry.register("context_setter", Box::new(ContextSetterHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3099,7 +3099,7 @@ async fn stylesheet_applies_model_override() {
     assert_eq!(graph.nodes["work"].llm_model(), Some("custom-model"));
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -3156,7 +3156,7 @@ async fn custom_handler_registration_and_execution() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
     registry.register("my_custom", Box::new(CustomHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3220,7 +3220,7 @@ async fn integration_smoke_plan_implement_review_done() {
     let dir = tempfile::tempdir().unwrap();
     let mut emitter = EventEmitter::new();
     let events = collect_events(&mut emitter);
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_full_registry(interviewer),
         Arc::new(emitter),
         local_env(),
@@ -3263,10 +3263,10 @@ async fn integration_smoke_plan_implement_review_done() {
     let collected = events.lock().unwrap();
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineStarted { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunStarted { .. })));
     assert!(collected
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineCompleted { .. })));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunCompleted { .. })));
 }
 
 // ===========================================================================
@@ -3325,7 +3325,7 @@ async fn manager_loop_runs_child_engine_e2e() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("stack.manager_loop", Box::new(SubWorkflowHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3458,7 +3458,7 @@ async fn manager_loop_context_flows_e2e() {
     registry.register("setter", Box::new(SetterHandler));
     registry.register("stack.manager_loop", Box::new(SubWorkflowHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3529,7 +3529,7 @@ async fn manager_loop_child_dotfile_e2e() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("stack.manager_loop", Box::new(SubWorkflowHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3636,7 +3636,7 @@ async fn graph_merge_e2e_through_engine() {
     assert!(main_graph.nodes.contains_key("dep.release"));
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -3788,7 +3788,7 @@ async fn fidelity_default_is_compact() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3842,7 +3842,7 @@ async fn fidelity_graph_default_applied() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3892,7 +3892,7 @@ async fn fidelity_node_overrides_graph_default() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3948,7 +3948,7 @@ async fn fidelity_edge_overrides_node_and_graph() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -3994,7 +3994,7 @@ async fn fidelity_full_produces_empty_preamble() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4050,7 +4050,7 @@ async fn fidelity_truncate_preamble_minimal() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4119,7 +4119,7 @@ async fn fidelity_summary_low_mode() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4183,7 +4183,7 @@ async fn fidelity_summary_medium_mode() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4247,7 +4247,7 @@ async fn fidelity_summary_high_mode() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4304,7 +4304,7 @@ async fn fidelity_full_sets_thread_id_in_context() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4372,7 +4372,7 @@ async fn fidelity_full_nodes_share_thread_id() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4449,7 +4449,7 @@ async fn fidelity_resume_degrades_full_to_summary_high() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4542,7 +4542,7 @@ async fn fidelity_resume_degrade_only_affects_first_hop() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4622,7 +4622,7 @@ async fn fidelity_resume_no_degrade_when_not_full() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4661,7 +4661,7 @@ async fn fidelity_stored_in_checkpoint_context() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4744,7 +4744,7 @@ async fn fidelity_precedence_multi_node_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4809,7 +4809,7 @@ async fn fidelity_compact_preamble_includes_completed_stages_and_context() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -4881,7 +4881,7 @@ async fn fidelity_summary_low_excludes_context_values_in_pipeline() {
             captures: captures_low.clone(),
         }),
     );
-    let engine_low = PipelineEngine::new(registry_low, Arc::new(EventEmitter::new()), local_env());
+    let engine_low = WorkflowRunEngine::new(registry_low, Arc::new(EventEmitter::new()), local_env());
     let config_low = RunConfig {
         logs_root: dir_low.path().to_path_buf(),
         cancel_token: None,
@@ -4945,7 +4945,7 @@ async fn fidelity_summary_low_excludes_context_values_in_pipeline() {
             captures: captures_med.clone(),
         }),
     );
-    let engine_med = PipelineEngine::new(registry_med, Arc::new(EventEmitter::new()), local_env());
+    let engine_med = WorkflowRunEngine::new(registry_med, Arc::new(EventEmitter::new()), local_env());
     let config_med = RunConfig {
         logs_root: dir_med.path().to_path_buf(),
         cancel_token: None,
@@ -5013,7 +5013,7 @@ async fn fidelity_thread_id_fallback_to_previous_node_in_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5064,7 +5064,7 @@ async fn fidelity_thread_id_from_node_class_in_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5118,7 +5118,7 @@ async fn fidelity_edge_thread_id_override_in_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5173,7 +5173,7 @@ async fn fidelity_full_without_explicit_thread_id_uses_previous_node() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5238,7 +5238,7 @@ async fn fidelity_from_parsed_dot_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5283,7 +5283,7 @@ async fn fidelity_checkpoint_roundtrip_preserves_fidelity() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5350,7 +5350,7 @@ async fn fidelity_node_thread_id_overrides_edge_thread_id_in_pipeline() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5433,7 +5433,7 @@ async fn fidelity_resume_preserves_context_values_across_checkpoint() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -5547,7 +5547,7 @@ mod real_llm {
 
     use super::local_env;
     use arc_workflows::checkpoint::Checkpoint;
-    use arc_workflows::engine::{PipelineEngine, RunConfig};
+    use arc_workflows::engine::{WorkflowRunEngine, RunConfig};
     use arc_workflows::event::EventEmitter;
     use arc_workflows::graph::{AttrValue, Edge, Graph};
     use arc_workflows::handler::exit::ExitHandler;
@@ -5624,7 +5624,7 @@ mod real_llm {
             )))),
         );
 
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -5736,7 +5736,7 @@ mod real_llm {
             Box::new(CodergenHandler::new(Some(make_llm_backend(client)))),
         );
 
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -5875,7 +5875,7 @@ mod real_llm {
         );
         registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -5982,7 +5982,7 @@ mod real_llm {
             Box::new(CodergenHandler::new(Some(make_llm_backend(client)))),
         );
 
-        let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+        let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
         let config = RunConfig {
             logs_root: dir.path().to_path_buf(),
             cancel_token: None,
@@ -6078,7 +6078,7 @@ async fn human_gate_freeform_only_routes_text() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -6208,7 +6208,7 @@ async fn human_gate_freeform_with_fixed_choice_match() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -6323,7 +6323,7 @@ async fn human_gate_freeform_fallback_on_unmatched_text() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -6451,7 +6451,7 @@ async fn human_gate_freeform_sets_allow_freeform_on_question() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -6559,7 +6559,7 @@ async fn human_gate_without_freeform_sets_allow_freeform_false() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("wait.human", Box::new(WaitHumanHandler::new(interviewer)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -6797,7 +6797,7 @@ async fn tool_hooks_pre_success_allows_pipeline_to_proceed() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -6846,7 +6846,7 @@ async fn tool_hooks_pre_failure_skips_tool_call() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -6898,7 +6898,7 @@ async fn tool_hooks_post_success_does_not_affect_outcome() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -6942,7 +6942,7 @@ async fn tool_hooks_post_failure_does_not_block_pipeline() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -6988,7 +6988,7 @@ async fn tool_hooks_graph_level_applies_to_all_nodes() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -7045,7 +7045,7 @@ async fn tool_hooks_node_level_overrides_graph_level() {
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -7109,7 +7109,7 @@ async fn tool_hooks_pre_receives_node_id_env_var() {
     let graph = parse(&input).expect("parse should succeed");
     validate_or_raise(&graph, &[]).expect("validation should pass");
 
-    let engine = PipelineEngine::new(
+    let engine = WorkflowRunEngine::new(
         make_linear_registry(),
         Arc::new(EventEmitter::new()),
         local_env(),
@@ -7215,7 +7215,7 @@ async fn arc_e2e_with_real_llm() {
     });
 
     let logs_dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: logs_dir.path().to_path_buf(),
         cancel_token: None,
@@ -7341,7 +7341,7 @@ async fn run_fidelity_prompt_pipeline(fidelity: &str) -> String {
         Box::new(CodergenHandler::new(Some(Box::new(MockCodergenBackend)))),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -7538,7 +7538,7 @@ async fn large_context_values_are_offloaded_to_artifact_store() {
 
     let mut emitter = EventEmitter::new();
     let events = collect_events(&mut emitter);
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -7593,13 +7593,13 @@ async fn large_context_values_are_offloaded_to_artifact_store() {
         "artifact should contain the original 150KB value"
     );
 
-    // PipelineCompleted event should report artifact_count > 0
+    // WorkflowRunCompleted event should report artifact_count > 0
     let evts = events.lock().unwrap();
     let completed_event = evts
         .iter()
-        .find(|e| matches!(e, PipelineEvent::PipelineCompleted { .. }))
-        .expect("should have PipelineCompleted event");
-    if let PipelineEvent::PipelineCompleted { artifact_count, .. } = completed_event {
+        .find(|e| matches!(e, WorkflowRunEvent::WorkflowRunCompleted { .. }))
+        .expect("should have WorkflowRunCompleted event");
+    if let WorkflowRunEvent::WorkflowRunCompleted { artifact_count, .. } = completed_event {
         assert!(
             *artifact_count > 0,
             "artifact_count should be > 0, got {artifact_count}"
@@ -7738,7 +7738,7 @@ async fn artifact_pointers_rewritten_for_remote_execution_env() {
     registry.register("exit", Box::new(ExitHandler));
 
     let remote_env = Arc::new(RemoteMockEnv::new("/sandbox"));
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), remote_env.clone());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), remote_env.clone());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -7866,7 +7866,7 @@ async fn node_dir_uses_visit_count_on_revisit() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -8685,7 +8685,7 @@ async fn full_pipeline_with_cli_backend_node() {
     );
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), env);
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), env);
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -8812,7 +8812,7 @@ async fn stylesheet_backend_property_routes_to_cli() {
     );
 
     let dir = tempfile::tempdir().unwrap();
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), env);
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), env);
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -9079,7 +9079,7 @@ async fn git_checkpoint_host_emits_events_and_diff_patch() {
     let mut registry = HandlerRegistry::new(Box::new(ContextSetterHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), env);
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), env);
 
     let config = RunConfig {
         logs_root: logs_dir.path().to_path_buf(),
@@ -9105,7 +9105,7 @@ async fn git_checkpoint_host_emits_events_and_diff_patch() {
     let git_events: Vec<_> = events
         .iter()
         .filter_map(|e| {
-            if let PipelineEvent::GitCheckpoint {
+            if let WorkflowRunEvent::GitCheckpoint {
                 node_id,
                 git_commit_sha,
                 ..
@@ -9259,7 +9259,7 @@ async fn git_checkpoint_host_writes_shadow_branch() {
     let mut registry = HandlerRegistry::new(Box::new(ContextSetterHandler));
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), env);
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), env);
 
     let meta_branch = MetadataStore::branch_name(run_id);
     let config = RunConfig {
@@ -9453,7 +9453,7 @@ async fn parallel_git_branching_host_e2e() {
         Box::new(FanInHandler::new(None)), // heuristic select — picks branch_a (lexical tiebreak)
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), env);
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), env);
 
     let config = RunConfig {
         logs_root: logs_dir.path().to_path_buf(),
@@ -9606,7 +9606,7 @@ async fn parallel_git_branching_host_e2e() {
     let events = events.lock().unwrap();
     let parallel_started: Vec<_> = events
         .iter()
-        .filter(|e| matches!(e, PipelineEvent::ParallelStarted { .. }))
+        .filter(|e| matches!(e, WorkflowRunEvent::ParallelStarted { .. }))
         .collect();
     assert_eq!(
         parallel_started.len(),
@@ -9616,7 +9616,7 @@ async fn parallel_git_branching_host_e2e() {
 
     let parallel_completed: Vec<_> = events
         .iter()
-        .filter(|e| matches!(e, PipelineEvent::ParallelCompleted { .. }))
+        .filter(|e| matches!(e, WorkflowRunEvent::ParallelCompleted { .. }))
         .collect();
     assert_eq!(
         parallel_completed.len(),
@@ -9974,7 +9974,7 @@ async fn e2e_circuit_breaker_deterministic_self_loop() {
         )),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10019,7 +10019,7 @@ async fn e2e_circuit_breaker_custom_limit() {
         Box::new(DeterministicFailHandler::new("same error every time")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10057,7 +10057,7 @@ async fn e2e_circuit_breaker_ignores_transient_failures() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("test_handler", Box::new(TransientInfraFailHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10102,7 +10102,7 @@ async fn e2e_circuit_breaker_different_reasons_separate_counters() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10140,7 +10140,7 @@ async fn e2e_circuit_breaker_loop_restart() {
         Box::new(DeterministicFailHandler::new("verify step failed")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10200,7 +10200,7 @@ async fn e2e_failure_signature_persisted_in_context() {
         Box::new(DeterministicFailHandler::new("test assertion failed")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10262,7 +10262,7 @@ async fn e2e_failure_signature_hint_overrides_reason_in_context() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("hint_handler", Box::new(SignatureHintHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10316,7 +10316,7 @@ async fn e2e_signature_maps_persist_in_checkpoint() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10440,7 +10440,7 @@ async fn e2e_circuit_breaker_emits_events_before_abort() {
         Box::new(DeterministicFailHandler::new("assertion failed")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10457,13 +10457,13 @@ async fn e2e_circuit_breaker_emits_events_before_abort() {
     assert!(result.is_err());
 
     let events = events.lock().unwrap();
-    // Should have at least PipelineStarted and some StageFailed/StageCompleted events
+    // Should have at least WorkflowRunStarted and some StageFailed/StageCompleted events
     let has_pipeline_started = events
         .iter()
-        .any(|e| matches!(e, PipelineEvent::PipelineStarted { .. }));
+        .any(|e| matches!(e, WorkflowRunEvent::WorkflowRunStarted { .. }));
     assert!(
         has_pipeline_started,
-        "PipelineStarted event should be emitted"
+        "WorkflowRunStarted event should be emitted"
     );
 
     // Verify we got stage events for the failing work node.
@@ -10471,11 +10471,11 @@ async fn e2e_circuit_breaker_emits_events_before_abort() {
     // the stage event for that iteration is emitted, so we see limit-1 events.
     let stage_failed_count = events
         .iter()
-        .filter(|e| matches!(e, PipelineEvent::StageFailed { name, .. } if name == "work"))
+        .filter(|e| matches!(e, WorkflowRunEvent::StageFailed { name, .. } if name == "work"))
         .count();
     let stage_completed_count = events
         .iter()
-        .filter(|e| matches!(e, PipelineEvent::StageCompleted { name, .. } if name == "work"))
+        .filter(|e| matches!(e, WorkflowRunEvent::StageCompleted { name, .. } if name == "work"))
         .count();
     let total_work_events = stage_completed_count + stage_failed_count;
     // With limit=3, the breaker fires on the 3rd failure before its event is emitted.
@@ -10505,7 +10505,7 @@ async fn e2e_circuit_breaker_does_not_fire_below_limit() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10599,7 +10599,7 @@ async fn e2e_circuit_breaker_multi_stage_impl_verify_cycle() {
         )),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10693,7 +10693,7 @@ async fn e2e_loop_restart_blocked_for_deterministic_failure() {
         Box::new(ClassifiedFailHandler::always("deterministic")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10728,7 +10728,7 @@ async fn e2e_loop_restart_blocked_for_structural_failure() {
         Box::new(ClassifiedFailHandler::always("structural")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10763,7 +10763,7 @@ async fn e2e_loop_restart_blocked_for_budget_exhausted_failure() {
         Box::new(ClassifiedFailHandler::always("budget_exhausted")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10798,7 +10798,7 @@ async fn e2e_loop_restart_blocked_for_canceled_failure() {
         Box::new(ClassifiedFailHandler::always("canceled")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10833,7 +10833,7 @@ async fn e2e_loop_restart_blocked_for_compilation_loop_failure() {
         Box::new(ClassifiedFailHandler::always("compilation_loop")),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10869,7 +10869,7 @@ async fn e2e_loop_restart_allowed_for_transient_infra() {
         Box::new(ClassifiedFailHandler::succeed_on("transient_infra", 1)),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -10931,7 +10931,7 @@ impl Handler for KeepaliveHandler {
         let start = std::time::Instant::now();
         while start.elapsed() < std::time::Duration::from_millis(self.total_ms) {
             tokio::time::sleep(std::time::Duration::from_millis(self.interval_ms)).await;
-            services.emitter.emit(&PipelineEvent::Prompt {
+            services.emitter.emit(&WorkflowRunEvent::Prompt {
                 stage: node.id.clone(),
                 text: "keepalive".to_string(),
             });
@@ -10974,7 +10974,7 @@ async fn e2e_stall_watchdog_triggers_from_dot_parsed_pipeline() {
             .push(format!("{event:?}"));
     });
 
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -11028,7 +11028,7 @@ async fn e2e_stall_watchdog_kept_alive_by_handler_events() {
         }),
     );
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -11065,7 +11065,7 @@ async fn e2e_stall_watchdog_disabled_with_zero_timeout() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("slow", Box::new(SlowTestHandler { sleep_ms: 200 }));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -11125,7 +11125,7 @@ async fn e2e_stall_watchdog_with_explicit_timeout_override() {
     registry.register("exit", Box::new(ExitHandler));
     registry.register("hanging", Box::new(HangingHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), local_env());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,

@@ -3,13 +3,13 @@ use crate::graph::Graph;
 use crate::transform::{StylesheetApplicationTransform, Transform, VariableExpansionTransform};
 use crate::validation::{self, Diagnostic};
 
-/// Builder for configuring and executing a pipeline preparation.
+/// Builder for configuring and executing a workflow preparation.
 /// Collects custom transforms that run after the built-in ones.
-pub struct PipelineBuilder {
+pub struct WorkflowBuilder {
     transforms: Vec<Box<dyn Transform>>,
 }
 
-impl PipelineBuilder {
+impl WorkflowBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -23,7 +23,7 @@ impl PipelineBuilder {
         self.transforms.push(transform);
     }
 
-    /// Prepare a pipeline: parse DOT, apply built-in and custom transforms, validate.
+    /// Prepare a workflow: parse DOT, apply built-in and custom transforms, validate.
     ///
     /// # Errors
     ///
@@ -45,7 +45,7 @@ impl PipelineBuilder {
     }
 }
 
-impl Default for PipelineBuilder {
+impl Default for WorkflowBuilder {
     fn default() -> Self {
         Self::new()
     }
@@ -56,8 +56,8 @@ impl Default for PipelineBuilder {
 /// # Errors
 ///
 /// Returns an error if parsing fails or if validation produces Error-severity diagnostics.
-pub fn prepare_pipeline(dot_source: &str) -> Result<Graph, ArcError> {
-    let builder = PipelineBuilder::new();
+pub fn prepare_workflow(dot_source: &str) -> Result<Graph, ArcError> {
+    let builder = WorkflowBuilder::new();
     let (graph, diagnostics) = builder.prepare(dot_source)?;
 
     let errors: Vec<&Diagnostic> = diagnostics
@@ -85,15 +85,15 @@ mod tests {
     }"#;
 
     #[test]
-    fn prepare_pipeline_minimal() {
-        let graph = prepare_pipeline(MINIMAL_DOT).unwrap();
+    fn prepare_workflow_minimal() {
+        let graph = prepare_workflow(MINIMAL_DOT).unwrap();
         assert_eq!(graph.name, "Test");
         assert!(graph.find_start_node().is_some());
         assert!(graph.find_exit_node().is_some());
     }
 
     #[test]
-    fn prepare_pipeline_applies_variable_expansion() {
+    fn prepare_workflow_applies_variable_expansion() {
         let dot = r#"digraph Test {
             graph [goal="Fix bugs"]
             start [shape=Mdiamond]
@@ -101,7 +101,7 @@ mod tests {
             exit  [shape=Msquare]
             start -> work -> exit
         }"#;
-        let graph = prepare_pipeline(dot).unwrap();
+        let graph = prepare_workflow(dot).unwrap();
         let prompt = graph.nodes["work"]
             .attrs
             .get("prompt")
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_pipeline_applies_stylesheet() {
+    fn prepare_workflow_applies_stylesheet() {
         let dot = r#"digraph Test {
             graph [goal="Test", model_stylesheet="* { llm_model: sonnet; }"]
             start [shape=Mdiamond]
@@ -119,7 +119,7 @@ mod tests {
             exit  [shape=Msquare]
             start -> work -> exit
         }"#;
-        let graph = prepare_pipeline(dot).unwrap();
+        let graph = prepare_workflow(dot).unwrap();
         assert_eq!(
             graph.nodes["work"].attrs.get("llm_model"),
             Some(&AttrValue::String("sonnet".into()))
@@ -127,18 +127,18 @@ mod tests {
     }
 
     #[test]
-    fn prepare_pipeline_returns_error_on_invalid_dot() {
-        let result = prepare_pipeline("not a graph");
+    fn prepare_workflow_returns_error_on_invalid_dot() {
+        let result = prepare_workflow("not a graph");
         assert!(result.is_err());
     }
 
     #[test]
-    fn prepare_pipeline_returns_error_on_validation_failure() {
+    fn prepare_workflow_returns_error_on_validation_failure() {
         let dot = r#"digraph Test {
             graph [goal="Test"]
             work [label="Work"]
         }"#;
-        let result = prepare_pipeline(dot);
+        let result = prepare_workflow(dot);
         assert!(result.is_err());
     }
 
@@ -154,7 +154,7 @@ mod tests {
             }
         }
 
-        let mut builder = PipelineBuilder::new();
+        let mut builder = WorkflowBuilder::new();
         builder.register_transform(Box::new(TagTransform));
         let (graph, _) = builder.prepare(MINIMAL_DOT).unwrap();
         assert_eq!(
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn pipeline_builder_default() {
-        let builder = PipelineBuilder::default();
+        let builder = WorkflowBuilder::default();
         let (graph, _) = builder.prepare(MINIMAL_DOT).unwrap();
         assert_eq!(graph.name, "Test");
     }

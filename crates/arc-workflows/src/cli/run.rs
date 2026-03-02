@@ -11,14 +11,14 @@ use arc_util::terminal::Styles;
 use chrono::{Local, Utc};
 
 use crate::checkpoint::Checkpoint;
-use crate::engine::{GitCheckpointMode, PipelineEngine, RunConfig};
+use crate::engine::{GitCheckpointMode, WorkflowRunEngine, RunConfig};
 use crate::event::EventEmitter;
 use crate::handler::default_registry;
 use crate::interviewer::auto_approve::AutoApproveInterviewer;
 use crate::interviewer::console::ConsoleInterviewer;
 use crate::interviewer::Interviewer;
 use crate::outcome::StageStatus;
-use crate::pipeline::PipelineBuilder;
+use crate::workflow::WorkflowBuilder;
 use crate::validation::Severity;
 
 use arc_llm::provider::Provider;
@@ -32,7 +32,7 @@ use super::{
     RunArgs,
 };
 
-/// Accumulates token usage and cost across all pipeline stages.
+/// Accumulates token usage and cost across all workflow stages.
 #[derive(Default)]
 struct CostAccumulator {
     total_input_tokens: i64,
@@ -44,29 +44,29 @@ struct CostAccumulator {
     has_pricing: bool,
 }
 
-/// Execute a full pipeline run.
+/// Execute a full workflow run.
 ///
 /// # Errors
 ///
-/// Returns an error if the pipeline cannot be read, parsed, validated, or executed.
+/// Returns an error if the workflow cannot be read, parsed, validated, or executed.
 pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Result<()> {
     // Handle --run-branch resume: read everything from git metadata
     if let Some(branch) = args.run_branch.clone() {
         return run_from_branch(args, &branch, styles).await;
     }
 
-    let pipeline_path = args
-        .pipeline
+    let workflow_path = args
+        .workflow
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("--pipeline is required unless --run-branch is provided"))?;
+        .ok_or_else(|| anyhow::anyhow!("--workflow is required unless --run-branch is provided"))?;
 
     // 0. Load task config if TOML, resolve DOT path, run setup
-    let (dot_path, task_cfg) = if pipeline_path.extension().is_some_and(|ext| ext == "toml") {
-        let cfg = task_config::load_task_config(pipeline_path)?;
-        let dot = task_config::resolve_graph_path(pipeline_path, &cfg.graph);
+    let (dot_path, task_cfg) = if workflow_path.extension().is_some_and(|ext| ext == "toml") {
+        let cfg = task_config::load_task_config(workflow_path)?;
+        let dot = task_config::resolve_graph_path(workflow_path, &cfg.graph);
         (dot, Some(cfg))
     } else {
-        (pipeline_path.clone(), None)
+        (workflow_path.clone(), None)
     };
 
     if let Some(ref cfg) = task_cfg {
@@ -83,16 +83,16 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
         .map(|s| s.commands.clone())
         .unwrap_or_default();
 
-    // 1. Parse and validate pipeline
+    // 1. Parse and validate workflow
     let source = read_dot_file(&dot_path)?;
     let source = match task_cfg.as_ref().and_then(|c| c.vars.as_ref()) {
         Some(vars) => task_config::expand_vars(&source, vars)?,
         None => source,
     };
-    let (graph, diagnostics) = PipelineBuilder::new().prepare(&source)?;
+    let (graph, diagnostics) = WorkflowBuilder::new().prepare(&source)?;
 
     eprintln!(
-        "{bold}Parsed pipeline:{reset} {} ({dim}{} nodes, {} edges{reset})",
+        "{bold}Parsed workflow:{reset} {} ({dim}{} nodes, {} edges{reset})",
         graph.name,
         graph.nodes.len(),
         graph.edges.len(),
@@ -148,8 +148,8 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
     tokio::fs::create_dir_all(&logs_dir).await?;
     tokio::fs::write(logs_dir.join("graph.dot"), &source).await?;
     tokio::fs::write(logs_dir.join("run.pid"), std::process::id().to_string()).await?;
-    if pipeline_path.extension().is_some_and(|ext| ext == "toml") {
-        if let Ok(toml_contents) = tokio::fs::read(pipeline_path).await {
+    if workflow_path.extension().is_some_and(|ext| ext == "toml") {
+        if let Ok(toml_contents) = tokio::fs::read(workflow_path).await {
             tokio::fs::write(logs_dir.join("task.toml"), toml_contents).await?;
         }
     }
@@ -171,7 +171,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
     {
         let sha_clone = Arc::clone(&last_git_sha);
         emitter.on_event(move |event| {
-            if let crate::event::PipelineEvent::GitCheckpoint { git_commit_sha, .. } = event {
+            if let crate::event::WorkflowRunEvent::GitCheckpoint { git_commit_sha, .. } = event {
                 *sha_clone.lock().unwrap() = Some(git_commit_sha.clone());
             }
         });
@@ -181,7 +181,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
     let accumulator = Arc::new(Mutex::new(CostAccumulator::default()));
     let acc_clone = Arc::clone(&accumulator);
     emitter.on_event(move |event| {
-        if let crate::event::PipelineEvent::StageCompleted { usage: Some(u), .. } = event {
+        if let crate::event::WorkflowRunEvent::StageCompleted { usage: Some(u), .. } = event {
             let mut acc = acc_clone.lock().unwrap();
             acc.total_input_tokens += u.input_tokens;
             acc.total_output_tokens += u.output_tokens;
@@ -202,7 +202,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
         let run_id = Arc::new(Mutex::new(String::new()));
         let run_id_clone = Arc::clone(&run_id);
         emitter.on_event(move |event| {
-            if let crate::event::PipelineEvent::PipelineStarted { run_id, .. } = event {
+            if let crate::event::WorkflowRunEvent::WorkflowRunStarted { run_id, .. } = event {
                 *run_id_clone.lock().unwrap() = run_id.clone();
             }
             let envelope = serde_json::json!({
@@ -240,7 +240,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
         });
     } else {
         emitter.on_event(move |event| match event {
-            crate::event::PipelineEvent::StageCompleted {
+            crate::event::WorkflowRunEvent::StageCompleted {
                 name,
                 duration_ms,
                 status,
@@ -266,7 +266,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 }
                 eprintln!("{line}{reset}", reset = styles.reset);
             }
-            crate::event::PipelineEvent::StageFailed { name, .. } => {
+            crate::event::WorkflowRunEvent::StageFailed { name, .. } => {
                 eprintln!(
                     "{dim}Stage \"{name}\" failed{reset}",
                     dim = styles.dim,
@@ -335,7 +335,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 .map_err(|e| anyhow::anyhow!("Failed to create Docker environment: {e}"))?;
             let emitter_cb = Arc::clone(&emitter);
             env.set_event_callback(Arc::new(move |event| {
-                emitter_cb.emit(&crate::event::PipelineEvent::ExecutionEnv { event });
+                emitter_cb.emit(&crate::event::WorkflowRunEvent::ExecutionEnv { event });
             }));
             Arc::new(env)
         }
@@ -348,7 +348,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 crate::daytona_env::DaytonaExecutionEnvironment::new(daytona_client, config);
             let emitter_cb = Arc::clone(&emitter);
             env.set_event_callback(Arc::new(move |event| {
-                emitter_cb.emit(&crate::event::PipelineEvent::ExecutionEnv { event });
+                emitter_cb.emit(&crate::event::WorkflowRunEvent::ExecutionEnv { event });
             }));
             Arc::new(env)
         }
@@ -356,13 +356,13 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
             let mut env = LocalExecutionEnvironment::new(cwd);
             let emitter_cb = Arc::clone(&emitter);
             env.set_event_callback(Arc::new(move |event| {
-                emitter_cb.emit(&crate::event::PipelineEvent::ExecutionEnv { event });
+                emitter_cb.emit(&crate::event::WorkflowRunEvent::ExecutionEnv { event });
             }));
             Arc::new(env)
         }
     };
 
-    // Initialize execution environment (creates sandbox/container once for the whole pipeline)
+    // Initialize execution environment (creates sandbox/container once for the whole run)
     execution_env
         .initialize()
         .await
@@ -403,12 +403,12 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
 
     // Run setup commands inside the execution environment (once, not per-stage)
     if !setup_commands.is_empty() {
-        emitter.emit(&crate::event::PipelineEvent::SetupStarted {
+        emitter.emit(&crate::event::WorkflowRunEvent::SetupStarted {
             command_count: setup_commands.len(),
         });
         let setup_start = Instant::now();
         for (index, cmd) in setup_commands.iter().enumerate() {
-            emitter.emit(&crate::event::PipelineEvent::SetupCommandStarted {
+            emitter.emit(&crate::event::WorkflowRunEvent::SetupCommandStarted {
                 command: cmd.clone(),
                 index,
             });
@@ -419,7 +419,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                 .map_err(|e| anyhow::anyhow!("Setup command failed: {e}"))?;
             let cmd_duration = u64::try_from(cmd_start.elapsed().as_millis()).unwrap_or(u64::MAX);
             if result.exit_code != 0 {
-                emitter.emit(&crate::event::PipelineEvent::SetupFailed {
+                emitter.emit(&crate::event::WorkflowRunEvent::SetupFailed {
                     command: cmd.clone(),
                     index,
                     exit_code: result.exit_code,
@@ -431,7 +431,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
                     result.stderr,
                 );
             }
-            emitter.emit(&crate::event::PipelineEvent::SetupCommandCompleted {
+            emitter.emit(&crate::event::WorkflowRunEvent::SetupCommandCompleted {
                 command: cmd.clone(),
                 index,
                 exit_code: result.exit_code,
@@ -439,7 +439,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
             });
         }
         let setup_duration = u64::try_from(setup_start.elapsed().as_millis()).unwrap_or(u64::MAX);
-        emitter.emit(&crate::event::PipelineEvent::SetupCompleted {
+        emitter.emit(&crate::event::WorkflowRunEvent::SetupCompleted {
             duration_ms: setup_duration,
         });
     }
@@ -529,7 +529,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
             Some(Box::new(BackendRouter::new(Box::new(api), cli)))
         }
     });
-    let engine = PipelineEngine::with_interviewer(
+    let engine = WorkflowRunEngine::with_interviewer(
         registry,
         Arc::clone(&emitter),
         interviewer,
@@ -634,7 +634,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
 
     // 8. Print result
     eprintln!(
-        "\n{bold}=== Pipeline Result ==={reset}",
+        "\n{bold}=== Run Result ==={reset}",
         bold = styles.bold,
         reset = styles.reset,
     );
@@ -708,7 +708,7 @@ pub async fn run_command(args: RunArgs, styles: &'static Styles) -> anyhow::Resu
     }
 }
 
-/// Set up a git worktree for an isolated pipeline run.
+/// Set up a git worktree for an isolated workflow run.
 /// Caller must have already verified the repo is clean via `git::ensure_clean`.
 /// Returns (run_id, work_dir, worktree_path, branch_name, base_sha) on success.
 fn setup_worktree(
@@ -774,7 +774,7 @@ async fn setup_daytona_git(
     Ok((run_id, base_sha, branch_name))
 }
 
-/// Resume a pipeline run from a git run branch.
+/// Resume a workflow run from a git run branch.
 ///
 /// Reads the checkpoint, manifest, and graph DOT from the metadata branch
 /// (`refs/arc/{run_id}`), re-attaches a worktree to the existing run branch,
@@ -807,16 +807,16 @@ async fn run_from_branch(
         .ok_or_else(|| anyhow::anyhow!("no graph.dot found on metadata branch for run {run_id}"))?;
 
     // If --pipeline was also provided, use it instead (allows overriding)
-    let source = if let Some(ref pipeline_path) = args.pipeline {
-        super::read_dot_file(pipeline_path)?
+    let source = if let Some(ref workflow_path) = args.workflow {
+        super::read_dot_file(workflow_path)?
     } else {
         source
     };
 
-    let (graph, diagnostics) = crate::pipeline::PipelineBuilder::new().prepare(&source)?;
+    let (graph, diagnostics) = crate::workflow::WorkflowBuilder::new().prepare(&source)?;
 
     eprintln!(
-        "{bold}Resuming pipeline:{reset} {} from branch {dim}{run_branch}{reset}",
+        "{bold}Resuming workflow:{reset} {} from branch {dim}{run_branch}{reset}",
         graph.name,
         bold = styles.bold,
         dim = styles.dim,
@@ -860,7 +860,7 @@ async fn run_from_branch(
         let mut env = arc_agent::LocalExecutionEnvironment::new(worktree_path.clone());
         let emitter_cb = Arc::clone(&emitter);
         env.set_event_callback(Arc::new(move |event| {
-            emitter_cb.emit(&crate::event::PipelineEvent::ExecutionEnv { event });
+            emitter_cb.emit(&crate::event::WorkflowRunEvent::ExecutionEnv { event });
         }));
         Arc::new(env)
     };
@@ -897,7 +897,7 @@ async fn run_from_branch(
             Some(Box::new(BackendRouter::new(Box::new(api), cli)))
         }
     });
-    let engine = crate::engine::PipelineEngine::with_interviewer(
+    let engine = crate::engine::WorkflowRunEngine::with_interviewer(
         registry,
         Arc::clone(&emitter),
         interviewer,
@@ -961,7 +961,7 @@ async fn run_from_branch(
     let outcome = engine_result?;
 
     eprintln!(
-        "\n{bold}=== Pipeline Result ==={reset}",
+        "\n{bold}=== Run Result ==={reset}",
         bold = styles.bold,
         reset = styles.reset,
     );
@@ -991,14 +991,14 @@ async fn run_from_branch(
     }
 }
 
-/// Generate a retro report for a completed pipeline run.
+/// Generate a retro report for a completed workflow run.
 ///
 /// Derives a basic retro from the checkpoint, then optionally runs the retro agent
 /// for a richer narrative. Errors are logged as warnings rather than propagated.
 #[allow(clippy::too_many_arguments)]
 async fn generate_retro(
     run_id: &str,
-    pipeline_name: &str,
+    workflow_name: &str,
     goal: &str,
     logs_dir: &std::path::Path,
     failed: bool,
@@ -1026,7 +1026,7 @@ async fn generate_retro(
     let stage_durations = crate::retro::extract_stage_durations(logs_dir);
     let mut retro = crate::retro::derive_retro(
         run_id,
-        pipeline_name,
+        workflow_name,
         goal,
         &cp,
         failed,

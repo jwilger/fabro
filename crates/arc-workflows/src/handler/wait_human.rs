@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use crate::context::Context;
 use crate::error::ArcError;
-use crate::event::{EventEmitter, PipelineEvent};
+use crate::event::{EventEmitter, WorkflowRunEvent};
 use crate::graph::{Graph, Node};
 use crate::interviewer::{
     Answer, AnswerValue, Interviewer, Question, QuestionOption, QuestionType,
@@ -90,7 +90,7 @@ impl WaitHumanHandler {
         self
     }
 
-    fn emit(&self, event: &PipelineEvent) {
+    fn emit(&self, event: &WorkflowRunEvent) {
         if let Some(emitter) = &self.emitter {
             emitter.emit(event);
         }
@@ -146,7 +146,7 @@ impl Handler for WaitHumanHandler {
 
         // 3. Present to interviewer
         let question_text = node.label().to_string();
-        self.emit(&PipelineEvent::InterviewStarted {
+        self.emit(&WorkflowRunEvent::InterviewStarted {
             question: question_text.clone(),
             stage: node.id.clone(),
             question_type: question.question_type.to_string(),
@@ -156,7 +156,7 @@ impl Handler for WaitHumanHandler {
 
         // 4. Handle timeout
         if answer.value == AnswerValue::Timeout {
-            self.emit(&PipelineEvent::InterviewTimeout {
+            self.emit(&WorkflowRunEvent::InterviewTimeout {
                 question: question_text,
                 stage: node.id.clone(),
                 duration_ms: millis_u64(interview_start.elapsed()),
@@ -181,7 +181,7 @@ impl Handler for WaitHumanHandler {
         }
 
         // Emit interview completed for successful interactions
-        self.emit(&PipelineEvent::InterviewCompleted {
+        self.emit(&WorkflowRunEvent::InterviewCompleted {
             question: question_text,
             answer: answer_text(&answer),
             duration_ms: millis_u64(interview_start.elapsed()),

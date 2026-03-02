@@ -231,7 +231,7 @@ impl CodergenBackend for AgentApiBackend {
         let pipeline_emitter = Arc::clone(emitter);
         let mut rx = session.subscribe();
         tokio::spawn(async move {
-            use crate::event::PipelineEvent;
+            use crate::event::WorkflowRunEvent;
             while let Ok(event) = rx.recv().await {
                 // Track file changes from tool calls
                 match &event.event {
@@ -276,7 +276,7 @@ impl CodergenBackend for AgentApiBackend {
                         | AgentEvent::ToolCallOutputDelta { .. }
                         | AgentEvent::SkillExpanded { .. }
                 ) {
-                    pipeline_emitter.emit(&PipelineEvent::Agent {
+                    pipeline_emitter.emit(&WorkflowRunEvent::Agent {
                         stage: node_id.clone(),
                         event: event.event.clone(),
                     });
@@ -329,7 +329,7 @@ impl CodergenBackend for AgentApiBackend {
         });
 
         // Emit Prompt event before processing
-        emitter.emit(&crate::event::PipelineEvent::Prompt {
+        emitter.emit(&crate::event::WorkflowRunEvent::Prompt {
             stage: node.id.clone(),
             text: prompt.to_string(),
         });

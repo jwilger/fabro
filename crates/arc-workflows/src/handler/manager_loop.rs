@@ -8,15 +8,15 @@ use async_trait::async_trait;
 
 use crate::condition::evaluate_condition;
 use crate::context::Context;
-use crate::engine::{PipelineEngine, RunConfig};
+use crate::engine::{WorkflowRunEngine, RunConfig};
 use crate::error::ArcError;
 use crate::graph::{Graph, Node};
 use crate::outcome::{Outcome, StageStatus};
-use crate::pipeline::prepare_pipeline;
+use crate::workflow::prepare_workflow;
 
 use super::{EngineServices, Handler};
 
-/// Orchestrates a child pipeline engine, polling for completion or stop conditions.
+/// Orchestrates a child workflow engine, polling for completion or stop conditions.
 pub struct SubWorkflowHandler;
 
 /// Parse a duration string like "45s", "200ms", "5m" into a Duration.
@@ -110,7 +110,7 @@ impl Handler for SubWorkflowHandler {
             Err(e) => return Ok(Outcome::fail(e.to_string())),
         };
 
-        let child_graph = match prepare_pipeline(&dot_source) {
+        let child_graph = match prepare_workflow(&dot_source) {
             Ok(g) => g,
             Err(e) => {
                 return Ok(Outcome::fail(format!(
@@ -151,7 +151,7 @@ impl Handler for SubWorkflowHandler {
         let before_snapshot = context.snapshot();
 
         // Spawn child engine
-        let engine = PipelineEngine::from_services(services);
+        let engine = WorkflowRunEngine::from_services(services);
         let mut child_handle =
             tokio::spawn(
                 async move { engine.run_with_context(&child_graph, &child_config, child_context).await },

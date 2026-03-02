@@ -1,22 +1,22 @@
 use anyhow::bail;
 use arc_util::terminal::Styles;
 
-use crate::pipeline::PipelineBuilder;
+use crate::workflow::WorkflowBuilder;
 use crate::validation::Severity;
 
 use super::{print_diagnostics, read_dot_file, ValidateArgs};
 
-/// Parse and validate a pipeline file without executing it.
+/// Parse and validate a workflow file without executing it.
 ///
 /// # Errors
 ///
 /// Returns an error if the file cannot be read, parsed, or has validation errors.
 pub fn validate_command(args: &ValidateArgs, styles: &Styles) -> anyhow::Result<()> {
-    let source = read_dot_file(&args.pipeline)?;
-    let (graph, diagnostics) = PipelineBuilder::new().prepare(&source)?;
+    let source = read_dot_file(&args.workflow)?;
+    let (graph, diagnostics) = WorkflowBuilder::new().prepare(&source)?;
 
     eprintln!(
-        "{bold}Parsed pipeline:{reset} {} ({dim}{} nodes, {} edges{reset})",
+        "{bold}Parsed workflow:{reset} {} ({dim}{} nodes, {} edges{reset})",
         graph.name,
         graph.nodes.len(),
         graph.edges.len(),

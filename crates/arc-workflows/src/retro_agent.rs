@@ -12,9 +12,9 @@ use arc_llm::types::ToolDefinition;
 
 use crate::retro::RetroNarrative;
 
-const RETRO_SYSTEM_PROMPT: &str = r#"You are a pipeline retrospective analyst. Your job is to analyze a completed pipeline run and generate a structured retrospective.
+const RETRO_SYSTEM_PROMPT: &str = r#"You are a workflow run retrospective analyst. Your job is to analyze a completed workflow run and generate a structured retrospective.
 
-You have access to the pipeline's data files:
+You have access to the run's data files:
 - `progress.ndjson` — the full event stream (stage starts/completions, agent tool calls, errors, retries)
 - `checkpoint.json` — final execution state with node outcomes
 - `manifest.json` — run metadata (if available)
@@ -33,17 +33,17 @@ You have access to the pipeline's data files:
 
 Grade the run on a 5-point scale:
 
-- **effortless** — Pipeline achieved its goal on the first try with no retries, no wrong approaches. Agent moved efficiently from start to finish.
+- **effortless** — Run achieved its goal on the first try with no retries, no wrong approaches. Agent moved efficiently from start to finish.
 - **smooth** — Goal achieved with minor hiccups (1-2 retries or a brief wrong approach quickly corrected). No human intervention needed. Overall clean execution.
 - **bumpy** — Goal achieved but with notable friction: multiple retries, at least one significant wrong approach, or substantial time spent on dead ends.
 - **struggled** — Goal achieved only with difficulty: many retries, major approach changes, human intervention, or partial failures requiring recovery.
-- **failed** — Pipeline did not achieve its stated goal. May have completed some stages but the overall intent was not fulfilled.
+- **failed** — Run did not achieve its stated goal. May have completed some stages but the overall intent was not fulfilled.
 
 Consider the full context: not just stage pass/fail, but the quality of the journey visible in the agent events (tool call patterns, error recovery, approach pivots).
 
 ## Guidelines for qualitative fields
 
-- **intent**: What was the pipeline trying to accomplish? Summarize the goal in a sentence.
+- **intent**: What was the workflow run trying to accomplish? Summarize the goal in a sentence.
 - **outcome**: What actually happened? Did it succeed? What was produced?
 - **learnings**: What was discovered about the repo, code, workflow, or tools?
 - **friction_points**: Where did things get stuck? What caused slowdowns?
@@ -57,11 +57,11 @@ const SUBMIT_RETRO_SCHEMA: &str = r#"{
     "smoothness": {
       "type": "string",
       "enum": ["effortless", "smooth", "bumpy", "struggled", "failed"],
-      "description": "Overall smoothness rating for the pipeline run"
+      "description": "Overall smoothness rating for the workflow run"
     },
     "intent": {
       "type": "string",
-      "description": "What was the pipeline trying to accomplish?"
+      "description": "What was the workflow run trying to accomplish?"
     },
     "outcome": {
       "type": "string",
@@ -108,7 +108,7 @@ const SUBMIT_RETRO_SCHEMA: &str = r#"{
   "required": ["smoothness", "intent", "outcome"]
 }"#;
 
-/// Run a retro agent session that analyzes pipeline run data and produces
+/// Run a retro agent session that analyzes workflow run data and produces
 /// a structured narrative. The agent explores `progress.ndjson` and other
 /// files via tool access, then calls `submit_retro` with its analysis.
 pub async fn run_retro_agent(
@@ -133,7 +133,7 @@ pub async fn run_retro_agent(
     let submit_tool = arc_agent::tool_registry::RegisteredTool {
         definition: ToolDefinition {
             name: "submit_retro".to_string(),
-            description: "Submit the structured retrospective analysis. Call this once you have analyzed the pipeline run data.".to_string(),
+            description: "Submit the structured retrospective analysis. Call this once you have analyzed the workflow run data.".to_string(),
             parameters: serde_json::from_str(SUBMIT_RETRO_SCHEMA)
                 .expect("submit_retro schema should be valid JSON"),
         },
@@ -171,7 +171,7 @@ pub async fn run_retro_agent(
     session.initialize().await;
 
     let prompt = format!(
-        "Analyze the pipeline run data at `{retro_data_dir}/` and generate a retrospective. \
+        "Analyze the workflow run data at `{retro_data_dir}/` and generate a retrospective. \
          The key file is `{retro_data_dir}/progress.ndjson` which contains the full event stream. \
          Also check `{retro_data_dir}/checkpoint.json` for stage outcomes. \
          Use grep to search for interesting signals (failures, retries, errors, approach changes) \
@@ -199,7 +199,7 @@ pub fn dry_run_narrative() -> RetroNarrative {
     RetroNarrative {
         smoothness: crate::retro::SmoothnessRating::Smooth,
         intent: "[dry-run] No LLM analysis performed".to_string(),
-        outcome: "[dry-run] Pipeline completed in simulated mode".to_string(),
+        outcome: "[dry-run] Run completed in simulated mode".to_string(),
         learnings: vec![],
         friction_points: vec![],
         open_items: vec![],

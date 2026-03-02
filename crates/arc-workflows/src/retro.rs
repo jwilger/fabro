@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::Checkpoint;
 use crate::error::{ArcError, Result};
-use crate::event::PipelineEvent;
+use crate::event::WorkflowRunEvent;
 use crate::outcome::StageStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ pub struct RetroNarrative {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Retro {
     pub run_id: String,
-    pub pipeline_name: String,
+    pub workflow_name: String,
     pub goal: String,
     pub timestamp: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -186,10 +186,10 @@ pub fn extract_stage_durations(logs_root: &Path) -> HashMap<String, u64> {
         let Some(event_value) = envelope.get("event") else {
             continue;
         };
-        let Ok(event) = serde_json::from_value::<PipelineEvent>(event_value.clone()) else {
+        let Ok(event) = serde_json::from_value::<WorkflowRunEvent>(event_value.clone()) else {
             continue;
         };
-        if let PipelineEvent::StageCompleted {
+        if let WorkflowRunEvent::StageCompleted {
             name, duration_ms, ..
         } = event
         {
@@ -205,11 +205,11 @@ pub fn extract_stage_durations(logs_root: &Path) -> HashMap<String, u64> {
 #[allow(clippy::too_many_arguments)]
 pub fn derive_retro(
     run_id: &str,
-    pipeline_name: &str,
+    workflow_name: &str,
     goal: &str,
     checkpoint: &Checkpoint,
-    pipeline_failed: bool,
-    _pipeline_error: Option<&str>,
+    run_failed: bool,
+    _run_error: Option<&str>,
     duration_ms: u64,
     stage_durations: &HashMap<String, u64>,
 ) -> Retro {
@@ -262,8 +262,8 @@ pub fn derive_retro(
         });
     }
 
-    // If pipeline failed with an error not captured in stages, record it
-    if pipeline_failed && stages_failed == 0 {
+    // If run failed with an error not captured in stages, record it
+    if run_failed && stages_failed == 0 {
         stages_failed = 1;
     }
 
@@ -281,7 +281,7 @@ pub fn derive_retro(
 
     Retro {
         run_id: run_id.to_string(),
-        pipeline_name: pipeline_name.to_string(),
+        workflow_name: workflow_name.to_string(),
         goal: goal.to_string(),
         timestamp: Utc::now(),
         smoothness: None,
@@ -368,7 +368,7 @@ mod tests {
         );
 
         assert_eq!(retro.run_id, "run-1");
-        assert_eq!(retro.pipeline_name, "my_pipeline");
+        assert_eq!(retro.workflow_name, "my_pipeline");
         assert_eq!(retro.goal, "Fix the bug");
         assert_eq!(retro.stages.len(), 2);
         assert_eq!(retro.stages[0].stage_id, "plan");
@@ -388,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn derive_retro_handles_failed_pipeline() {
+    fn derive_retro_handles_failed_run() {
         let cp = Checkpoint {
             timestamp: Utc::now(),
             current_node: "start".to_string(),

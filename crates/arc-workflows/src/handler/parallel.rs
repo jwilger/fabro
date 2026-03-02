@@ -9,7 +9,7 @@ use tokio::sync::Semaphore;
 use crate::context::Context;
 use crate::engine::GitCheckpointMode;
 use crate::error::ArcError;
-use crate::event::PipelineEvent;
+use crate::event::WorkflowRunEvent;
 use crate::graph::{Graph, Node};
 use crate::outcome::{Outcome, StageStatus};
 
@@ -208,7 +208,7 @@ impl Handler for ParallelHandler {
                 .unwrap_or("continue"),
         );
 
-        services.emitter.emit(&PipelineEvent::ParallelStarted {
+        services.emitter.emit(&WorkflowRunEvent::ParallelStarted {
             branch_count: branches.len(),
             join_policy: join_policy.to_string(),
             error_policy: error_policy.to_string(),
@@ -391,7 +391,7 @@ impl Handler for ParallelHandler {
                     .await
                     .map_err(|e| ArcError::Handler(format!("semaphore error: {e}")))?;
 
-                emitter.emit(&PipelineEvent::ParallelBranchStarted {
+                emitter.emit(&WorkflowRunEvent::ParallelBranchStarted {
                     branch: setup.target_id.clone(),
                     index: setup.branch_index,
                 });
@@ -400,7 +400,7 @@ impl Handler for ParallelHandler {
                 let Some(target_node) = graph.nodes.get(&setup.target_id) else {
                     let outcome =
                         Outcome::fail(format!("branch target node not found: {}", setup.target_id));
-                    emitter.emit(&PipelineEvent::ParallelBranchCompleted {
+                    emitter.emit(&WorkflowRunEvent::ParallelBranchCompleted {
                         branch: setup.target_id.clone(),
                         index: setup.branch_index,
                         duration_ms: millis_u64(branch_start.elapsed()),
@@ -466,7 +466,7 @@ impl Handler for ParallelHandler {
                     None
                 };
 
-                emitter.emit(&PipelineEvent::ParallelBranchCompleted {
+                emitter.emit(&WorkflowRunEvent::ParallelBranchCompleted {
                     branch: setup.target_id.clone(),
                     index: setup.branch_index,
                     duration_ms: millis_u64(branch_start.elapsed()),
@@ -495,7 +495,7 @@ impl Handler for ParallelHandler {
                         results.push(result);
                         services
                             .emitter
-                            .emit(&PipelineEvent::ParallelEarlyTermination {
+                            .emit(&WorkflowRunEvent::ParallelEarlyTermination {
                                 reason: "fail_fast_branch_failed".to_string(),
                                 completed_count: results.len(),
                                 pending_count: total_branches - handle_index - 1,
@@ -515,7 +515,7 @@ impl Handler for ParallelHandler {
                         results.push(result);
                         services
                             .emitter
-                            .emit(&PipelineEvent::ParallelEarlyTermination {
+                            .emit(&WorkflowRunEvent::ParallelEarlyTermination {
                                 reason: "fail_fast_handler_error".to_string(),
                                 completed_count: results.len(),
                                 pending_count: total_branches - handle_index - 1,
@@ -535,7 +535,7 @@ impl Handler for ParallelHandler {
                         results.push(result);
                         services
                             .emitter
-                            .emit(&PipelineEvent::ParallelEarlyTermination {
+                            .emit(&WorkflowRunEvent::ParallelEarlyTermination {
                                 reason: "fail_fast_join_error".to_string(),
                                 completed_count: results.len(),
                                 pending_count: total_branches - handle_index - 1,
@@ -634,7 +634,7 @@ impl Handler for ParallelHandler {
             let _ = tokio::fs::write(node_dir.join("parallel_results.json"), json).await;
         }
 
-        services.emitter.emit(&PipelineEvent::ParallelCompleted {
+        services.emitter.emit(&WorkflowRunEvent::ParallelCompleted {
             duration_ms: millis_u64(parallel_start.elapsed()),
             success_count,
             failure_count: fail_count,

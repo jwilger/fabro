@@ -164,7 +164,7 @@ mod tests {
         let toml = r#"
 version = 1
 task = "Run tests"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 
 [vars]
 repo_url = "https://github.com/org/repo"
@@ -224,7 +224,7 @@ language = "python"
         let toml = r#"
 version = 1
 task = "Run tests"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 
 [execution]
 environment = "daytona"
@@ -240,7 +240,7 @@ environment = "daytona"
         let toml = r#"
 version = 1
 task = "Run tests"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 
 [execution]
 environment = "daytona"
@@ -283,7 +283,7 @@ dockerfile = "FROM rust:1.85-slim-bookworm\nRUN apt-get update"
         let toml = r#"
 version = 1
 task = "Run tests"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 
 [execution]
 environment = "daytona"
@@ -302,12 +302,12 @@ auto_stop_interval = 30
         let toml = r#"
 version = 1
 task = "Run tests"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 "#;
         let config = parse_task_config(toml).unwrap();
         assert_eq!(config.version, 1);
         assert_eq!(config.task, "Run tests");
-        assert_eq!(config.graph, "pipeline.dot");
+        assert_eq!(config.graph, "workflow.dot");
         assert!(config.directory.is_none());
         assert!(config.llm.is_none());
         assert!(config.setup.is_none());
@@ -318,7 +318,7 @@ graph = "pipeline.dot"
         let toml = r#"
 version = 1
 task = "Full workflow"
-graph = "pipeline.dot"
+graph = "workflow.dot"
 directory = "/tmp/repo"
 
 [llm]
@@ -367,8 +367,8 @@ graph = "p.dot"
     #[test]
     fn graph_path_absolute_unchanged() {
         let toml_path = Path::new("/tmp/sub/task.toml");
-        let resolved = resolve_graph_path(toml_path, "/other/pipeline.dot");
-        assert_eq!(resolved, PathBuf::from("/other/pipeline.dot"));
+        let resolved = resolve_graph_path(toml_path, "/other/workflow.dot");
+        assert_eq!(resolved, PathBuf::from("/other/workflow.dot"));
     }
 
     #[test]

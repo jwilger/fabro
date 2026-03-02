@@ -12,9 +12,9 @@ pub struct RunsListArgs {
     #[arg(long)]
     pub before: Option<String>,
 
-    /// Filter by pipeline name (substring match)
+    /// Filter by workflow name (substring match)
     #[arg(long)]
-    pub pipeline: Option<String>,
+    pub workflow: Option<String>,
 
     /// Filter by label (KEY=VALUE, repeatable, AND semantics)
     #[arg(long = "label", value_name = "KEY=VALUE")]
@@ -35,9 +35,9 @@ pub struct RunsPruneArgs {
     #[arg(long)]
     pub before: Option<String>,
 
-    /// Filter by pipeline name (substring match)
+    /// Filter by workflow name (substring match)
     #[arg(long)]
-    pub pipeline: Option<String>,
+    pub workflow: Option<String>,
 
     /// Filter by label (KEY=VALUE, repeatable, AND semantics)
     #[arg(long = "label", value_name = "KEY=VALUE")]
@@ -56,7 +56,7 @@ pub struct RunsPruneArgs {
 pub struct RunInfo {
     pub run_id: String,
     pub dir_name: String,
-    pub pipeline_name: String,
+    pub workflow_name: String,
     pub status: String,
     pub start_time: String,
     pub labels: HashMap<String, String>,
@@ -99,7 +99,7 @@ pub fn scan_runs(base: &Path) -> Result<Vec<RunInfo>> {
                 .as_str()
                 .unwrap_or(&dir_name)
                 .to_string();
-            let pipeline_name = manifest["pipeline_name"]
+            let workflow_name = manifest["workflow_name"]
                 .as_str()
                 .unwrap_or("unknown")
                 .to_string();
@@ -117,7 +117,7 @@ pub fn scan_runs(base: &Path) -> Result<Vec<RunInfo>> {
             runs.push(RunInfo {
                 run_id,
                 dir_name,
-                pipeline_name,
+                workflow_name,
                 status,
                 start_time,
                 labels,
@@ -139,7 +139,7 @@ pub fn scan_runs(base: &Path) -> Result<Vec<RunInfo>> {
             runs.push(RunInfo {
                 run_id: dir_name.clone(),
                 dir_name,
-                pipeline_name: "[no manifest]".to_string(),
+                workflow_name: "[no manifest]".to_string(),
                 status: "unknown".to_string(),
                 start_time: mtime,
                 labels: HashMap::new(),
@@ -176,7 +176,7 @@ fn read_status(run_dir: &Path) -> String {
 pub fn filter_runs(
     runs: &[RunInfo],
     before: Option<&str>,
-    pipeline: Option<&str>,
+    workflow: Option<&str>,
     labels: &[(String, String)],
     include_orphans: bool,
 ) -> Vec<RunInfo> {
@@ -190,8 +190,8 @@ pub fn filter_runs(
                     return false;
                 }
             }
-            if let Some(pat) = pipeline {
-                if !r.pipeline_name.contains(pat) {
+            if let Some(pat) = workflow {
+                if !r.workflow_name.contains(pat) {
                     return false;
                 }
             }
@@ -229,7 +229,7 @@ pub fn list_command(args: &RunsListArgs) -> Result<()> {
     let filtered = filter_runs(
         &runs,
         args.before.as_deref(),
-        args.pipeline.as_deref(),
+        args.workflow.as_deref(),
         &label_filters,
         args.orphans,
     );
@@ -247,7 +247,7 @@ pub fn list_command(args: &RunsListArgs) -> Result<()> {
     // Print table header
     let header = format!(
         "{:<30} {:<25} {:<10} {:<25} LABELS",
-        "RUN ID", "PIPELINE", "STATUS", "STARTED"
+        "RUN ID", "WORKFLOW", "STATUS", "STARTED"
     );
     println!("{header}");
     println!("{}", "-".repeat(100));
@@ -271,7 +271,7 @@ pub fn list_command(args: &RunsListArgs) -> Result<()> {
         };
         println!(
             "{:<30} {:<25} {:<10} {:<25} {}",
-            run_id_display, run.pipeline_name, run.status, start_display, labels_str
+            run_id_display, run.workflow_name, run.status, start_display, labels_str
         );
     }
     eprintln!("\n{} run(s) listed.", filtered.len());
@@ -289,7 +289,7 @@ pub fn prune_from(args: &RunsPruneArgs, base: &Path) -> Result<()> {
     let filtered = filter_runs(
         &runs,
         args.before.as_deref(),
-        args.pipeline.as_deref(),
+        args.workflow.as_deref(),
         &label_filters,
         args.orphans,
     );
@@ -310,7 +310,7 @@ pub fn prune_from(args: &RunsPruneArgs, base: &Path) -> Result<()> {
             debug!(run_id = %run.run_id, "would delete run (dry-run)");
             println!(
                 "would delete: {} ({})",
-                run.dir_name, run.pipeline_name
+                run.dir_name, run.workflow_name
             );
         }
         eprintln!(
@@ -359,7 +359,7 @@ mod tests {
             "arc-run-20260101-120000",
             Some(serde_json::json!({
                 "run_id": "abc123",
-                "pipeline_name": "my-pipeline",
+                "workflow_name": "my-pipeline",
                 "start_time": "2026-01-01T12:00:00Z",
                 "labels": { "env": "prod" }
             })),
@@ -373,13 +373,13 @@ mod tests {
         assert_eq!(runs.len(), 2);
 
         let completed = runs.iter().find(|r| r.run_id == "abc123").unwrap();
-        assert_eq!(completed.pipeline_name, "my-pipeline");
+        assert_eq!(completed.workflow_name, "my-pipeline");
         assert_eq!(completed.status, "success");
         assert_eq!(completed.labels.get("env").unwrap(), "prod");
         assert!(!completed.is_orphan);
 
         let orphan = runs.iter().find(|r| r.is_orphan).unwrap();
-        assert_eq!(orphan.pipeline_name, "[no manifest]");
+        assert_eq!(orphan.workflow_name, "[no manifest]");
         assert_eq!(orphan.status, "unknown");
     }
 
@@ -393,7 +393,7 @@ mod tests {
             "arc-run-running",
             Some(serde_json::json!({
                 "run_id": "running-1",
-                "pipeline_name": "pipeline-a",
+                "workflow_name": "pipeline-a",
                 "start_time": "2026-01-15T10:00:00Z"
             })),
             None,
@@ -424,7 +424,7 @@ mod tests {
             RunInfo {
                 run_id: "old".into(),
                 dir_name: "d1".into(),
-                pipeline_name: "p".into(),
+                workflow_name: "p".into(),
                 status: "success".into(),
                 start_time: "2025-06-01T00:00:00Z".into(),
                 labels: HashMap::new(),
@@ -434,7 +434,7 @@ mod tests {
             RunInfo {
                 run_id: "new".into(),
                 dir_name: "d2".into(),
-                pipeline_name: "p".into(),
+                workflow_name: "p".into(),
                 status: "success".into(),
                 start_time: "2026-03-01T00:00:00Z".into(),
                 labels: HashMap::new(),
@@ -448,12 +448,12 @@ mod tests {
     }
 
     #[test]
-    fn filter_runs_pipeline() {
+    fn filter_runs_workflow() {
         let runs = vec![
             RunInfo {
                 run_id: "a".into(),
                 dir_name: "d1".into(),
-                pipeline_name: "deploy-prod".into(),
+                workflow_name: "deploy-prod".into(),
                 status: "success".into(),
                 start_time: "2026-01-01T00:00:00Z".into(),
                 labels: HashMap::new(),
@@ -463,7 +463,7 @@ mod tests {
             RunInfo {
                 run_id: "b".into(),
                 dir_name: "d2".into(),
-                pipeline_name: "test-suite".into(),
+                workflow_name: "test-suite".into(),
                 status: "success".into(),
                 start_time: "2026-01-01T00:00:00Z".into(),
                 labels: HashMap::new(),
@@ -482,7 +482,7 @@ mod tests {
             RunInfo {
                 run_id: "a".into(),
                 dir_name: "d1".into(),
-                pipeline_name: "p".into(),
+                workflow_name: "p".into(),
                 status: "success".into(),
                 start_time: "2026-01-01T00:00:00Z".into(),
                 labels: HashMap::from([("env".into(), "prod".into())]),
@@ -492,7 +492,7 @@ mod tests {
             RunInfo {
                 run_id: "b".into(),
                 dir_name: "d2".into(),
-                pipeline_name: "p".into(),
+                workflow_name: "p".into(),
                 status: "success".into(),
                 start_time: "2026-01-01T00:00:00Z".into(),
                 labels: HashMap::from([("env".into(), "staging".into())]),
@@ -516,7 +516,7 @@ mod tests {
         let runs = vec![RunInfo {
             run_id: "orphan".into(),
             dir_name: "d1".into(),
-            pipeline_name: "[no manifest]".into(),
+            workflow_name: "[no manifest]".into(),
             status: "unknown".into(),
             start_time: "".into(),
             labels: HashMap::new(),
@@ -540,7 +540,7 @@ mod tests {
             "arc-run-20250101-120000",
             Some(serde_json::json!({
                 "run_id": "to-prune",
-                "pipeline_name": "old-pipeline",
+                "workflow_name": "old-pipeline",
                 "start_time": "2025-01-01T12:00:00Z"
             })),
             Some(serde_json::json!({ "status": "success" })),
@@ -549,7 +549,7 @@ mod tests {
 
         let args = RunsPruneArgs {
             before: Some("2026-01-01".into()),
-            pipeline: None,
+            workflow: None,
             label: Vec::new(),
             orphans: false,
             yes: false,
@@ -569,7 +569,7 @@ mod tests {
             "arc-run-20250101-120000",
             Some(serde_json::json!({
                 "run_id": "to-prune",
-                "pipeline_name": "old-pipeline",
+                "workflow_name": "old-pipeline",
                 "start_time": "2025-01-01T12:00:00Z"
             })),
             Some(serde_json::json!({ "status": "success" })),
@@ -582,7 +582,7 @@ mod tests {
             "arc-run-20260301-120000",
             Some(serde_json::json!({
                 "run_id": "keep-this",
-                "pipeline_name": "new-pipeline",
+                "workflow_name": "new-pipeline",
                 "start_time": "2026-03-01T12:00:00Z"
             })),
             Some(serde_json::json!({ "status": "success" })),
@@ -591,7 +591,7 @@ mod tests {
 
         let args = RunsPruneArgs {
             before: Some("2026-01-01".into()),
-            pipeline: None,
+            workflow: None,
             label: Vec::new(),
             orphans: false,
             yes: true,
@@ -611,7 +611,7 @@ mod tests {
 
         let args = RunsPruneArgs {
             before: None,
-            pipeline: None,
+            workflow: None,
             label: Vec::new(),
             orphans: true,
             yes: true,

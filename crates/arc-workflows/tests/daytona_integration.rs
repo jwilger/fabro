@@ -13,7 +13,7 @@ use arc_workflows::artifact::sync_artifacts_to_env;
 use arc_workflows::checkpoint::Checkpoint;
 use arc_workflows::context::Context;
 use arc_workflows::daytona_env::{DaytonaConfig, DaytonaExecutionEnvironment};
-use arc_workflows::engine::{PipelineEngine, RunConfig};
+use arc_workflows::engine::{WorkflowRunEngine, RunConfig};
 use arc_workflows::error::ArcError;
 use arc_workflows::event::EventEmitter;
 use arc_workflows::graph::{AttrValue, Edge, Graph, Node};
@@ -274,7 +274,7 @@ async fn daytona_pipeline_artifact_offload_and_sync() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), env.clone());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), env.clone());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -465,7 +465,7 @@ async fn daytona_git_checkpoint_remote_emits_events() {
     registry.register("start", Box::new(StartHandler));
     registry.register("exit", Box::new(ExitHandler));
 
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), env.clone());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), env.clone());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,
@@ -490,7 +490,7 @@ async fn daytona_git_checkpoint_remote_emits_events() {
         let git_events: Vec<_> = events
             .iter()
             .filter_map(|e| {
-                if let arc_workflows::event::PipelineEvent::GitCheckpoint {
+                if let arc_workflows::event::WorkflowRunEvent::GitCheckpoint {
                     node_id,
                     git_commit_sha,
                     ..
@@ -644,7 +644,7 @@ async fn daytona_parallel_git_branching_e2e() {
     registry.register("parallel", Box::new(ParallelHandler));
     registry.register("parallel.fan_in", Box::new(FanInHandler::new(None)));
 
-    let engine = PipelineEngine::new(registry, Arc::new(emitter), Arc::clone(&env));
+    let engine = WorkflowRunEngine::new(registry, Arc::new(emitter), Arc::clone(&env));
 
     let config = RunConfig {
         logs_root: logs_dir.path().to_path_buf(),
@@ -740,7 +740,7 @@ async fn daytona_parallel_git_branching_e2e() {
             .filter(|e| {
                 matches!(
                     e,
-                    arc_workflows::event::PipelineEvent::ParallelStarted { .. }
+                    arc_workflows::event::WorkflowRunEvent::ParallelStarted { .. }
                 )
             })
             .collect();
@@ -754,7 +754,7 @@ async fn daytona_parallel_git_branching_e2e() {
             .filter(|e| {
                 matches!(
                     e,
-                    arc_workflows::event::PipelineEvent::ParallelCompleted { .. }
+                    arc_workflows::event::WorkflowRunEvent::ParallelCompleted { .. }
                 )
             })
             .collect();
@@ -970,7 +970,7 @@ async fn daytona_git_checkpoint_with_shadow_branch() {
     registry.register("exit", Box::new(ExitHandler));
 
     let meta_branch = MetadataStore::branch_name(&run_id);
-    let engine = PipelineEngine::new(registry, Arc::new(EventEmitter::new()), env.clone());
+    let engine = WorkflowRunEngine::new(registry, Arc::new(EventEmitter::new()), env.clone());
     let config = RunConfig {
         logs_root: dir.path().to_path_buf(),
         cancel_token: None,

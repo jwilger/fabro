@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::outcome::StageUsage;
 use arc_agent::{AgentEvent, ExecutionEnvEvent};
 
-/// Events emitted during pipeline execution for observability.
+/// Events emitted during workflow run execution for observability.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PipelineEvent {
-    PipelineStarted {
+pub enum WorkflowRunEvent {
+    WorkflowRunStarted {
         name: String,
         run_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -18,7 +18,7 @@ pub enum PipelineEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         worktree_dir: Option<String>,
     },
-    PipelineCompleted {
+    WorkflowRunCompleted {
         duration_ms: u64,
         artifact_count: usize,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -26,7 +26,7 @@ pub enum PipelineEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         final_git_commit_sha: Option<String>,
     },
-    PipelineFailed {
+    WorkflowRunFailed {
         error: String,
         duration_ms: u64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -127,7 +127,7 @@ pub enum PipelineEvent {
         stage: String,
         text: String,
     },
-    /// Forwarded from an agent session, tagged with the pipeline stage.
+    /// Forwarded from an agent session, tagged with the workflow stage.
     Agent {
         stage: String,
         event: AgentEvent,
@@ -179,24 +179,24 @@ pub enum PipelineEvent {
     },
 }
 
-impl PipelineEvent {
+impl WorkflowRunEvent {
     pub fn trace(&self) {
         use tracing::{debug, error, info, warn};
         match self {
-            Self::PipelineStarted { name, run_id, .. } => {
-                info!(pipeline = name.as_str(), run_id, "Pipeline started");
+            Self::WorkflowRunStarted { name, run_id, .. } => {
+                info!(workflow = name.as_str(), run_id, "Workflow run started");
             }
-            Self::PipelineCompleted {
+            Self::WorkflowRunCompleted {
                 duration_ms,
                 artifact_count,
                 ..
             } => {
-                info!(duration_ms, artifact_count, "Pipeline completed");
+                info!(duration_ms, artifact_count, "Workflow run completed");
             }
-            Self::PipelineFailed {
+            Self::WorkflowRunFailed {
                 error, duration_ms, ..
             } => {
-                error!(error, duration_ms, "Pipeline failed");
+                error!(error, duration_ms, "Workflow run failed");
             }
             Self::StageStarted {
                 name,
@@ -446,10 +446,10 @@ fn epoch_millis() -> i64 {
         .as_millis() as i64
 }
 
-/// Listener callback type for pipeline events.
-type EventListener = Box<dyn Fn(&PipelineEvent) + Send + Sync>;
+/// Listener callback type for workflow run events.
+type EventListener = Box<dyn Fn(&WorkflowRunEvent) + Send + Sync>;
 
-/// Callback-based event emitter for pipeline events.
+/// Callback-based event emitter for workflow run events.
 pub struct EventEmitter {
     listeners: Vec<EventListener>,
     /// Epoch milliseconds of the last `emit()` or `touch()` call. 0 until first event.
@@ -480,11 +480,11 @@ impl EventEmitter {
         }
     }
 
-    pub fn on_event(&mut self, listener: impl Fn(&PipelineEvent) + Send + Sync + 'static) {
+    pub fn on_event(&mut self, listener: impl Fn(&WorkflowRunEvent) + Send + Sync + 'static) {
         self.listeners.push(Box::new(listener));
     }
 
-    pub fn emit(&self, event: &PipelineEvent) {
+    pub fn emit(&self, event: &WorkflowRunEvent) {
         self.last_event_at.store(epoch_millis(), Ordering::Relaxed);
         event.trace();
         for listener in &self.listeners {
@@ -498,7 +498,7 @@ impl EventEmitter {
         self.last_event_at.load(Ordering::Relaxed)
     }
 
-    /// Manually update the last-event timestamp (e.g. to seed the watchdog at pipeline start).
+    /// Manually update the last-event timestamp (e.g. to seed the watchdog at workflow run start).
     pub fn touch(&self) {
         self.last_event_at.store(epoch_millis(), Ordering::Relaxed);
     }
@@ -523,12 +523,12 @@ mod tests {
         let received_clone = Arc::clone(&received);
         emitter.on_event(move |event| {
             let name = match event {
-                PipelineEvent::PipelineStarted { name, .. } => name.clone(),
+                WorkflowRunEvent::WorkflowRunStarted { name, .. } => name.clone(),
                 _ => "other".to_string(),
             };
             received_clone.lock().unwrap().push(name);
         });
-        emitter.emit(&PipelineEvent::PipelineStarted {
+        emitter.emit(&WorkflowRunEvent::WorkflowRunStarted {
             name: "test".to_string(),
             run_id: "1".to_string(),
             base_sha: None,
@@ -541,8 +541,8 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_event_serialization() {
-        let event = PipelineEvent::StageStarted {
+    fn workflow_run_event_serialization() {
+        let event = WorkflowRunEvent::StageStarted {
             name: "plan".to_string(),
             index: 0,
             handler_type: Some("codergen".to_string()),
@@ -557,7 +557,7 @@ mod tests {
         assert!(json.contains("\"max_attempts\":3"));
 
         // None handler_type serializes as null
-        let event_none = PipelineEvent::StageStarted {
+        let event_none = WorkflowRunEvent::StageStarted {
             name: "plan".to_string(),
             index: 0,
             handler_type: None,
@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     fn agent_event_wrapper_serialization() {
-        let event = PipelineEvent::Agent {
+        let event = WorkflowRunEvent::Agent {
             stage: "plan".to_string(),
             event: AgentEvent::ToolCallStarted {
                 tool_name: "read_file".to_string(),
@@ -591,13 +591,13 @@ mod tests {
         assert!(json.contains("plan"));
 
         // Verify round-trip
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, PipelineEvent::Agent { stage, .. } if stage == "plan"));
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, WorkflowRunEvent::Agent { stage, .. } if stage == "plan"));
     }
 
     #[test]
     fn agent_assistant_message_serialization() {
-        let event = PipelineEvent::Agent {
+        let event = WorkflowRunEvent::Agent {
             stage: "code".to_string(),
             event: AgentEvent::AssistantMessage {
                 text: "Here is the implementation".to_string(),
@@ -621,9 +621,9 @@ mod tests {
         assert!(json.contains("\"reasoning_tokens\":100"));
 
         // Round-trip
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         match deserialized {
-            PipelineEvent::Agent {
+            WorkflowRunEvent::Agent {
                 event: AgentEvent::AssistantMessage { usage, .. },
                 ..
             } => {
@@ -636,7 +636,7 @@ mod tests {
 
     #[test]
     fn agent_assistant_message_without_cache_tokens_omits_them() {
-        let event = PipelineEvent::Agent {
+        let event = WorkflowRunEvent::Agent {
             stage: "code".to_string(),
             event: AgentEvent::AssistantMessage {
                 text: "response".to_string(),
@@ -657,7 +657,7 @@ mod tests {
 
     #[test]
     fn stage_completed_event_serialization_with_new_fields() {
-        let event = PipelineEvent::StageCompleted {
+        let event = WorkflowRunEvent::StageCompleted {
             name: "plan".to_string(),
             index: 0,
             duration_ms: 1500,
@@ -680,7 +680,7 @@ mod tests {
         assert!(json.contains("\"max_attempts\":3"));
         assert!(json.contains("\"failure_class\":null"));
 
-        let event_none = PipelineEvent::StageCompleted {
+        let event_none = WorkflowRunEvent::StageCompleted {
             name: "plan".to_string(),
             index: 0,
             duration_ms: 1500,
@@ -702,7 +702,7 @@ mod tests {
 
     #[test]
     fn stage_failed_event_serialization() {
-        let event = PipelineEvent::StageFailed {
+        let event = WorkflowRunEvent::StageFailed {
             name: "plan".to_string(),
             index: 0,
             error: "timeout".to_string(),
@@ -714,12 +714,12 @@ mod tests {
         assert!(json.contains("\"failure_reason\":\"LLM request timed out\""));
         assert!(json.contains("\"failure_class\":\"transient\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::StageFailed { failure_class: Some(fc), .. } if fc == "transient")
+            matches!(deserialized, WorkflowRunEvent::StageFailed { failure_class: Some(fc), .. } if fc == "transient")
         );
 
-        let event_none = PipelineEvent::StageFailed {
+        let event_none = WorkflowRunEvent::StageFailed {
             name: "plan".to_string(),
             index: 0,
             error: "timeout".to_string(),
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn parallel_branch_completed_event_serialization() {
-        let event = PipelineEvent::ParallelBranchCompleted {
+        let event = WorkflowRunEvent::ParallelBranchCompleted {
             branch: "branch_a".to_string(),
             index: 0,
             duration_ms: 1500,
@@ -744,15 +744,15 @@ mod tests {
         assert!(json.contains("\"status\":\"success\""));
         assert!(!json.contains("\"success\":"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::ParallelBranchCompleted { status, .. } if status == "success")
+            matches!(deserialized, WorkflowRunEvent::ParallelBranchCompleted { status, .. } if status == "success")
         );
     }
 
     #[test]
     fn parallel_started_event_serialization() {
-        let event = PipelineEvent::ParallelStarted {
+        let event = WorkflowRunEvent::ParallelStarted {
             branch_count: 3,
             join_policy: "wait_all".to_string(),
             error_policy: "continue".to_string(),
@@ -761,15 +761,15 @@ mod tests {
         assert!(json.contains("\"join_policy\":\"wait_all\""));
         assert!(json.contains("\"error_policy\":\"continue\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::ParallelStarted { join_policy, error_policy, .. } if join_policy == "wait_all" && error_policy == "continue")
+            matches!(deserialized, WorkflowRunEvent::ParallelStarted { join_policy, error_policy, .. } if join_policy == "wait_all" && error_policy == "continue")
         );
     }
 
     #[test]
     fn interview_started_event_serialization() {
-        let event = PipelineEvent::InterviewStarted {
+        let event = WorkflowRunEvent::InterviewStarted {
             question: "Review changes?".to_string(),
             stage: "gate".to_string(),
             question_type: "multiple_choice".to_string(),
@@ -777,15 +777,15 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"question_type\":\"multiple_choice\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::InterviewStarted { question_type, .. } if question_type == "multiple_choice")
+            matches!(deserialized, WorkflowRunEvent::InterviewStarted { question_type, .. } if question_type == "multiple_choice")
         );
     }
 
     #[test]
     fn agent_compaction_event_serialization() {
-        let started = PipelineEvent::Agent {
+        let started = WorkflowRunEvent::Agent {
             stage: "code".to_string(),
             event: AgentEvent::CompactionStarted {
                 estimated_tokens: 5000,
@@ -794,10 +794,10 @@ mod tests {
         };
         let json = serde_json::to_string(&started).unwrap();
         assert!(json.contains("CompactionStarted"));
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, PipelineEvent::Agent { stage, .. } if stage == "code"));
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, WorkflowRunEvent::Agent { stage, .. } if stage == "code"));
 
-        let completed = PipelineEvent::Agent {
+        let completed = WorkflowRunEvent::Agent {
             stage: "code".to_string(),
             event: AgentEvent::CompactionCompleted {
                 original_turn_count: 20,
@@ -808,13 +808,13 @@ mod tests {
         };
         let json = serde_json::to_string(&completed).unwrap();
         assert!(json.contains("CompactionCompleted"));
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, PipelineEvent::Agent { stage, .. } if stage == "code"));
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, WorkflowRunEvent::Agent { stage, .. } if stage == "code"));
     }
 
     #[test]
     fn edge_selected_event_serialization() {
-        let event = PipelineEvent::EdgeSelected {
+        let event = WorkflowRunEvent::EdgeSelected {
             from_node: "plan".to_string(),
             to_node: "code".to_string(),
             label: Some("success".to_string()),
@@ -827,13 +827,13 @@ mod tests {
         assert!(json.contains("\"label\":\"success\""));
         assert!(json.contains("\"condition\":\"outcome == 'success'\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::EdgeSelected { from_node, to_node, .. } if from_node == "plan" && to_node == "code")
+            matches!(deserialized, WorkflowRunEvent::EdgeSelected { from_node, to_node, .. } if from_node == "plan" && to_node == "code")
         );
 
         // None label/condition
-        let event_none = PipelineEvent::EdgeSelected {
+        let event_none = WorkflowRunEvent::EdgeSelected {
             from_node: "a".to_string(),
             to_node: "b".to_string(),
             label: None,
@@ -846,7 +846,7 @@ mod tests {
 
     #[test]
     fn loop_restart_event_serialization() {
-        let event = PipelineEvent::LoopRestart {
+        let event = WorkflowRunEvent::LoopRestart {
             from_node: "review".to_string(),
             to_node: "code".to_string(),
         };
@@ -855,15 +855,15 @@ mod tests {
         assert!(json.contains("\"from_node\":\"review\""));
         assert!(json.contains("\"to_node\":\"code\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::LoopRestart { from_node, to_node } if from_node == "review" && to_node == "code")
+            matches!(deserialized, WorkflowRunEvent::LoopRestart { from_node, to_node } if from_node == "review" && to_node == "code")
         );
     }
 
     #[test]
     fn stage_retrying_event_serialization() {
-        let event = PipelineEvent::StageRetrying {
+        let event = WorkflowRunEvent::StageRetrying {
             name: "lint".to_string(),
             index: 2,
             attempt: 3,
@@ -876,10 +876,10 @@ mod tests {
         assert!(json.contains("\"max_attempts\":5"));
         assert!(json.contains("\"delay_ms\":400"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(matches!(
             deserialized,
-            PipelineEvent::StageRetrying {
+            WorkflowRunEvent::StageRetrying {
                 max_attempts: 5,
                 ..
             }
@@ -888,7 +888,7 @@ mod tests {
 
     #[test]
     fn agent_llm_retry_event_serialization() {
-        let event = PipelineEvent::Agent {
+        let event = WorkflowRunEvent::Agent {
             stage: "code".to_string(),
             event: AgentEvent::LlmRetry {
                 provider: "anthropic".to_string(),
@@ -903,13 +903,13 @@ mod tests {
         assert!(json.contains("\"provider\":\"anthropic\""));
         assert!(json.contains("\"delay_secs\":1.5"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, PipelineEvent::Agent { stage, .. } if stage == "code"));
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, WorkflowRunEvent::Agent { stage, .. } if stage == "code"));
     }
 
     #[test]
     fn parallel_early_termination_event_serialization() {
-        let event = PipelineEvent::ParallelEarlyTermination {
+        let event = WorkflowRunEvent::ParallelEarlyTermination {
             reason: "fail_fast_branch_failed".to_string(),
             completed_count: 2,
             pending_count: 3,
@@ -919,10 +919,10 @@ mod tests {
         assert!(json.contains("\"completed_count\":2"));
         assert!(json.contains("\"pending_count\":3"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(matches!(
             deserialized,
-            PipelineEvent::ParallelEarlyTermination {
+            WorkflowRunEvent::ParallelEarlyTermination {
                 completed_count: 2,
                 ..
             }
@@ -931,7 +931,7 @@ mod tests {
 
     #[test]
     fn subgraph_started_event_serialization() {
-        let event = PipelineEvent::SubgraphStarted {
+        let event = WorkflowRunEvent::SubgraphStarted {
             node_id: "sub_1".to_string(),
             start_node: "start".to_string(),
         };
@@ -940,15 +940,15 @@ mod tests {
         assert!(json.contains("\"node_id\":\"sub_1\""));
         assert!(json.contains("\"start_node\":\"start\""));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::SubgraphStarted { node_id, .. } if node_id == "sub_1")
+            matches!(deserialized, WorkflowRunEvent::SubgraphStarted { node_id, .. } if node_id == "sub_1")
         );
     }
 
     #[test]
     fn subgraph_completed_event_serialization() {
-        let event = PipelineEvent::SubgraphCompleted {
+        let event = WorkflowRunEvent::SubgraphCompleted {
             node_id: "sub_1".to_string(),
             steps_executed: 5,
             status: "success".to_string(),
@@ -959,10 +959,10 @@ mod tests {
         assert!(json.contains("\"steps_executed\":5"));
         assert!(json.contains("\"duration_ms\":3200"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(matches!(
             deserialized,
-            PipelineEvent::SubgraphCompleted {
+            WorkflowRunEvent::SubgraphCompleted {
                 steps_executed: 5,
                 ..
             }
@@ -973,7 +973,7 @@ mod tests {
     fn execution_env_event_wrapper_serialization() {
         use arc_agent::ExecutionEnvEvent;
 
-        let event = PipelineEvent::ExecutionEnv {
+        let event = WorkflowRunEvent::ExecutionEnv {
             event: ExecutionEnvEvent::Initializing {
                 env_type: "docker".into(),
             },
@@ -983,8 +983,8 @@ mod tests {
         assert!(json.contains("Initializing"));
         assert!(json.contains("docker"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, PipelineEvent::ExecutionEnv { .. }));
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, WorkflowRunEvent::ExecutionEnv { .. }));
     }
 
     #[test]
@@ -997,7 +997,7 @@ mod tests {
     fn emitter_last_event_at_updates_after_emit() {
         let emitter = EventEmitter::new();
         assert_eq!(emitter.last_event_at(), 0);
-        emitter.emit(&PipelineEvent::PipelineStarted {
+        emitter.emit(&WorkflowRunEvent::WorkflowRunStarted {
             name: "test".to_string(),
             run_id: "1".to_string(),
             base_sha: None,
@@ -1017,7 +1017,7 @@ mod tests {
 
     #[test]
     fn stall_watchdog_timeout_serialization() {
-        let event = PipelineEvent::StallWatchdogTimeout {
+        let event = WorkflowRunEvent::StallWatchdogTimeout {
             node: "work".to_string(),
             idle_seconds: 600,
         };
@@ -1026,28 +1026,28 @@ mod tests {
         assert!(json.contains("\"node\":\"work\""));
         assert!(json.contains("\"idle_seconds\":600"));
 
-        let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
         assert!(
-            matches!(deserialized, PipelineEvent::StallWatchdogTimeout { node, idle_seconds } if node == "work" && idle_seconds == 600)
+            matches!(deserialized, WorkflowRunEvent::StallWatchdogTimeout { node, idle_seconds } if node == "work" && idle_seconds == 600)
         );
     }
 
     #[test]
     fn setup_events_serialization() {
         let events = vec![
-            PipelineEvent::SetupStarted { command_count: 3 },
-            PipelineEvent::SetupCommandStarted {
+            WorkflowRunEvent::SetupStarted { command_count: 3 },
+            WorkflowRunEvent::SetupCommandStarted {
                 command: "npm install".into(),
                 index: 0,
             },
-            PipelineEvent::SetupCommandCompleted {
+            WorkflowRunEvent::SetupCommandCompleted {
                 command: "npm install".into(),
                 index: 0,
                 exit_code: 0,
                 duration_ms: 5000,
             },
-            PipelineEvent::SetupCompleted { duration_ms: 8000 },
-            PipelineEvent::SetupFailed {
+            WorkflowRunEvent::SetupCompleted { duration_ms: 8000 },
+            WorkflowRunEvent::SetupFailed {
                 command: "npm test".into(),
                 index: 1,
                 exit_code: 1,
@@ -1057,7 +1057,7 @@ mod tests {
 
         for event in &events {
             let json = serde_json::to_string(event).unwrap();
-            let deserialized: PipelineEvent = serde_json::from_str(&json).unwrap();
+            let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
             let json2 = serde_json::to_string(&deserialized).unwrap();
             assert_eq!(json, json2);
         }

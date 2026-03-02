@@ -13,7 +13,7 @@ pub mod handler;
 pub mod interviewer;
 pub mod outcome;
 pub mod parser;
-pub mod pipeline;
+pub mod workflow;
 pub mod preamble;
 pub mod retro;
 pub mod retro_agent;
