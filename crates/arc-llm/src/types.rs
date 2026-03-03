@@ -639,6 +639,7 @@ pub struct ModelInfo {
     pub supports_reasoning: bool,
     pub input_cost_per_million: Option<f64>,
     pub output_cost_per_million: Option<f64>,
+    pub estimated_output_tps: Option<f64>,
     pub aliases: Vec<String>,
 }
 

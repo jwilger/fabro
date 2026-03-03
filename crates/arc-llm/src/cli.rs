@@ -89,21 +89,29 @@ fn format_cost(cost: Option<f64>) -> String {
     }
 }
 
+fn format_speed(tps: Option<f64>) -> String {
+    match tps {
+        None => "-".to_string(),
+        Some(t) => format!("{} tok/s", t as i64),
+    }
+}
+
 fn print_models_table(models: &[crate::types::ModelInfo]) {
     println!(
-        "{:<24} {:<12} {:<24} {:>10}  {:>7} {:>7}",
-        "MODEL", "PROVIDER", "ALIASES", "CONTEXT", "COST", ""
+        "{:<24} {:<12} {:<24} {:>10}  {:>7} {:>7}   {:>10}",
+        "MODEL", "PROVIDER", "ALIASES", "CONTEXT", "COST", "", "SPEED"
     );
     for model in models {
         let aliases = model.aliases.join(", ");
         println!(
-            "{:<24} {:<12} {:<24} {:>10}  {:>7} / {:<7}",
+            "{:<24} {:<12} {:<24} {:>10}  {:>7} / {:<7}  {:>10}",
             model.id,
             model.provider,
             aliases,
             format_context_window(model.context_window),
             format_cost(model.input_cost_per_million),
-            format_cost(model.output_cost_per_million)
+            format_cost(model.output_cost_per_million),
+            format_speed(model.estimated_output_tps)
         );
     }
 }
@@ -366,8 +374,8 @@ async fn test_models(provider: Option<&str>, model: Option<&str>) -> Result<()> 
     }
 
     println!(
-        "{:<24} {:<12} {:>10}  {:>7}   {:>7}  {}",
-        "MODEL", "PROVIDER", "CONTEXT", "COST", "", "RESULT"
+        "{:<24} {:<12} {:>10}  {:>7}   {:>7}  {:>10}  {}",
+        "MODEL", "PROVIDER", "CONTEXT", "COST", "", "SPEED", "RESULT"
     );
 
     let mut failures = 0u32;
@@ -393,12 +401,13 @@ async fn test_models(provider: Option<&str>, model: Option<&str>) -> Result<()> 
         };
 
         println!(
-            "{:<24} {:<12} {:>10}  {:>7} / {:<7}  {status}",
+            "{:<24} {:<12} {:>10}  {:>7} / {:<7}  {:>10}  {status}",
             info.id,
             info.provider,
             format_context_window(info.context_window),
             format_cost(info.input_cost_per_million),
-            format_cost(info.output_cost_per_million)
+            format_cost(info.output_cost_per_million),
+            format_speed(info.estimated_output_tps)
         );
     }
 

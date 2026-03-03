@@ -10,6 +10,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 15.0,
     "output_cost_per_million": 75.0,
+    "estimated_output_tps": 25,
     "aliases": ["opus", "claude-opus"]
   },
   {
@@ -23,6 +24,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 3.0,
     "output_cost_per_million": 15.0,
+    "estimated_output_tps": 50,
     "aliases": ["sonnet", "claude-sonnet"]
   },
   {
@@ -36,6 +38,7 @@
     "supports_reasoning": false,
     "input_cost_per_million": 0.8,
     "output_cost_per_million": 4.0,
+    "estimated_output_tps": 100,
     "aliases": ["haiku", "claude-haiku"]
   },
   {
@@ -49,6 +52,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 1.75,
     "output_cost_per_million": 14.0,
+    "estimated_output_tps": 65,
     "aliases": ["gpt5"]
   },
   {
@@ -62,6 +66,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 0.25,
     "output_cost_per_million": 2.0,
+    "estimated_output_tps": 70,
     "aliases": ["gpt5-mini"]
   },
   {
@@ -75,6 +80,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 1.75,
     "output_cost_per_million": 14.0,
+    "estimated_output_tps": 100,
     "aliases": []
   },
   {
@@ -88,6 +94,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 1.75,
     "output_cost_per_million": 14.0,
+    "estimated_output_tps": 100,
     "aliases": ["codex"]
   },
   {
@@ -101,6 +108,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 2.0,
     "output_cost_per_million": 12.0,
+    "estimated_output_tps": 85,
     "aliases": ["gemini-pro"]
   },
   {
@@ -114,6 +122,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 0.5,
     "output_cost_per_million": 3.0,
+    "estimated_output_tps": 150,
     "aliases": ["gemini-flash"]
   },
   {
@@ -127,6 +136,7 @@
     "supports_reasoning": false,
     "input_cost_per_million": 0.6,
     "output_cost_per_million": 3.0,
+    "estimated_output_tps": 50,
     "aliases": ["kimi"]
   },
   {
@@ -140,6 +150,7 @@
     "supports_reasoning": false,
     "input_cost_per_million": 0.6,
     "output_cost_per_million": 2.2,
+    "estimated_output_tps": 100,
     "aliases": ["glm", "glm4"]
   },
   {
@@ -153,6 +164,7 @@
     "supports_reasoning": false,
     "input_cost_per_million": 0.3,
     "output_cost_per_million": 1.2,
+    "estimated_output_tps": 45,
     "aliases": ["minimax"]
   },
   {
@@ -166,6 +178,7 @@
     "supports_reasoning": true,
     "input_cost_per_million": 0.25,
     "output_cost_per_million": 0.75,
+    "estimated_output_tps": 1000,
     "aliases": ["mercury"]
   }
 ]
