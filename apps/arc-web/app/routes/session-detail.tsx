@@ -19,10 +19,10 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: "Session — Arc" }];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const [apiSession, apiGroups] = await Promise.all([
-    apiJson<ApiSessionDetail>(`/sessions/${params.sessionId}`),
-    apiJson<SessionGroup[]>("/sessions"),
+    apiJson<ApiSessionDetail>(`/sessions/${params.sessionId}`, { request }),
+    apiJson<SessionGroup[]>("/sessions", { request }),
   ]);
   const session: Session = {
     id: apiSession.id,

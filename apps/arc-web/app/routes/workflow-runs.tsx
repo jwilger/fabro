@@ -15,8 +15,8 @@ const columnNames: Record<ColumnStatus, string> = {
   merge: "Merge",
 };
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const apiRuns = await apiJson<RunListItem[]>(`/workflows/${params.name}/runs`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const apiRuns = await apiJson<RunListItem[]>(`/workflows/${params.name}/runs`, { request });
   const runs: RunWithStatus[] = apiRuns.map((r) => ({
     id: r.id,
     repo: r.repo,

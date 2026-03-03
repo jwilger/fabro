@@ -20,8 +20,8 @@ const tabs = [
 
 export const handle = { hideHeader: true };
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const apiRuns = await apiJson<RunListItem[]>("/runs");
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const apiRuns = await apiJson<RunListItem[]>("/runs", { request });
   const apiRun = apiRuns.find((r) => r.id === params.id);
   if (!apiRun) return { run: null };
   return {
@@ -44,9 +44,12 @@ export async function action({ params, request }: Route.ActionArgs) {
   const port = formData.get("port");
   const expiresInSecs = formData.get("expires_in_secs");
   const result = await apiJson<PreviewUrlResponse>(`/runs/${params.id}/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ port: Number(port), expires_in_secs: Number(expiresInSecs) }),
+    request,
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ port: Number(port), expires_in_secs: Number(expiresInSecs) }),
+    },
   });
   return result;
 }

@@ -21,10 +21,10 @@ interface Stage {
   duration: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const [apiStages, runs] = await Promise.all([
-    apiJson<RunStage[]>(`/runs/${params.id}/stages`),
-    apiJson<RunListItem[]>("/runs"),
+    apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request }),
+    apiJson<RunListItem[]>("/runs", { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({
     id: s.id,
@@ -36,7 +36,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   let graphDot: string | null = null;
   if (run) {
     try {
-      const workflow = await apiJson<WorkflowDetail>(`/workflows/${run.workflow}`);
+      const workflow = await apiJson<WorkflowDetail>(`/workflows/${run.workflow}`, { request });
       graphDot = workflow.graph;
     } catch {
       // workflow not found — leave graphDot null

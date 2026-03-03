@@ -66,8 +66,8 @@ const columnConfig: {
   { id: "merge", name: "Merge", accent: "bg-teal-300", iconColor: "text-teal-300", iconType: "pr", actions: ["Merge"] },
 ];
 
-export async function loader() {
-  const apiRuns = await apiJson<RunListItem[]>("/runs");
+export async function loader({ request }: Route.LoaderArgs) {
+  const apiRuns = await apiJson<RunListItem[]>("/runs", { request });
   const items = apiRuns.map(mapRunListItem);
 
   const grouped = new Map<ColumnStatus, RunItem[]>();

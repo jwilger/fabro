@@ -22,10 +22,10 @@ interface Stage {
   duration: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const [apiStages, graphRes] = await Promise.all([
-    apiJson<RunStage[]>(`/runs/${params.id}/stages`),
-    apiFetch(`/runs/${params.id}/graph`),
+    apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request }),
+    apiFetch(`/runs/${params.id}/graph`, { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({
     id: s.id,

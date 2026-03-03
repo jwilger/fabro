@@ -104,8 +104,8 @@ interface WorkflowData {
   nextRun?: string;
 }
 
-export async function loader() {
-  const apiWorkflows = await apiJson<WorkflowListItem[]>("/workflows");
+export async function loader({ request }: Route.LoaderArgs) {
+  const apiWorkflows = await apiJson<WorkflowListItem[]>("/workflows", { request });
   const workflows: WorkflowData[] = apiWorkflows.map((w) => ({
     name: w.name,
     slug: w.slug,

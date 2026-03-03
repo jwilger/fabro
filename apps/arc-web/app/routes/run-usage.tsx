@@ -3,8 +3,8 @@ import { formatDurationSecs } from "../lib/format";
 import type { RunUsage } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-usage";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const usage = await apiJson<RunUsage>(`/runs/${params.id}/usage`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const usage = await apiJson<RunUsage>(`/runs/${params.id}/usage`, { request });
   const stages = usage.stages.map((s) => ({
     stage: s.stage,
     model: s.model,

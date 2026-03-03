@@ -17,8 +17,8 @@ interface RetroRow {
   friction_point_count: number;
 }
 
-export async function loader() {
-  const apiRetros = await apiJson<RetroListItem[]>("/retros");
+export async function loader({ request }: Route.LoaderArgs) {
+  const apiRetros = await apiJson<RetroListItem[]>("/retros", { request });
   const retros: RetroRow[] = apiRetros.map((r) => ({
     run_id: r.run_id,
     workflow_name: r.workflow_name,

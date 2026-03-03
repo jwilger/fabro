@@ -30,10 +30,10 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: "Start — Arc" }];
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
   const [apiProjects, apiSessions] = await Promise.all([
-    apiJson<Project[]>("/projects"),
-    apiJson<SessionGroup[]>("/sessions"),
+    apiJson<Project[]>("/projects", { request }),
+    apiJson<SessionGroup[]>("/sessions", { request }),
   ]);
   const projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
   const sessionGroups = apiSessions.map((g) => ({

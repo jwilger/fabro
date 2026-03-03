@@ -1,5 +1,6 @@
 import { importPKCS8, SignJWT } from "jose";
 import { getAppConfig } from "./lib/config.server";
+import { getUser } from "./lib/session.server";
 
 const ARC_JWT_PRIVATE_KEY = process.env.ARC_JWT_PRIVATE_KEY;
 
@@ -19,27 +20,41 @@ async function getSigningKey(): Promise<CryptoKey> {
   return cachedKey;
 }
 
-async function signToken(): Promise<string> {
+async function signToken(sub?: string): Promise<string> {
   const key = await getSigningKey();
-  return new SignJWT({ iss: "arc-web" })
+  return new SignJWT({ iss: "arc-web", ...(sub ? { sub } : {}) })
     .setProtectedHeader({ alg: "EdDSA" })
     .setIssuedAt()
     .setExpirationTime("30s")
     .sign(key);
 }
 
+export interface ApiOptions {
+  init?: RequestInit;
+  request?: Request;
+}
+
 /**
  * Fetch wrapper that signs requests with a JWT for service-to-service auth.
+ * When a request is provided, the authenticated user's URL is included as
+ * the JWT `sub` claim.
  */
 export async function apiFetch(
   path: string,
-  init?: RequestInit
+  options?: ApiOptions
 ): Promise<Response> {
   const { base_url } = getAppConfig().api;
+  const { init, request } = options ?? {};
+
+  let sub: string | undefined;
+  if (request) {
+    const user = await getUser(request);
+    sub = user?.userUrl;
+  }
 
   const headers = new Headers(init?.headers);
   if (ARC_JWT_PRIVATE_KEY) {
-    const token = await signToken();
+    const token = await signToken(sub);
     headers.set("Authorization", `Bearer ${token}`);
   }
 
@@ -52,8 +67,8 @@ export async function apiFetch(
 /**
  * Typed JSON fetch helper. Calls apiFetch and parses the JSON response.
  */
-export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(path, init);
+export async function apiJson<T>(path: string, options?: ApiOptions): Promise<T> {
+  const res = await apiFetch(path, options);
   if (!res.ok) throw new Response(null, { status: res.status });
   return res.json() as Promise<T>;
 }

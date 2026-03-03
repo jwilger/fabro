@@ -43,8 +43,8 @@ interface SettingGroupData {
   fields: SettingField[];
 }
 
-export async function loader() {
-  const apiGroups = await apiJson<ApiSettingGroup[]>("/settings");
+export async function loader({ request }: Route.LoaderArgs) {
+  const apiGroups = await apiJson<ApiSettingGroup[]>("/settings", { request });
   const settingGroups: SettingGroupData[] = apiGroups.map((g) => ({
     id: g.id,
     name: g.name,

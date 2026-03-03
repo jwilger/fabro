@@ -61,8 +61,8 @@ import type { Route } from "./+types/verification-detail";
 
 export const handle = { hideHeader: true };
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const data = await apiJson<VerificationDetailResponse>(`/verifications/${params.slug}`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const data = await apiJson<VerificationDetailResponse>(`/verifications/${params.slug}`, { request });
   return { data };
 }
 

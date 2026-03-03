@@ -10,8 +10,8 @@ import type { Retro } from "../data/retros";
 import { apiJson } from "../api-client";
 import type { Route } from "./+types/run-retro";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const retro = await apiJson<Retro>(`/runs/${params.id}/retro`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const retro = await apiJson<Retro>(`/runs/${params.id}/retro`, { request });
   return { retro };
 }
 

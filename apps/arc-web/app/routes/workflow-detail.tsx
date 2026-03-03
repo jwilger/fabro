@@ -269,8 +269,8 @@ const tabs = [
 
 export const handle = { hideHeader: true };
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const apiWorkflow = await apiJson<ApiWorkflowDetail>(`/workflows/${params.name}`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const apiWorkflow = await apiJson<ApiWorkflowDetail>(`/workflows/${params.name}`, { request });
   const workflow: WorkflowEntry = {
     title: apiWorkflow.title,
     slug: apiWorkflow.slug,

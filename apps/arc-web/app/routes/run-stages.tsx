@@ -19,8 +19,8 @@ interface Stage {
   duration: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const apiStages = await apiJson<RunStage[]>(`/runs/${params.id}/stages`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const apiStages = await apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request });
   const stages: Stage[] = apiStages.map((s) => ({
     id: s.id,
     name: s.name,
@@ -32,7 +32,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   const selectedStageId = params.stageId ?? stages[0]?.id;
   let turns: ApiStageTurn[] = [];
   if (selectedStageId) {
-    turns = await apiJson<ApiStageTurn[]>(`/runs/${params.id}/stages/${selectedStageId}/turns`);
+    turns = await apiJson<ApiStageTurn[]>(`/runs/${params.id}/stages/${selectedStageId}/turns`, { request });
   }
 
   return { stages, turns };

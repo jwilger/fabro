@@ -23,8 +23,8 @@ import { apiJson } from "../api-client";
 import type { RunVerification } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-verifications";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const apiCategories = await apiJson<RunVerification[]>(`/runs/${params.id}/verifications`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const apiCategories = await apiJson<RunVerification[]>(`/runs/${params.id}/verifications`, { request });
   const categories: VerificationCategory[] = apiCategories.map((cat) => ({
     name: cat.name,
     question: cat.question,

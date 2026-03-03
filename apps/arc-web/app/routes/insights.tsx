@@ -28,10 +28,10 @@ export interface HistoryEntry {
   rowsReturned: number;
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
   const [apiQueries, apiHistory] = await Promise.all([
-    apiJson<ApiSavedQuery[]>("/insights/queries"),
-    apiJson<ApiHistoryEntry[]>("/insights/history"),
+    apiJson<ApiSavedQuery[]>("/insights/queries", { request }),
+    apiJson<ApiHistoryEntry[]>("/insights/history", { request }),
   ]);
   const savedQueries: SavedQuery[] = apiQueries.map((q) => ({
     id: q.id,

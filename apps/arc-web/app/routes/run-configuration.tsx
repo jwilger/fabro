@@ -25,10 +25,10 @@ const statusConfig: Record<StageStatus, { icon: typeof CheckCircleIcon; color: s
   failed: { icon: XCircleIcon, color: "text-coral" },
 };
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const [apiStages, configRes] = await Promise.all([
-    apiJson<RunStage[]>(`/runs/${params.id}/stages`),
-    apiFetch(`/runs/${params.id}/configuration`),
+    apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request }),
+    apiFetch(`/runs/${params.id}/configuration`, { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({
     id: s.id,

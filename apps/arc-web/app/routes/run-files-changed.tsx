@@ -13,8 +13,8 @@ import type { Route } from "./+types/run-files-changed";
 
 export const handle = { wide: true };
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const data = await apiJson<RunFiles>(`/runs/${params.id}/files?checkpoint=all`);
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const data = await apiJson<RunFiles>(`/runs/${params.id}/files?checkpoint=all`, { request });
   return data;
 }
 
