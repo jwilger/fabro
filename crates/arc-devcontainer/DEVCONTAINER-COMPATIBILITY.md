@@ -54,7 +54,13 @@ Compatibility of `arc-devcontainer` with the [devcontainer.json reference](https
 
 | Property | Status | Notes |
 |---|---|---|
-| `features` | Yes | Fetched via `oras` CLI, topologically sorted by `installsAfter`, Dockerfile layers generated with options as env vars |
+| `features` | Yes | Fetched via `oras` CLI (OCI refs), local path copy (`./`/`../`), or HTTPS download. Topologically sorted by `installsAfter` and `dependsOn`. Dockerfile layers generated with options as env vars |
+| `features` (reference types) | Yes | OCI registry refs (default), local paths (`./feature`), and HTTPS URLs (`https://...feature.tgz`) |
+| Feature `dependsOn` | Yes | Hard dependencies auto-installed if missing; used for topological ordering alongside `installsAfter` |
+| Feature `containerEnv` | Yes | Collected from each feature in install order; merged with devcontainer.json `containerEnv` (devcontainer.json wins on conflicts) |
+| Feature `onCreateCommand` | Yes | Collected in install order and appended after devcontainer.json `onCreateCommand` |
+| Feature `postCreateCommand` | Yes | Collected in install order and appended after devcontainer.json `postCreateCommand` |
+| Feature `postStartCommand` | Yes | Collected in install order and appended after devcontainer.json `postStartCommand` |
 | `overrideFeatureInstallOrder` | No | Not parsed |
 
 ## Lifecycle
@@ -112,3 +118,4 @@ Searched in order:
 1. `<path>/.devcontainer/devcontainer.json`
 2. `<path>/.devcontainer.json`
 3. Direct path if it ends in `devcontainer.json`
+4. Subdirectory format: `<path>/.devcontainer/<subdir>/devcontainer.json` — subdirectories sorted alphabetically, first match used
