@@ -78,7 +78,7 @@ impl ArtifactStore {
 
         let (stored, file_path) = if is_file_backed {
             let base = self.base_dir.as_ref().expect("base_dir checked above");
-            let artifacts_dir = base.join("artifacts");
+            let artifacts_dir = base.join("artifacts").join("values");
             std::fs::create_dir_all(&artifacts_dir)?;
             let path = artifacts_dir.join(format!("{id}.json"));
             std::fs::write(&path, &serialized)?;
@@ -179,7 +179,7 @@ impl ArtifactStore {
     /// Returns `None` if no `base_dir` is configured.
     #[must_use]
     pub fn artifacts_dir(&self) -> Option<PathBuf> {
-        self.base_dir.as_ref().map(|b| b.join("artifacts"))
+        self.base_dir.as_ref().map(|b| b.join("artifacts").join("values"))
     }
 
     /// Remove all artifacts. Also deletes file-backed data from disk.
@@ -377,7 +377,7 @@ mod tests {
         assert!(info.size_bytes > FILE_BACKING_THRESHOLD);
         assert_eq!(
             info.file_path,
-            Some(dir.path().join("artifacts").join("big.json"))
+            Some(dir.path().join("artifacts").join("values").join("big.json"))
         );
 
         let retrieved = store.retrieve("big").unwrap();
@@ -393,7 +393,7 @@ mod tests {
         let data = serde_json::json!(large_string);
         store.store("big", "large", data).unwrap();
 
-        let file_path = dir.path().join("artifacts").join("big.json");
+        let file_path = dir.path().join("artifacts").join("values").join("big.json");
         assert!(file_path.exists());
 
         store.remove("big");
@@ -438,6 +438,7 @@ mod tests {
             path,
             dir.path()
                 .join("artifacts")
+                .join("values")
                 .join("response.plan.json")
                 .to_str()
                 .unwrap()
@@ -451,6 +452,7 @@ mod tests {
         assert!(dir
             .path()
             .join("artifacts")
+            .join("values")
             .join("response.plan.json")
             .exists());
     }

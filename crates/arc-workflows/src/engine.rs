@@ -318,14 +318,14 @@ fn write_manifest(logs_root: &Path, graph: &Graph, config: &RunConfig) -> serde_
 /// Return the directory for a node's logs.
 ///
 /// First visit (`visit <= 1`): `{logs_root}/nodes/{node_id}`
-/// Subsequent visits: `{logs_root}/nodes/{node_id}-attempt_{visit}`
+/// Subsequent visits: `{logs_root}/nodes/{node_id}-visit_{visit}`
 pub fn node_dir(logs_root: &Path, node_id: &str, visit: usize) -> PathBuf {
     if visit <= 1 {
         logs_root.join("nodes").join(node_id)
     } else {
         logs_root
             .join("nodes")
-            .join(format!("{node_id}-attempt_{visit}"))
+            .join(format!("{node_id}-visit_{visit}"))
     }
 }
 
@@ -896,9 +896,16 @@ impl WorkflowRunEngine {
 
             // Collect assets after handler completes (both success and error)
             {
-                let assets_dir = node_dir(logs_root, &node.id, visit)
+                let node_slug = if visit <= 1 {
+                    node.id.clone()
+                } else {
+                    format!("{}-visit_{visit}", node.id)
+                };
+                let assets_dir = logs_root
+                    .join("artifacts")
                     .join("assets")
-                    .join(format!("attempt_{attempt}"));
+                    .join(&node_slug)
+                    .join(format!("retry_{attempt}"));
                 match asset_snapshot::collect_assets(
                     self.services.sandbox.as_ref(),
                     &assets_dir,
@@ -3622,7 +3629,7 @@ mod tests {
         let root = Path::new("/tmp/logs");
         assert_eq!(
             node_dir(root, "work", 2),
-            root.join("nodes").join("work-attempt_2")
+            root.join("nodes").join("work-visit_2")
         );
     }
 
@@ -3631,7 +3638,7 @@ mod tests {
         let root = Path::new("/tmp/logs");
         assert_eq!(
             node_dir(root, "work", 5),
-            root.join("nodes").join("work-attempt_5")
+            root.join("nodes").join("work-visit_5")
         );
     }
 

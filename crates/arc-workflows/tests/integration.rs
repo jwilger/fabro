@@ -7575,6 +7575,7 @@ async fn large_context_values_are_offloaded_to_artifact_store() {
     let artifact_file = dir
         .path()
         .join("artifacts")
+        .join("values")
         .join("response.big_output.json");
     assert!(
         artifact_file.exists(),
@@ -7901,11 +7902,11 @@ async fn node_dir_uses_visit_count_on_revisit() {
         first.display()
     );
 
-    // Second visit: nodes/gated_work-attempt_2/status.json
+    // Second visit: nodes/gated_work-visit_2/status.json
     let second = dir
         .path()
         .join("nodes")
-        .join("gated_work-attempt_2")
+        .join("gated_work-visit_2")
         .join("status.json");
     assert!(
         second.exists(),
@@ -11279,10 +11280,10 @@ async fn asset_collection_local_sandbox_success() {
     // Check that asset files were collected into the stage directory
     let assets_dir = logs_dir
         .path()
-        .join("nodes")
-        .join("create_assets")
+        .join("artifacts")
         .join("assets")
-        .join("attempt_1");
+        .join("create_assets")
+        .join("retry_1");
 
     let report_path = assets_dir.join("test-results/report.xml");
     assert!(
@@ -11382,10 +11383,10 @@ async fn asset_collection_local_sandbox_on_failure() {
 
     let assets_dir = logs_dir
         .path()
-        .join("nodes")
-        .join("create_assets")
+        .join("artifacts")
         .join("assets")
-        .join("attempt_1");
+        .join("create_assets")
+        .join("retry_1");
 
     let report_path = assets_dir.join("test-results/report.xml");
     assert!(
@@ -11470,10 +11471,10 @@ async fn asset_collection_docker_sandbox() {
 
     let assets_dir = logs_dir
         .path()
-        .join("nodes")
-        .join("create_assets")
+        .join("artifacts")
         .join("assets")
-        .join("attempt_1");
+        .join("create_assets")
+        .join("retry_1");
 
     let report_path = assets_dir.join("test-results/report.xml");
     assert!(
