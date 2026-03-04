@@ -701,10 +701,11 @@ pub struct TlsCheckInput {
 
 pub struct CryptoInput {
     pub auth_strategies: Vec<ApiAuthStrategy>,
-    pub tls_files: Option<TlsCheckInput>,
+    pub tls_files: Option<Result<TlsCheckInput, String>>,
     pub jwt_public_key: Option<String>,
     pub jwt_private_key: Option<String>,
     pub session_secret: Option<String>,
+    pub now_epoch: i64,
 }
 
 fn decode_pem_value(name: &str, value: &str) -> Result<String, String> {
@@ -771,65 +772,74 @@ fn validate_session_secret(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Record a validation result into the check's details/status, returning the updated worst status.
+fn record_validation(
+    label: &str,
+    result: Result<(), String>,
+    details: &mut Vec<CheckDetail>,
+    worst_status: CheckStatus,
+) -> CheckStatus {
+    match result {
+        Ok(()) => {
+            details.push(CheckDetail {
+                text: format!("{label}: valid"),
+            });
+            worst_status
+        }
+        Err(e) => {
+            details.push(CheckDetail {
+                text: format!("{label}: {e}"),
+            });
+            CheckStatus::Error
+        }
+    }
+}
+
 pub fn check_crypto(input: &CryptoInput) -> CheckResult {
-    let has_jwt = input
-        .auth_strategies
-        .contains(&ApiAuthStrategy::Jwt);
-    let has_mtls = input
-        .auth_strategies
-        .contains(&ApiAuthStrategy::Mtls);
-    let now_epoch = chrono::Utc::now().timestamp();
+    let has_jwt = input.auth_strategies.contains(&ApiAuthStrategy::Jwt);
+    let has_mtls = input.auth_strategies.contains(&ApiAuthStrategy::Mtls);
 
     let mut details = Vec::new();
-    let mut worst_status = CheckStatus::Pass;
-    let mut error_messages = Vec::new();
+    let mut worst = CheckStatus::Pass;
 
     // mTLS certs
     if has_mtls {
         match &input.tls_files {
-            Some(tls) => {
-                match validate_tls_cert(&tls.cert_pem, now_epoch) {
+            Some(Ok(tls)) => {
+                match validate_tls_cert(&tls.cert_pem, input.now_epoch) {
                     Ok(info) => details.push(CheckDetail {
                         text: format!("TLS cert: valid ({info})"),
                     }),
                     Err(e) => {
-                        worst_status = CheckStatus::Error;
-                        error_messages.push(format!("TLS cert: {e}"));
+                        worst = CheckStatus::Error;
                         details.push(CheckDetail {
                             text: format!("TLS cert: {e}"),
                         });
                     }
                 }
-                match validate_tls_private_key(&tls.key_pem) {
-                    Ok(()) => details.push(CheckDetail {
-                        text: "TLS key: valid".to_string(),
-                    }),
-                    Err(e) => {
-                        worst_status = CheckStatus::Error;
-                        error_messages.push(format!("TLS key: {e}"));
-                        details.push(CheckDetail {
-                            text: format!("TLS key: {e}"),
-                        });
-                    }
-                }
-                match validate_tls_ca(&tls.ca_pem) {
-                    Ok(()) => details.push(CheckDetail {
-                        text: "TLS CA: valid".to_string(),
-                    }),
-                    Err(e) => {
-                        worst_status = CheckStatus::Error;
-                        error_messages.push(format!("TLS CA: {e}"));
-                        details.push(CheckDetail {
-                            text: format!("TLS CA: {e}"),
-                        });
-                    }
-                }
+                worst = record_validation(
+                    "TLS key",
+                    validate_tls_private_key(&tls.key_pem),
+                    &mut details,
+                    worst,
+                );
+                worst = record_validation(
+                    "TLS CA",
+                    validate_tls_ca(&tls.ca_pem),
+                    &mut details,
+                    worst,
+                );
+            }
+            Some(Err(e)) => {
+                worst = CheckStatus::Error;
+                details.push(CheckDetail {
+                    text: format!("TLS files: {e}"),
+                });
             }
             None => {
-                worst_status = CheckStatus::Error;
-                error_messages.push("mTLS configured but TLS files not readable".to_string());
+                worst = CheckStatus::Error;
                 details.push(CheckDetail {
-                    text: "mTLS configured but TLS files not readable".to_string(),
+                    text: "mTLS configured but [api.tls] not set".to_string(),
                 });
             }
         }
@@ -837,75 +847,37 @@ pub fn check_crypto(input: &CryptoInput) -> CheckResult {
 
     // JWT public key
     if has_jwt {
-        match &input.jwt_public_key {
-            Some(raw) => match decode_pem_value("ARC_JWT_PUBLIC_KEY", raw) {
-                Ok(pem) => {
-                    match jsonwebtoken::DecodingKey::from_ed_pem(pem.as_bytes()) {
-                        Ok(_) => details.push(CheckDetail {
-                            text: "JWT public key: valid Ed25519".to_string(),
-                        }),
-                        Err(e) => {
-                            worst_status = CheckStatus::Error;
-                            error_messages.push(format!("JWT public key: {e}"));
-                            details.push(CheckDetail {
-                                text: format!("JWT public key: invalid — {e}"),
-                            });
-                        }
-                    }
-                }
-                Err(e) => {
-                    worst_status = CheckStatus::Error;
-                    error_messages.push(e.clone());
-                    details.push(CheckDetail { text: e });
-                }
-            },
-            None => {
-                worst_status = CheckStatus::Error;
-                error_messages.push("JWT configured but ARC_JWT_PUBLIC_KEY not set".to_string());
-                details.push(CheckDetail {
-                    text: "JWT configured but ARC_JWT_PUBLIC_KEY not set".to_string(),
-                });
-            }
-        }
+        let result = input
+            .jwt_public_key
+            .as_deref()
+            .ok_or_else(|| "JWT configured but ARC_JWT_PUBLIC_KEY not set".to_string())
+            .and_then(|raw| decode_pem_value("ARC_JWT_PUBLIC_KEY", raw))
+            .and_then(|pem| {
+                jsonwebtoken::DecodingKey::from_ed_pem(pem.as_bytes())
+                    .map(|_| ())
+                    .map_err(|e| format!("invalid Ed25519 — {e}"))
+            });
+        worst = record_validation("JWT public key", result, &mut details, worst);
     }
 
     // JWT private key (only when set)
     if let Some(raw) = &input.jwt_private_key {
-        match decode_pem_value("ARC_JWT_PRIVATE_KEY", raw) {
-            Ok(pem) => match jsonwebtoken::EncodingKey::from_ed_pem(pem.as_bytes()) {
-                Ok(_) => details.push(CheckDetail {
-                    text: "JWT private key: valid Ed25519".to_string(),
-                }),
-                Err(e) => {
-                    worst_status = CheckStatus::Error;
-                    error_messages.push(format!("JWT private key: {e}"));
-                    details.push(CheckDetail {
-                        text: format!("JWT private key: invalid — {e}"),
-                    });
-                }
-            },
-            Err(e) => {
-                worst_status = CheckStatus::Error;
-                error_messages.push(e.clone());
-                details.push(CheckDetail { text: e });
-            }
-        }
+        let result = decode_pem_value("ARC_JWT_PRIVATE_KEY", raw).and_then(|pem| {
+            jsonwebtoken::EncodingKey::from_ed_pem(pem.as_bytes())
+                .map(|_| ())
+                .map_err(|e| format!("invalid Ed25519 — {e}"))
+        });
+        worst = record_validation("JWT private key", result, &mut details, worst);
     }
 
     // Session secret (only when set)
     if let Some(secret) = &input.session_secret {
-        match validate_session_secret(secret) {
-            Ok(()) => details.push(CheckDetail {
-                text: "Session secret: valid".to_string(),
-            }),
-            Err(e) => {
-                worst_status = CheckStatus::Error;
-                error_messages.push(format!("Session secret: {e}"));
-                details.push(CheckDetail {
-                    text: format!("Session secret: {e}"),
-                });
-            }
-        }
+        worst = record_validation(
+            "Session secret",
+            validate_session_secret(secret),
+            &mut details,
+            worst,
+        );
     }
 
     // No auth at all
@@ -923,24 +895,28 @@ pub fn check_crypto(input: &CryptoInput) -> CheckResult {
         };
     }
 
-    let summary = match worst_status {
+    let summary = match worst {
         CheckStatus::Pass => "all keys valid".to_string(),
         CheckStatus::Warning => "some issues".to_string(),
         CheckStatus::Error => "invalid keys found".to_string(),
     };
 
-    let remediation = if error_messages.is_empty() {
-        None
-    } else {
-        Some(error_messages.join("; "))
-    };
+    let errors: Vec<_> = details
+        .iter()
+        .filter(|d| !d.text.contains(": valid"))
+        .map(|d| d.text.clone())
+        .collect();
 
     CheckResult {
         name: "Cryptographic keys".to_string(),
-        status: worst_status,
+        status: worst,
         summary,
         details,
-        remediation,
+        remediation: if errors.is_empty() {
+            None
+        } else {
+            Some(errors.join("; "))
+        },
     }
 }
 
@@ -1085,23 +1061,16 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
         .authentication_strategies
         .contains(&ApiAuthStrategy::Mtls);
     let tls_files = if has_mtls {
-        server_config.api.tls.as_ref().and_then(|tls| {
-            let expand = |p: &std::path::Path| -> PathBuf {
-                if let Ok(stripped) = p.strip_prefix("~") {
-                    dirs::home_dir()
-                        .map(|h| h.join(stripped))
-                        .unwrap_or_else(|| p.to_path_buf())
-                } else {
-                    p.to_path_buf()
-                }
+        server_config.api.tls.as_ref().map(|tls| {
+            let read = |p: &std::path::Path| -> Result<String, String> {
+                let expanded = arc_api::tls::expand_tilde(p);
+                std::fs::read_to_string(&expanded)
+                    .map_err(|e| format!("{}: {e}", expanded.display()))
             };
-            let cert_pem = std::fs::read_to_string(expand(&tls.cert)).ok()?;
-            let key_pem = std::fs::read_to_string(expand(&tls.key)).ok()?;
-            let ca_pem = std::fs::read_to_string(expand(&tls.ca)).ok()?;
-            Some(TlsCheckInput {
-                cert_pem,
-                key_pem,
-                ca_pem,
+            Ok(TlsCheckInput {
+                cert_pem: read(&tls.cert)?,
+                key_pem: read(&tls.key)?,
+                ca_pem: read(&tls.ca)?,
             })
         })
     } else {
@@ -1113,6 +1082,7 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
         jwt_public_key: std::env::var("ARC_JWT_PUBLIC_KEY").ok(),
         jwt_private_key: std::env::var("ARC_JWT_PRIVATE_KEY").ok(),
         session_secret: std::env::var("SESSION_SECRET").ok(),
+        now_epoch: chrono::Utc::now().timestamp(),
     };
 
     let dep_results = probe_system_deps();
@@ -1886,20 +1856,31 @@ mod tests {
         (public_pem, private_pem)
     }
 
+    fn crypto_input(auth_strategies: Vec<ApiAuthStrategy>) -> CryptoInput {
+        CryptoInput {
+            auth_strategies,
+            tls_files: None,
+            jwt_public_key: None,
+            jwt_private_key: None,
+            session_secret: None,
+            now_epoch: chrono::Utc::now().timestamp(),
+        }
+    }
+
     #[test]
     fn crypto_all_keys_valid() {
         let (cert_pem, key_pem) = generate_test_tls_cert();
         let (public_pem, private_pem) = generate_test_ed25519_keypair();
         let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Jwt, ApiAuthStrategy::Mtls],
-            tls_files: Some(TlsCheckInput {
+            tls_files: Some(Ok(TlsCheckInput {
                 cert_pem: cert_pem.clone(),
                 key_pem,
                 ca_pem: cert_pem,
-            }),
+            })),
             jwt_public_key: Some(public_pem),
             jwt_private_key: Some(private_pem),
             session_secret: Some("a".repeat(64)),
+            ..crypto_input(vec![ApiAuthStrategy::Jwt, ApiAuthStrategy::Mtls])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Pass);
@@ -1910,15 +1891,14 @@ mod tests {
     fn crypto_invalid_cert_pem() {
         let (public_pem, private_pem) = generate_test_ed25519_keypair();
         let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Jwt, ApiAuthStrategy::Mtls],
-            tls_files: Some(TlsCheckInput {
+            tls_files: Some(Ok(TlsCheckInput {
                 cert_pem: "not a pem".to_string(),
                 key_pem: "not a pem".to_string(),
                 ca_pem: "not a pem".to_string(),
-            }),
+            })),
             jwt_public_key: Some(public_pem),
             jwt_private_key: Some(private_pem),
-            session_secret: None,
+            ..crypto_input(vec![ApiAuthStrategy::Jwt, ApiAuthStrategy::Mtls])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
@@ -1928,7 +1908,6 @@ mod tests {
     #[test]
     fn crypto_expired_cert() {
         let (cert_pem, _) = generate_test_tls_cert();
-        // Use a timestamp far in the future to simulate the cert being expired
         let far_future = i64::MAX / 2;
         let result = validate_tls_cert(&cert_pem, far_future);
         assert!(result.is_err());
@@ -1938,11 +1917,8 @@ mod tests {
     #[test]
     fn crypto_session_secret_too_short() {
         let input = CryptoInput {
-            auth_strategies: vec![],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
             session_secret: Some("abcdef".to_string()),
+            ..crypto_input(vec![])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
@@ -1952,11 +1928,8 @@ mod tests {
     #[test]
     fn crypto_session_secret_non_hex() {
         let input = CryptoInput {
-            auth_strategies: vec![],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
-            session_secret: Some("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz".to_string()),
+            session_secret: Some("z".repeat(64)),
+            ..crypto_input(vec![])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
@@ -1965,54 +1938,41 @@ mod tests {
 
     #[test]
     fn crypto_no_auth_configured() {
-        let input = CryptoInput {
-            auth_strategies: vec![],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
-            session_secret: None,
-        };
-        let result = check_crypto(&input);
+        let result = check_crypto(&crypto_input(vec![]));
         assert_eq!(result.status, CheckStatus::Warning);
         assert!(result.summary.contains("no authentication configured"));
     }
 
     #[test]
     fn crypto_jwt_configured_but_key_missing() {
-        let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Jwt],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
-            session_secret: None,
-        };
-        let result = check_crypto(&input);
+        let result = check_crypto(&crypto_input(vec![ApiAuthStrategy::Jwt]));
         assert_eq!(result.status, CheckStatus::Error);
         assert!(result.details.iter().any(|d| d.text.contains("ARC_JWT_PUBLIC_KEY not set")));
     }
 
     #[test]
-    fn crypto_mtls_configured_but_files_missing() {
+    fn crypto_mtls_configured_but_tls_not_set() {
+        let result = check_crypto(&crypto_input(vec![ApiAuthStrategy::Mtls]));
+        assert_eq!(result.status, CheckStatus::Error);
+        assert!(result.details.iter().any(|d| d.text.contains("[api.tls] not set")));
+    }
+
+    #[test]
+    fn crypto_mtls_configured_but_files_unreadable() {
         let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Mtls],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
-            session_secret: None,
+            tls_files: Some(Err("Permission denied: /path/to/cert.pem".to_string())),
+            ..crypto_input(vec![ApiAuthStrategy::Mtls])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
-        assert!(result.details.iter().any(|d| d.text.contains("TLS files not readable")));
+        assert!(result.details.iter().any(|d| d.text.contains("Permission denied")));
     }
 
     #[test]
     fn crypto_invalid_jwt_public_key() {
         let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Jwt],
-            tls_files: None,
             jwt_public_key: Some("-----BEGIN PUBLIC KEY-----\nINVALID\n-----END PUBLIC KEY-----".to_string()),
-            jwt_private_key: None,
-            session_secret: None,
+            ..crypto_input(vec![ApiAuthStrategy::Jwt])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
@@ -2022,11 +1982,8 @@ mod tests {
     #[test]
     fn crypto_invalid_jwt_private_key() {
         let input = CryptoInput {
-            auth_strategies: vec![],
-            tls_files: None,
-            jwt_public_key: None,
             jwt_private_key: Some("-----BEGIN PRIVATE KEY-----\nINVALID\n-----END PRIVATE KEY-----".to_string()),
-            session_secret: None,
+            ..crypto_input(vec![])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Error);
@@ -2041,11 +1998,8 @@ mod tests {
             public_pem.as_bytes(),
         );
         let input = CryptoInput {
-            auth_strategies: vec![ApiAuthStrategy::Jwt],
-            tls_files: None,
             jwt_public_key: Some(encoded),
-            jwt_private_key: None,
-            session_secret: None,
+            ..crypto_input(vec![ApiAuthStrategy::Jwt])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Pass);
@@ -2055,11 +2009,8 @@ mod tests {
     #[test]
     fn crypto_valid_session_secret() {
         let input = CryptoInput {
-            auth_strategies: vec![],
-            tls_files: None,
-            jwt_public_key: None,
-            jwt_private_key: None,
             session_secret: Some("a1b2c3d4e5f6".repeat(6)),
+            ..crypto_input(vec![])
         };
         let result = check_crypto(&input);
         assert_eq!(result.status, CheckStatus::Pass);

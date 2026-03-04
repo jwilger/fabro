@@ -108,7 +108,7 @@ pub async fn serve_tls(
 }
 
 /// Expand `~/` prefix to the user's home directory.
-fn expand_tilde(path: &Path) -> PathBuf {
+pub fn expand_tilde(path: &Path) -> PathBuf {
     if let Ok(rest) = path.strip_prefix("~") {
         if let Some(home) = dirs::home_dir() {
             return home.join(rest);
