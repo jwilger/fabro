@@ -139,7 +139,8 @@ struct ToolCallEntry {
 // ── Active stage ────────────────────────────────────────────────────────
 
 struct ActiveStage {
-    name: String,
+    display_name: String,
+    has_model: bool,
     spinner: ProgressBar,
     tool_calls: VecDeque<ToolCallEntry>,
 }
@@ -228,8 +229,13 @@ impl ProgressUI {
             WorkflowRunEvent::SetupCompleted { duration_ms } => {
                 self.on_setup_completed(*duration_ms);
             }
-            WorkflowRunEvent::StageStarted { node_id, name, .. } => {
-                self.on_stage_started(node_id, name);
+            WorkflowRunEvent::StageStarted {
+                node_id,
+                name,
+                script,
+                ..
+            } => {
+                self.on_stage_started(node_id, name, script.as_deref());
             }
             WorkflowRunEvent::StageCompleted {
                 node_id,
@@ -355,7 +361,14 @@ impl ProgressUI {
 
     // ── Stages ──────────────────────────────────────────────────────────
 
-    fn on_stage_started(&mut self, node_id: &str, name: &str) {
+    fn on_stage_started(&mut self, node_id: &str, name: &str, script: Option<&str>) {
+        let display_name = match script {
+            Some(s) => {
+                let dim = Style::new().dim();
+                format!("{name} {}", dim.apply_to(truncate(s, 60)))
+            }
+            None => name.to_string(),
+        };
         if let ProgressRenderer::Tty(tty) = &self.renderer {
             if !self.any_stage_started {
                 self.any_stage_started = true;
@@ -365,12 +378,13 @@ impl ProgressUI {
             }
             let bar = tty.multi.add(ProgressBar::new_spinner());
             bar.set_style(style_stage_running());
-            bar.set_message(name.to_string());
+            bar.set_message(display_name.clone());
             bar.enable_steady_tick(Duration::from_millis(100));
             self.active_stages.insert(
                 node_id.to_string(),
                 ActiveStage {
-                    name: name.to_string(),
+                    display_name,
+                    has_model: false,
                     spinner: bar,
                     tool_calls: VecDeque::new(),
                 },
@@ -389,7 +403,7 @@ impl ProgressUI {
                     stage.spinner.set_prefix(prefix.to_string());
                     stage
                         .spinner
-                        .finish_with_message(format!("{glyph} {}", stage.name));
+                        .finish_with_message(format!("{glyph} {}", stage.display_name));
                 }
             }
             ProgressRenderer::Plain => {
@@ -406,6 +420,19 @@ impl ProgressUI {
 
     fn on_agent_event(&mut self, stage_node_id: &str, event: &AgentEvent) {
         match event {
+            AgentEvent::AssistantMessage { model, .. } => {
+                if let ProgressRenderer::Tty(_) = &self.renderer {
+                    if let Some(stage) = self.active_stages.get_mut(stage_node_id) {
+                        if !stage.has_model {
+                            stage.has_model = true;
+                            let dim = Style::new().dim();
+                            let suffix = format!(" {}", dim.apply_to(format!("[{model}]")));
+                            stage.display_name.push_str(&suffix);
+                            stage.spinner.set_message(stage.display_name.clone());
+                        }
+                    }
+                }
+            }
             AgentEvent::ToolCallStarted {
                 tool_name,
                 tool_call_id,

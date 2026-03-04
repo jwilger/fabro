@@ -37,6 +37,8 @@ pub enum WorkflowRunEvent {
         name: String,
         index: usize,
         handler_type: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        script: Option<String>,
         attempt: usize,
         max_attempts: usize,
     },
@@ -213,6 +215,7 @@ impl WorkflowRunEvent {
                 handler_type,
                 attempt,
                 max_attempts,
+                ..
             } => {
                 debug!(
                     node_id,
@@ -806,6 +809,7 @@ mod tests {
             name: "plan".to_string(),
             index: 0,
             handler_type: Some("codergen".to_string()),
+            script: None,
             attempt: 1,
             max_attempts: 3,
         };
@@ -822,6 +826,7 @@ mod tests {
             name: "plan".to_string(),
             index: 0,
             handler_type: None,
+            script: None,
             attempt: 1,
             max_attempts: 1,
         };
@@ -1312,6 +1317,7 @@ mod tests {
             name: "Plan Stage".to_string(),
             index: 0,
             handler_type: Some("codergen".to_string()),
+            script: None,
             attempt: 1,
             max_attempts: 3,
         };

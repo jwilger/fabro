@@ -209,6 +209,7 @@ pub fn format_event_summary(event: &WorkflowRunEvent, styles: &Styles) -> String
             handler_type,
             attempt,
             max_attempts,
+            ..
         } => {
             let mut s = format!("[STAGE_STARTED] node_id={node_id} name={name} index={index}");
             if let Some(ht) = handler_type {
@@ -851,6 +852,7 @@ mod tests {
             name: "build".into(),
             index: 0,
             handler_type: None,
+            script: None,
             attempt: 1,
             max_attempts: 3,
         };
@@ -868,6 +870,7 @@ mod tests {
             name: "build".into(),
             index: 0,
             handler_type: Some("agent".into()),
+            script: None,
             attempt: 1,
             max_attempts: 3,
         };

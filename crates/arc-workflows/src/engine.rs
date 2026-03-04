@@ -502,6 +502,14 @@ fn is_terminal(node: &Node) -> bool {
     node.shape() == "Msquare" || node.handler_type() == Some("exit")
 }
 
+fn node_script(node: &Node) -> Option<String> {
+    node.attrs
+        .get("script")
+        .or_else(|| node.attrs.get("tool_command"))
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
 // --- Workflow run engine ---
 
 /// Captured git state for a workflow run, shared with handlers.
@@ -1254,6 +1262,7 @@ impl WorkflowRunEngine {
                                 name: node.label().to_string(),
                                 index: stage_index,
                                 handler_type: node.handler_type().map(String::from),
+                                script: node_script(node),
                                 attempt: 1,
                                 max_attempts: 1,
                             });
@@ -1340,6 +1349,7 @@ impl WorkflowRunEngine {
                 name: node.label().to_string(),
                 index: stage_index,
                 handler_type: node.handler_type().map(String::from),
+                script: node_script(node),
                 attempt: 1,
                 max_attempts: usize::try_from(retry_policy.max_attempts).unwrap_or(usize::MAX),
             });
