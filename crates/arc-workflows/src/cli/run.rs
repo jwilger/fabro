@@ -488,10 +488,10 @@ pub async fn run_command(
     // Create SSH access if requested
     if args.ssh {
         if let Some(ref daytona) = daytona_sandbox_ref {
-            match daytona.create_ssh_access(Some(60.0)).await {
-                Ok(ssh_info) => {
+            match daytona.create_ssh_access().await {
+                Ok(ssh_command) => {
                     emitter.emit(&crate::event::WorkflowRunEvent::SshAccessReady {
-                        ssh_command: ssh_info.ssh_command,
+                        ssh_command,
                     });
                 }
                 Err(e) => {

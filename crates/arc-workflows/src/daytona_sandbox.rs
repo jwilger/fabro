@@ -59,15 +59,14 @@ impl DaytonaSandbox {
         self.event_callback = Some(cb);
     }
 
-    pub async fn create_ssh_access(
-        &self,
-        expires_in_minutes: Option<f64>,
-    ) -> Result<daytona_sdk::api_types::SshAccessDto, String> {
+    /// Create SSH access and return the connection command string.
+    pub async fn create_ssh_access(&self) -> Result<String, String> {
         let sandbox = self.sandbox()?;
-        sandbox
-            .create_ssh_access(expires_in_minutes)
+        let dto = sandbox
+            .create_ssh_access(Some(60.0))
             .await
-            .map_err(|e| format!("Failed to create SSH access: {e}"))
+            .map_err(|e| format!("Failed to create SSH access: {e}"))?;
+        Ok(dto.ssh_command)
     }
 
     fn emit(&self, event: SandboxEvent) {
