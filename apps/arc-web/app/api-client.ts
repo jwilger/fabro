@@ -58,10 +58,12 @@ export async function apiFetch(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  return fetch(`${base_url}${path}`, {
-    ...init,
-    headers,
-  });
+  const url = `${base_url}${path}`;
+  try {
+    return await fetch(url, { ...init, headers });
+  } catch (cause) {
+    throw new Error(`API request to ${url} failed`, { cause });
+  }
 }
 
 /**
