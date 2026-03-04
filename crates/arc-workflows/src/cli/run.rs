@@ -454,17 +454,13 @@ pub async fn run_command(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialize sandbox: {e}"))?;
 
-    // Ensure cleanup runs even on error/panic
+    // Safety net: if we panic or return early, best-effort cleanup via spawn.
     let sandbox_for_cleanup = Arc::clone(&sandbox);
-    let _cleanup_guard = scopeguard::guard((), move |()| {
-        // Best-effort cleanup — fire and forget in a blocking context
+    let cleanup_guard = scopeguard::guard((), move |()| {
         let rt = tokio::runtime::Handle::try_current();
         if let Ok(handle) = rt {
             handle.spawn(async move {
-                if let Err(e) = sandbox_for_cleanup.cleanup().await {
-                    tracing::warn!(error = %e, "Sandbox cleanup failed");
-                    eprintln!("Warning: sandbox cleanup failed: {e}");
-                }
+                let _ = sandbox_for_cleanup.cleanup().await;
             });
         }
     });
@@ -746,7 +742,17 @@ pub async fn run_command(
 
     print_final_output(&logs_dir, styles);
 
-    // 9. Exit code
+    // 9. Cleanup sandbox (defuse the scopeguard so we await properly)
+    scopeguard::ScopeGuard::into_inner(cleanup_guard);
+    if let Err(e) = sandbox.cleanup().await {
+        tracing::warn!(error = %e, "Sandbox cleanup failed");
+        eprintln!(
+            "\n{} sandbox cleanup failed: {e}",
+            styles.yellow.apply_to("Warning:")
+        );
+    }
+
+    // 10. Exit code
     match outcome.status {
         StageStatus::Success | StageStatus::PartialSuccess => Ok(()),
         _ => {
