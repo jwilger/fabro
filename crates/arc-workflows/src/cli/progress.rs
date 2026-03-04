@@ -92,12 +92,13 @@ fn format_number(n: f64) -> String {
 // ── Tool call display name ──────────────────────────────────────────────
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() > max {
-        let mut t: String = s.chars().take(max - 3).collect();
+    let single_line: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    if single_line.len() > max {
+        let mut t: String = single_line.chars().take(max - 3).collect();
         t.push_str("...");
         t
     } else {
-        s.to_string()
+        single_line
     }
 }
 
