@@ -102,6 +102,10 @@ pub enum SandboxEvent {
     Ready {
         provider: String,
         duration_ms: u64,
+        name: Option<String>,
+        cpu: Option<f64>,
+        memory: Option<f64>,
+        url: Option<String>,
     },
     InitializeFailed {
         provider: String,
@@ -170,6 +174,7 @@ impl SandboxEvent {
             Self::Ready {
                 provider,
                 duration_ms,
+                ..
             } => {
                 info!(provider, duration_ms, "Sandbox ready");
             }
@@ -405,6 +410,10 @@ mod tests {
             SandboxEvent::Ready {
                 provider: "local".into(),
                 duration_ms: 50,
+                name: None,
+                cpu: None,
+                memory: None,
+                url: None,
             },
             SandboxEvent::InitializeFailed {
                 provider: "docker".into(),

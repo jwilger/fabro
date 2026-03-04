@@ -43,6 +43,7 @@ cached_style!(
 );
 cached_style!(style_tool_done, "      {wide_msg} {prefix:.dim}");
 cached_style!(style_static_dim, "    {wide_msg:.dim}");
+cached_style!(style_sandbox_detail, "             {wide_msg:.dim}");
 cached_style!(style_empty, " ");
 
 // ── Cached glyphs ───────────────────────────────────────────────────────
@@ -72,6 +73,20 @@ pub(crate) fn format_duration_short(d: Duration) -> String {
 
 fn format_duration_ms(ms: u64) -> String {
     format_duration_short(Duration::from_millis(ms))
+}
+
+/// Wrap `text` in an OSC 8 terminal hyperlink pointing to `url`.
+fn terminal_hyperlink(url: &str, text: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\")
+}
+
+/// Format a number as an integer if whole, one decimal otherwise.
+fn format_number(n: f64) -> String {
+    if (n - n.round()).abs() < f64::EPSILON {
+        format!("{}", n as i64)
+    } else {
+        format!("{n:.1}")
+    }
 }
 
 // ── Tool call display name ──────────────────────────────────────────────
@@ -290,18 +305,41 @@ impl ProgressUI {
             SandboxEvent::Ready {
                 provider,
                 duration_ms,
+                name,
+                cpu,
+                memory,
+                url,
             } => {
                 let dur = format_duration_ms(*duration_ms);
+                let detail = match (name, cpu, memory) {
+                    (Some(n), Some(c), Some(m)) => {
+                        Some(format!("{n} ({} cpu, {} GB)", format_number(*c), format_number(*m)))
+                    }
+                    (Some(n), _, _) => Some(n.clone()),
+                    _ => None,
+                };
                 match &self.renderer {
-                    ProgressRenderer::Tty(_) => {
+                    ProgressRenderer::Tty(tty) => {
+                        let display_provider = match url {
+                            Some(u) => terminal_hyperlink(u, provider),
+                            None => provider.clone(),
+                        };
                         if let Some(bar) = self.sandbox_bar.take() {
                             bar.set_style(style_header_done());
                             bar.set_prefix(dur);
-                            bar.finish_with_message(format!("Sandbox: {provider}"));
+                            bar.finish_with_message(format!("Sandbox: {display_provider}"));
+                        }
+                        if let Some(detail_str) = &detail {
+                            let detail_bar = tty.multi.add(ProgressBar::new_spinner());
+                            detail_bar.set_style(style_sandbox_detail());
+                            detail_bar.finish_with_message(detail_str.clone());
                         }
                     }
                     ProgressRenderer::Plain => {
                         eprintln!("    Sandbox: {provider} (ready in {dur})");
+                        if let Some(detail_str) = &detail {
+                            eprintln!("             {detail_str}");
+                        }
                     }
                 }
             }

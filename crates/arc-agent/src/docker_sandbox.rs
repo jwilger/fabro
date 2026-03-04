@@ -398,6 +398,10 @@ impl Sandbox for DockerSandbox {
         self.emit(SandboxEvent::Ready {
             provider: "docker".into(),
             duration_ms: init_duration,
+            name: None,
+            cpu: None,
+            memory: None,
+            url: None,
         });
 
         Ok(())

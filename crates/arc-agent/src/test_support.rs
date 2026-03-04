@@ -189,6 +189,10 @@ impl Sandbox for MockSandbox {
         self.emit(crate::sandbox::SandboxEvent::Ready {
             provider: "mock".into(),
             duration_ms: 0,
+            name: None,
+            cpu: None,
+            memory: None,
+            url: None,
         });
         Ok(())
     }

@@ -458,6 +458,9 @@ impl Sandbox for DaytonaSandbox {
             }
         }
 
+        let sandbox_name = sandbox.name.clone();
+        let sandbox_cpu = sandbox.cpu;
+        let sandbox_memory = sandbox.memory;
         self.sandbox
             .set(sandbox)
             .map_err(|_| "Daytona sandbox already initialized".to_string())?;
@@ -467,6 +470,10 @@ impl Sandbox for DaytonaSandbox {
         self.emit(SandboxEvent::Ready {
             provider: "daytona".into(),
             duration_ms: init_duration,
+            name: Some(sandbox_name),
+            cpu: Some(sandbox_cpu),
+            memory: Some(sandbox_memory),
+            url: Some("https://app.daytona.io/dashboard/sandboxes".into()),
         });
 
         Ok(())

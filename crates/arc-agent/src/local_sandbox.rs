@@ -379,6 +379,10 @@ impl Sandbox for LocalSandbox {
             Ok(()) => self.emit(SandboxEvent::Ready {
                 provider: "local".into(),
                 duration_ms,
+                name: None,
+                cpu: None,
+                memory: None,
+                url: None,
             }),
             Err(e) => self.emit(SandboxEvent::InitializeFailed {
                 provider: "local".into(),

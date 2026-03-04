@@ -495,7 +495,14 @@ pub fn format_event_summary(event: &WorkflowRunEvent, styles: &Styles) -> String
             use arc_agent::SandboxEvent;
             match event {
                 SandboxEvent::Initializing { provider } => format!("[SANDBOX_INITIALIZING] provider={provider}"),
-                SandboxEvent::Ready { provider, duration_ms } => format!("[SANDBOX_READY] provider={provider} duration={duration_ms}ms"),
+                SandboxEvent::Ready { provider, duration_ms, name, cpu, memory, .. } => {
+                    let mut s = format!("[SANDBOX_READY] provider={provider}");
+                    if let Some(n) = name { s.push_str(&format!(" name={n}")); }
+                    if let Some(c) = cpu { s.push_str(&format!(" cpu={c}")); }
+                    if let Some(m) = memory { s.push_str(&format!(" memory={m}")); }
+                    s.push_str(&format!(" duration={duration_ms}ms"));
+                    s
+                }
                 SandboxEvent::InitializeFailed { provider, error, duration_ms } => format!("[SANDBOX_INIT_FAILED] provider={provider} error=\"{error}\" duration={duration_ms}ms"),
                 SandboxEvent::CleanupStarted { provider } => format!("[SANDBOX_CLEANUP_STARTED] provider={provider}"),
                 SandboxEvent::CleanupCompleted { provider, duration_ms } => format!("[SANDBOX_CLEANUP_COMPLETED] provider={provider} duration={duration_ms}ms"),
@@ -1451,6 +1458,10 @@ mod tests {
             event: arc_agent::SandboxEvent::Ready {
                 provider: "docker".into(),
                 duration_ms: 1500,
+                name: None,
+                cpu: None,
+                memory: None,
+                url: None,
             },
         };
         let s = format_event_summary(&event, test_styles());
