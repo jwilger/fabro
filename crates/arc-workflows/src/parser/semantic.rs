@@ -109,7 +109,7 @@ impl SemanticState {
             Self::add_class_to_node(node, cls);
         }
         // Legacy: translate codergen_mode to type if type is not explicitly set
-        if node.attrs.get("type").is_none() {
+        if !node.attrs.contains_key("type") {
             if let Some(mode) = node.attrs.get("codergen_mode").and_then(AttrValue::as_str) {
                 let mapped = match mode {
                     "one_shot" => "prompt",

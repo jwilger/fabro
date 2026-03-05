@@ -96,7 +96,7 @@ impl HookExecutorImpl {
                 return decision;
             }
             HookDecision::Block {
-                reason: Some(format!("hook exited with code 2")),
+                reason: Some("hook exited with code 2".to_string()),
             }
         } else {
             HookDecision::Block {

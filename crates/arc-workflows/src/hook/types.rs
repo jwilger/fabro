@@ -108,9 +108,10 @@ pub struct PromptHookResponse {
 }
 
 /// Decision returned by blocking hooks.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "decision", rename_all = "snake_case")]
 pub enum HookDecision {
+    #[default]
     Proceed,
     Skip {
         #[serde(default)]
@@ -125,11 +126,6 @@ pub enum HookDecision {
     },
 }
 
-impl Default for HookDecision {
-    fn default() -> Self {
-        Self::Proceed
-    }
-}
 
 impl HookDecision {
     /// Merge two decisions. Block > Skip/Override > Proceed.
