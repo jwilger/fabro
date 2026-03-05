@@ -1,13 +1,18 @@
 services:
   api:
     image: arc
-    build: .
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    pull_policy: never
     command: ["api"]
     ports:
       - "3000:3000"
 
   web:
     image: arc
+    pull_policy: never
     command: ["web"]
     ports:
       - "5173:5173"
@@ -20,6 +25,7 @@ services:
 
   docs:
     image: arc
+    pull_policy: never
     command: ["docs"]
     ports:
       - "3333:3333"

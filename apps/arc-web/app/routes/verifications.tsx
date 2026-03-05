@@ -67,7 +67,7 @@ import type { VerificationCategory as ApiVerificationCategory } from "@qltysh/ar
 import type { Route } from "./+types/verifications";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const apiCategories = await apiJson<ApiVerificationCategory[]>("/verifications", { request });
+  const { data: apiCategories } = await apiJson<{ data: ApiVerificationCategory[] }>("/verifications", { request });
   const categories: VerificationCategory[] = apiCategories.map((cat) => ({
     name: cat.name,
     question: cat.question,

@@ -7,9 +7,11 @@ RUN cargo build --release --bin arc
 
 FROM oven/bun:1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ ca-certificates && \
+    python3 make g++ ca-certificates nodejs npm && \
     rm -rf /var/lib/apt/lists/*
-RUN bun i -g mintlify
+RUN npm i -g mintlify && \
+    sed -i 's/const version = __VERSION__/const version = "0.0.0"/' \
+      /usr/local/lib/node_modules/mintlify/node_modules/katex/dist/katex.mjs
 
 WORKDIR /app
 
