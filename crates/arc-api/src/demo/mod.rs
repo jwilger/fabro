@@ -65,18 +65,18 @@ pub async fn get_stage_turns(
 }
 
 #[derive(serde::Deserialize)]
-pub struct FilesQuery {
+pub struct CompareQuery {
     #[allow(dead_code)]
     checkpoint: Option<String>,
 }
 
-pub async fn get_run_files(
+pub async fn get_run_compare(
     _auth: AuthenticatedService,
     State(_state): State<Arc<AppState>>,
     Path(_id): Path<String>,
-    Query(_q): Query<FilesQuery>,
+    Query(_q): Query<CompareQuery>,
 ) -> Response {
-    (StatusCode::OK, Json(runs::files())).into_response()
+    (StatusCode::OK, Json(runs::compare())).into_response()
 }
 
 pub async fn get_run_usage(
@@ -1041,8 +1041,8 @@ mod runs {
         ]
     }
 
-    pub fn files() -> RunFiles {
-        RunFiles {
+    pub fn compare() -> RunCompare {
+        RunCompare {
             checkpoints: vec![
                 FileCheckpoint { id: "all".into(), label: "All changes".into() },
                 FileCheckpoint { id: "cp-4".into(), label: "Checkpoint 4 — Apply Changes".into() },

@@ -159,7 +159,7 @@
             "group": "Run Outputs",
             "icon": "file-export",
             "pages": [
-              "GET /runs/{id}/files",
+              "GET /runs/{id}/compare",
               "GET /runs/{id}/usage",
               "GET /runs/{id}/verifications"
             ]

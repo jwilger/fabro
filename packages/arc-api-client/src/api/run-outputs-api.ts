@@ -26,7 +26,7 @@ import type { ErrorResponse } from '../models';
 // @ts-ignore
 import type { PaginatedRunVerificationList } from '../models';
 // @ts-ignore
-import type { RunFiles } from '../models';
+import type { RunCompare } from '../models';
 // @ts-ignore
 import type { RunUsage } from '../models';
 /**
@@ -36,16 +36,16 @@ export const RunOutputsApiAxiosParamCreator = function (configuration?: Configur
     return {
         /**
          * 
-         * @summary List Run Files
+         * @summary List Run Compare
          * @param {string} id 
          * @param {string} [checkpoint] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listRunFiles: async (id: string, checkpoint?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listRunCompare: async (id: string, checkpoint?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'id' is not null or undefined
-            assertParamExists('listRunFiles', 'id', id)
-            const localVarPath = `/runs/{id}/files`
+            assertParamExists('listRunCompare', 'id', id)
+            const localVarPath = `/runs/{id}/compare`
                 .replace(`{${"id"}}`, encodeURIComponent(String(id)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -152,16 +152,16 @@ export const RunOutputsApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
-         * @summary List Run Files
+         * @summary List Run Compare
          * @param {string} id 
          * @param {string} [checkpoint] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listRunFiles(id: string, checkpoint?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<RunFiles>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listRunFiles(id, checkpoint, options);
+        async listRunCompare(id: string, checkpoint?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<RunCompare>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listRunCompare(id, checkpoint, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['RunOutputsApi.listRunFiles']?.[localVarOperationServerIndex]?.url;
+            const localVarOperationServerBasePath = operationServerMap['RunOutputsApi.listRunCompare']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -201,14 +201,14 @@ export const RunOutputsApiFactory = function (configuration?: Configuration, bas
     return {
         /**
          * 
-         * @summary List Run Files
+         * @summary List Run Compare
          * @param {string} id 
          * @param {string} [checkpoint] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listRunFiles(id: string, checkpoint?: string, options?: RawAxiosRequestConfig): AxiosPromise<RunFiles> {
-            return localVarFp.listRunFiles(id, checkpoint, options).then((request) => request(axios, basePath));
+        listRunCompare(id: string, checkpoint?: string, options?: RawAxiosRequestConfig): AxiosPromise<RunCompare> {
+            return localVarFp.listRunCompare(id, checkpoint, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -239,14 +239,14 @@ export const RunOutputsApiFactory = function (configuration?: Configuration, bas
 export class RunOutputsApi extends BaseAPI {
     /**
      * 
-     * @summary List Run Files
+     * @summary List Run Compare
      * @param {string} id 
      * @param {string} [checkpoint] 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */
-    public listRunFiles(id: string, checkpoint?: string, options?: RawAxiosRequestConfig) {
-        return RunOutputsApiFp(this.configuration).listRunFiles(id, checkpoint, options).then((request) => request(this.axios, this.basePath));
+    public listRunCompare(id: string, checkpoint?: string, options?: RawAxiosRequestConfig) {
+        return RunOutputsApiFp(this.configuration).listRunCompare(id, checkpoint, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

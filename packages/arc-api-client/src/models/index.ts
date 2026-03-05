@@ -44,7 +44,7 @@ export * from './retro-list-item';
 export * from './retro-stats';
 export * from './root-response';
 export * from './root-response-urls';
-export * from './run-files';
+export * from './run-compare';
 export * from './run-list-item';
 export * from './run-list-item-status';
 export * from './run-stage';

@@ -8,13 +8,13 @@ import {
 } from "@pierre/diffs/react";
 import { useTheme } from "../lib/theme";
 import { apiJson } from "../api-client";
-import type { RunFiles } from "@qltysh/arc-api-client";
+import type { RunCompare } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-files-changed";
 
 export const handle = { wide: true };
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const data = await apiJson<RunFiles>(`/runs/${params.id}/files?checkpoint=all`, { request });
+  const data = await apiJson<RunCompare>(`/runs/${params.id}/compare?checkpoint=all`, { request });
   return data;
 }
 

@@ -139,7 +139,7 @@ pub fn build_router(state: Arc<AppState>, auth_mode: AuthMode) -> Router {
                 "/runs/{id}/stages/{stageId}/turns",
                 get(crate::demo::get_stage_turns),
             )
-            .route("/runs/{id}/files", get(crate::demo::get_run_files))
+            .route("/runs/{id}/compare", get(crate::demo::get_run_compare))
             .route("/runs/{id}/usage", get(crate::demo::get_run_usage))
             .route(
                 "/runs/{id}/verifications",
@@ -207,7 +207,7 @@ pub fn build_router(state: Arc<AppState>, auth_mode: AuthMode) -> Router {
             .route("/runs/{id}/retro", get(get_retro))
             .route("/runs/{id}/stages", get(not_implemented))
             .route("/runs/{id}/stages/{stageId}/turns", get(not_implemented))
-            .route("/runs/{id}/files", get(not_implemented))
+            .route("/runs/{id}/compare", get(not_implemented))
             .route("/runs/{id}/usage", get(not_implemented))
             .route("/runs/{id}/verifications", get(not_implemented))
             .route("/runs/{id}/configuration", get(not_implemented))

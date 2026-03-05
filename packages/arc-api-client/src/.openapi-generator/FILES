@@ -63,7 +63,7 @@ models/retro-list-item.ts
 models/retro-stats.ts
 models/root-response-urls.ts
 models/root-response.ts
-models/run-files.ts
+models/run-compare.ts
 models/run-list-item-status.ts
 models/run-list-item.ts
 models/run-stage.ts

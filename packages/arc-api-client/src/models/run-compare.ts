@@ -23,7 +23,7 @@ import type { FileCheckpoint } from './file-checkpoint';
 // @ts-ignore
 import type { FileDiff } from './file-diff';
 
-export interface RunFiles {
+export interface RunCompare {
     'checkpoints': Array<FileCheckpoint>;
     'files': Array<FileDiff>;
     'stats': DiffStats;
