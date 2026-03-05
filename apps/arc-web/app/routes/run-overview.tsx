@@ -7,7 +7,7 @@ import { useTheme } from "../lib/theme";
 import { getGraphTheme } from "../lib/graph-theme";
 import { apiJson } from "../api-client";
 import { formatDurationSecs } from "../lib/format";
-import type { RunStage, PaginatedRunList, WorkflowDetail } from "@qltysh/arc-api-client";
+import type { PaginatedRunStageList, PaginatedRunList, WorkflowDetail } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-overview";
 
 export const handle = { wide: true };
@@ -22,8 +22,8 @@ interface Stage {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const [apiStages, response] = await Promise.all([
-    apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request }),
+  const [{ data: apiStages }, response] = await Promise.all([
+    apiJson<PaginatedRunStageList>(`/runs/${params.id}/stages`, { request }),
     apiJson<PaginatedRunList>("/runs", { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({

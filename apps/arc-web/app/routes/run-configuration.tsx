@@ -4,7 +4,7 @@ import { DocumentTextIcon, MapIcon } from "@heroicons/react/24/outline";
 import { CollapsibleFile } from "../components/collapsible-file";
 import { apiFetch, apiJson } from "../api-client";
 import { formatDurationSecs } from "../lib/format";
-import type { RunStage } from "@qltysh/arc-api-client";
+import type { PaginatedRunStageList } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-configuration";
 
 export const handle = { wide: true };
@@ -26,8 +26,8 @@ const statusConfig: Record<StageStatus, { icon: typeof CheckCircleIcon; color: s
 };
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const [apiStages, configRes] = await Promise.all([
-    apiJson<RunStage[]>(`/runs/${params.id}/stages`, { request }),
+  const [{ data: apiStages }, configRes] = await Promise.all([
+    apiJson<PaginatedRunStageList>(`/runs/${params.id}/stages`, { request }),
     apiFetch(`/runs/${params.id}/configuration`, { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({
