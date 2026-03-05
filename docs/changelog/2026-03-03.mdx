@@ -1,0 +1,27 @@
+---
+title: "mTLS auth, setup wizard, and arc doctor"
+date: "2026-03-03"
+---
+
+Stronger authentication, guided setup, and a diagnostic command that checks your entire Arc installation.
+
+## Features
+
+- **mTLS authentication**: Secure the API server with mutual TLS — both client and server present certificates, providing strong identity verification for production deployments
+- **Setup wizard**: Run `arc setup` for an interactive walkthrough that configures your API keys, server settings, and authentication — no more manually editing config files
+- **Arc doctor**: Run `arc doctor` to check your entire installation: system dependencies, cryptographic key validation, LLM provider connectivity, and web server configuration — with `--live` for real-time API probes
+- **Tailscale authentication**: Authenticate API requests using Tailscale identity for zero-config auth on Tailscale networks
+- **TOML configuration**: All configuration moves to `~/.arc/arc.toml` — API keys, auth settings, GitHub App config, and server options in one version-controllable file
+- **Run defaults**: Define default run settings in `server.toml` that all workflow runs inherit, so you don't have to specify the same sandbox, model, or concurrency settings every time
+
+## Improvements
+
+- **Progress UI**: A new indicatif-based progress display for `arc run start` shows real-time stage progress, tool calls, model names, and timing without the noise of raw event logs
+- **Model catalog**: Mercury provider updated to `mercury-2`, Claude Haiku alias updated, and estimated output speed (tok/s) added to `arc models list`
+- **Colored CLI output**: Consistent semantic color scheme across all CLI commands using the `console` crate, with `dialoguer` for interactive prompts
+- **Base64 PEM keys**: `ARC_JWT_PUBLIC_KEY` and `ARC_JWT_PRIVATE_KEY` accept base64-encoded PEM strings for easier deployment in containerized environments
+
+## Fixes
+
+- Fixes an issue where the JWT `sub` claim used the GitHub API URL instead of the profile URL, causing identity mismatches
+- Fixes stale configuration persisting after running `arc setup` until a manual restart

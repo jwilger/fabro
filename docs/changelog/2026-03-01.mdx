@@ -1,0 +1,29 @@
+---
+title: "Verifications, retrospectives, insights, and parallel branching"
+date: "2026-03-01"
+---
+
+Automatically verify run outputs, generate LLM-powered retrospectives, query run data with SQL, and run workflow branches in parallel git worktrees.
+
+## Features
+
+- **Verifications**: Define verification checks that automatically validate run outputs — browse the verification catalog and see per-run results to catch regressions before merging
+- **Retrospectives**: After each run, an LLM-powered retro agent analyzes what happened and generates a structured summary with timing, cost, and improvement suggestions
+- **Insights SQL workbench**: Write and save SQL queries against your run data to answer questions like "which workflows fail most?" or "what's the average cost per stage?" — with a query editor, template library, and execution history
+- **Parallel git branching**: Workflow branches now execute in isolated git worktrees, so parallel stages can edit files simultaneously without conflicts and merge cleanly at fan-in nodes
+- **SQLite persistence**: Run data, sessions, and verifications are stored in a local SQLite database for fast querying and reliable persistence
+- **Interactive SVG graphs**: Run graphs render as interactive SVGs with animated nodes showing which stage is currently executing
+- **Light mode**: Full light mode support with a theme toggle in the web app
+
+## Improvements
+
+- **Failure signatures and circuit breakers**: Deterministic failure cycles (like the same syntax error on every retry) are detected and short-circuited, saving tokens and time on runs that would never succeed
+- **Stall watchdog**: Hung pipeline handlers are detected and reported instead of silently blocking the run
+- **Structured tracing**: File-based tracing across all crates controlled by `ARC_LOG`, providing detailed diagnostics without cluttering normal output
+- **Retro output in CLI**: Retrospective summaries now print inline after the run completes, rendered as Markdown in the terminal
+
+## Fixes
+
+- Fixes an issue where non-transient infrastructure failures (like invalid API keys) would trigger retries instead of failing immediately
+- Fixes cross-browser SVG animation for the running graph node indicator
+- Fixes UTF-8 string slicing panics when truncating multi-byte characters in progress output

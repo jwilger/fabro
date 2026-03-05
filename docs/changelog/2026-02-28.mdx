@@ -1,0 +1,21 @@
+---
+title: "Arc web app, new providers, and git checkpointing"
+date: "2026-02-28"
+---
+
+A full-featured web app for managing workflows, three new LLM providers, and automatic git checkpoints at every workflow node.
+
+## Features
+
+- **Arc web app**: A complete React-based dashboard for browsing workflows, viewing run details with syntax-highlighted diffs, inspecting agent sessions turn-by-turn, and monitoring run status in real time
+- **Workflow visualization**: Interactive SVG diagrams of your workflow graph with zoom, pan, direction toggle, and fit-to-window controls — see exactly where a run is at a glance
+- **Diff viewer**: Side-by-side and unified diff views with syntax highlighting show exactly what each workflow run changed, with split/unified and background toggles
+- **Git checkpointing**: Arc automatically creates git commits at each workflow node, so you can see the exact state of the codebase at any point in a run and compare changes between stages
+- **Kimi, Z.AI, and Minimax providers**: Three new LLM providers expand your options for model selection in workflow stylesheets
+- **JWT authentication**: Secure service-to-service auth between arc-web and the API server using asymmetric JWT tokens with GitHub identity
+
+## Improvements
+
+- **DOT parser**: Supports unquoted bare string values (e.g., `model = gpt-5.2`) for cleaner workflow definitions
+- **ULID run IDs**: Runs now use time-sortable ULIDs instead of UUIDs, making it easier to find recent runs in logs and the API
+- **Run labels**: Tag runs with custom labels and filter them with `arc run list`

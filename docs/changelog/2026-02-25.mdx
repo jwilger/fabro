@@ -1,0 +1,17 @@
+---
+title: "Skills system and secret redaction"
+date: "2026-02-25"
+---
+
+Reusable prompt templates and automatic secret detection keep workflows organized and logs safe to share.
+
+## Features
+
+- **Skills**: Define reusable prompt templates as `skills/<name>/SKILL.md` files and activate them during runs with the `use_skill` tool — build a library of domain-specific capabilities that any workflow can invoke
+- **Secret redaction**: API keys, tokens, and other secrets detected in NDJSON logs, `live.json`, and SSE events are automatically redacted before being written, so progress logs are safe to share and store
+- **Claude Haiku 4.5**: Added to the model catalog for fast, cost-effective tasks within workflows
+
+## Improvements
+
+- **Per-node visit limits**: Nodes now track visit counts and stop after a configurable maximum, preventing infinite loops in dry-run mode
+- **One-shot LLM nodes**: Set `codergen_mode = "one_shot"` to use a single LLM call instead of an agent loop, useful for classification and summarization nodes that don't need tools
