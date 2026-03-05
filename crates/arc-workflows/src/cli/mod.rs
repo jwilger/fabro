@@ -1,5 +1,6 @@
 pub mod backend;
 pub mod cli_backend;
+pub mod parse;
 pub mod progress;
 pub mod run;
 pub mod run_config;
@@ -136,6 +137,12 @@ pub struct RunArgs {
 
 #[derive(Args)]
 pub struct ValidateArgs {
+    /// Path to the .dot workflow file
+    pub workflow: PathBuf,
+}
+
+#[derive(Args)]
+pub struct ParseArgs {
     /// Path to the .dot workflow file
     pub workflow: PathBuf,
 }

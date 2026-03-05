@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// A parsed DOT value before semantic interpretation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AstValue {
     Str(String),
     Int(i64),
@@ -13,14 +15,14 @@ pub enum AstValue {
 pub type AttrBlock = Vec<(String, AstValue)>;
 
 /// A node statement: `id [attrs]?`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeStmt {
     pub id: String,
     pub attrs: Option<AttrBlock>,
 }
 
 /// An edge statement: `A -> B -> C [attrs]?`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EdgeStmt {
     /// Chain of node IDs (at least 2).
     pub nodes: Vec<String>,
@@ -28,14 +30,14 @@ pub struct EdgeStmt {
 }
 
 /// A subgraph statement: `subgraph name? { stmts }`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubgraphStmt {
     pub name: Option<String>,
     pub statements: Vec<Statement>,
 }
 
 /// A single statement in a DOT graph body.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
     /// `graph [attrs]`
     GraphAttr(AttrBlock),
@@ -54,7 +56,7 @@ pub enum Statement {
 }
 
 /// The top-level parsed DOT graph.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DotGraph {
     pub name: String,
     pub statements: Vec<Statement>,

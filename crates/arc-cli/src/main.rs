@@ -38,6 +38,8 @@ enum Command {
     },
     /// Validate a workflow
     Validate(arc_workflows::cli::ValidateArgs),
+    /// Parse a DOT file and print its AST
+    Parse(arc_workflows::cli::ParseArgs),
     /// List and test LLM models
     Models {
         #[command(subcommand)]
@@ -98,6 +100,7 @@ async fn main() -> Result<()> {
         Command::Agent(_) => "agent",
         Command::Run { .. } => "run",
         Command::Validate(_) => "validate",
+        Command::Parse(_) => "parse",
         Command::Models { .. } => "models",
         Command::Serve(_) => "serve",
         Command::Doctor { .. } => "doctor",
@@ -153,6 +156,9 @@ async fn main() -> Result<()> {
         Command::Validate(args) => {
             let styles = arc_util::terminal::Styles::detect_stderr();
             arc_workflows::cli::validate::validate_command(&args, &styles)?;
+        }
+        Command::Parse(args) => {
+            arc_workflows::cli::parse::parse_command(&args)?;
         }
         Command::Models { command } => arc_llm::cli::run_models(command).await?,
         Command::Serve(args) => {
