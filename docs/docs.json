@@ -12,6 +12,7 @@
     "tabs": [
       {
         "tab": "Documentation",
+        "icon": "book",
         "groups": [
           {
             "group": "Getting Started",
@@ -86,6 +87,7 @@
       },
       {
         "tab": "Guides",
+        "icon": "graduation-cap",
         "groups": [
           {
             "group": "Workflow Tutorials",
@@ -113,6 +115,7 @@
       },
       {
         "tab": "API Reference",
+        "icon": "code",
         "openapi": "api-reference/arc-api.yaml",
         "groups": [
           {
@@ -234,6 +237,7 @@
       },
       {
         "tab": "Changelog",
+        "icon": "clock-rotate-left",
         "groups": [
           {
             "group": "Changelog",
