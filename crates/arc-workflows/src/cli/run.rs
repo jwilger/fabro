@@ -712,14 +712,14 @@ pub async fn run_command(
             Ok(o) => (o.status.to_string(), o.failure_reason().map(String::from)),
             Err(e) => ("fail".to_string(), Some(e.to_string())),
         };
-        let run_final = crate::run_final::RunFinal {
+        let conclusion = crate::conclusion::Conclusion {
             timestamp: Utc::now(),
             status,
             duration_ms: run_duration_ms,
             failure_reason,
             final_git_commit_sha: last_git_sha.lock().unwrap().clone(),
         };
-        let _ = run_final.save(&logs_dir.join("final.json"));
+        let _ = conclusion.save(&logs_dir.join("conclusion.json"));
     }
 
     // Finish progress bars before printing summary

@@ -139,10 +139,10 @@ pub fn scan_runs(base: &Path) -> Result<Vec<RunInfo>> {
 }
 
 fn read_status(run_dir: &Path) -> String {
-    let final_path = run_dir.join("final.json");
-    if final_path.exists() {
-        if let Ok(run_final) = crate::run_final::RunFinal::load(&final_path) {
-            return run_final.status;
+    let conclusion_path = run_dir.join("conclusion.json");
+    if conclusion_path.exists() {
+        if let Ok(conclusion) = crate::conclusion::Conclusion::load(&conclusion_path) {
+            return conclusion.status;
         }
         "unknown".to_string()
     } else if run_dir.join("run.pid").exists() {
@@ -307,7 +307,7 @@ mod tests {
         base: &Path,
         dir_name: &str,
         manifest: Option<serde_json::Value>,
-        final_json: Option<serde_json::Value>,
+        conclusion_json: Option<serde_json::Value>,
         pid_file: bool,
     ) -> PathBuf {
         let dir = base.join(dir_name);
@@ -319,10 +319,10 @@ mod tests {
             )
             .unwrap();
         }
-        if let Some(f) = final_json {
+        if let Some(c) = conclusion_json {
             fs::write(
-                dir.join("final.json"),
-                serde_json::to_string_pretty(&f).unwrap(),
+                dir.join("conclusion.json"),
+                serde_json::to_string_pretty(&c).unwrap(),
             )
             .unwrap();
         }

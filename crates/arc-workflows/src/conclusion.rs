@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ArcError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunFinal {
+pub struct Conclusion {
     pub timestamp: DateTime<Utc>,
     pub status: String,
     pub duration_ms: u64,
@@ -16,19 +16,19 @@ pub struct RunFinal {
     pub final_git_commit_sha: Option<String>,
 }
 
-impl RunFinal {
+impl Conclusion {
     pub fn save(&self, path: &Path) -> Result<()> {
         let json = serde_json::to_string_pretty(self)
-            .map_err(|e| ArcError::Checkpoint(format!("run_final serialize failed: {e}")))?;
+            .map_err(|e| ArcError::Checkpoint(format!("conclusion serialize failed: {e}")))?;
         std::fs::write(path, json)?;
         Ok(())
     }
 
     pub fn load(path: &Path) -> Result<Self> {
         let data = std::fs::read_to_string(path)?;
-        let run_final: Self = serde_json::from_str(&data)
-            .map_err(|e| ArcError::Checkpoint(format!("run_final deserialize failed: {e}")))?;
-        Ok(run_final)
+        let conclusion: Self = serde_json::from_str(&data)
+            .map_err(|e| ArcError::Checkpoint(format!("conclusion deserialize failed: {e}")))?;
+        Ok(conclusion)
     }
 }
 
@@ -36,8 +36,8 @@ impl RunFinal {
 mod tests {
     use super::*;
 
-    fn sample_run_final() -> RunFinal {
-        RunFinal {
+    fn sample_conclusion() -> Conclusion {
+        Conclusion {
             timestamp: Utc::now(),
             status: "success".to_string(),
             duration_ms: 12345,
@@ -49,11 +49,11 @@ mod tests {
     #[test]
     fn save_and_load_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("final.json");
+        let path = dir.path().join("conclusion.json");
 
-        let run_final = sample_run_final();
-        run_final.save(&path).unwrap();
-        let loaded = RunFinal::load(&path).unwrap();
+        let conclusion = sample_conclusion();
+        conclusion.save(&path).unwrap();
+        let loaded = Conclusion::load(&path).unwrap();
 
         assert_eq!(loaded.status, "success");
         assert_eq!(loaded.duration_ms, 12345);
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn load_nonexistent_file() {
-        let result = RunFinal::load(Path::new("/nonexistent/final.json"));
+        let result = Conclusion::load(Path::new("/nonexistent/conclusion.json"));
         assert!(result.is_err());
     }
 
@@ -76,23 +76,23 @@ mod tests {
         let path = dir.path().join("bad.json");
         std::fs::write(&path, "not json").unwrap();
 
-        let result = RunFinal::load(&path);
+        let result = Conclusion::load(&path);
         assert!(result.is_err());
     }
 
     #[test]
     fn optional_fields_omitted_when_none() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("final.json");
+        let path = dir.path().join("conclusion.json");
 
-        let run_final = RunFinal {
+        let conclusion = Conclusion {
             timestamp: Utc::now(),
             status: "fail".to_string(),
             duration_ms: 500,
             failure_reason: None,
             final_git_commit_sha: None,
         };
-        run_final.save(&path).unwrap();
+        conclusion.save(&path).unwrap();
 
         let raw: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -103,17 +103,17 @@ mod tests {
     #[test]
     fn failure_reason_present() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("final.json");
+        let path = dir.path().join("conclusion.json");
 
-        let run_final = RunFinal {
+        let conclusion = Conclusion {
             timestamp: Utc::now(),
             status: "fail".to_string(),
             duration_ms: 100,
             failure_reason: Some("timeout".to_string()),
             final_git_commit_sha: None,
         };
-        run_final.save(&path).unwrap();
-        let loaded = RunFinal::load(&path).unwrap();
+        conclusion.save(&path).unwrap();
+        let loaded = Conclusion::load(&path).unwrap();
 
         assert_eq!(loaded.failure_reason.as_deref(), Some("timeout"));
     }

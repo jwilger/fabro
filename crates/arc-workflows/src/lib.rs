@@ -20,7 +20,7 @@ pub mod parser;
 pub mod preamble;
 pub mod retro;
 pub mod retro_agent;
-pub mod run_final;
+pub mod conclusion;
 pub mod stylesheet;
 pub mod transform;
 pub mod validation;
