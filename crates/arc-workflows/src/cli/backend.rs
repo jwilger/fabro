@@ -343,7 +343,7 @@ impl CodergenBackend for AgentApiBackend {
         sandbox: &Arc<dyn Sandbox>,
     ) -> Result<CodergenResult, ArcError> {
         let fidelity = context.fidelity();
-        let reuse_key = if fidelity == "full" {
+        let reuse_key = if fidelity == crate::context::keys::Fidelity::Full {
             thread_id.map(String::from)
         } else {
             None

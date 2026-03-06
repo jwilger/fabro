@@ -124,8 +124,10 @@ impl Context {
     }
 
     #[must_use]
-    pub fn fidelity(&self) -> String {
+    pub fn fidelity(&self) -> keys::Fidelity {
         self.get_string(keys::INTERNAL_FIDELITY, "")
+            .parse()
+            .unwrap_or_default()
     }
 
     #[must_use]
@@ -273,14 +275,14 @@ mod tests {
     #[test]
     fn fidelity_default() {
         let ctx = Context::new();
-        assert_eq!(ctx.fidelity(), "");
+        assert_eq!(ctx.fidelity(), keys::Fidelity::Compact);
     }
 
     #[test]
     fn fidelity_set() {
         let ctx = Context::new();
-        ctx.set(keys::INTERNAL_FIDELITY, serde_json::json!("compact"));
-        assert_eq!(ctx.fidelity(), "compact");
+        ctx.set(keys::INTERNAL_FIDELITY, serde_json::json!("full"));
+        assert_eq!(ctx.fidelity(), keys::Fidelity::Full);
     }
 
     #[test]

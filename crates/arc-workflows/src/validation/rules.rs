@@ -408,14 +408,23 @@ impl LintRule for TypeKnownRule {
 
 struct FidelityValidRule;
 
-const VALID_FIDELITY_MODES: &[&str] = &[
-    "full",
-    "truncate",
-    "compact",
-    "summary:low",
-    "summary:medium",
-    "summary:high",
-];
+impl FidelityValidRule {
+    fn fix_message() -> String {
+        use crate::context::keys::Fidelity;
+        let modes: Vec<_> = [
+            Fidelity::Full,
+            Fidelity::Truncate,
+            Fidelity::Compact,
+            Fidelity::SummaryLow,
+            Fidelity::SummaryMedium,
+            Fidelity::SummaryHigh,
+        ]
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+        format!("Use one of: {}", modes.join(", "))
+    }
+}
 
 impl LintRule for FidelityValidRule {
     fn name(&self) -> &'static str {
@@ -423,10 +432,12 @@ impl LintRule for FidelityValidRule {
     }
 
     fn apply(&self, graph: &Graph) -> Vec<Diagnostic> {
+        use crate::context::keys::Fidelity;
+
         let mut diagnostics = Vec::new();
         for node in graph.nodes.values() {
             if let Some(fidelity) = node.fidelity() {
-                if !VALID_FIDELITY_MODES.contains(&fidelity) {
+                if fidelity.parse::<Fidelity>().is_err() {
                     diagnostics.push(Diagnostic {
                         rule: self.name().to_string(),
                         severity: Severity::Warning,
@@ -436,14 +447,14 @@ impl LintRule for FidelityValidRule {
                         ),
                         node_id: Some(node.id.clone()),
                         edge: None,
-                        fix: Some(format!("Use one of: {}", VALID_FIDELITY_MODES.join(", "))),
+                        fix: Some(Self::fix_message()),
                     });
                 }
             }
         }
         for edge in &graph.edges {
             if let Some(fidelity) = edge.fidelity() {
-                if !VALID_FIDELITY_MODES.contains(&fidelity) {
+                if fidelity.parse::<Fidelity>().is_err() {
                     diagnostics.push(Diagnostic {
                         rule: self.name().to_string(),
                         severity: Severity::Warning,
@@ -453,20 +464,20 @@ impl LintRule for FidelityValidRule {
                         ),
                         node_id: None,
                         edge: Some((edge.from.clone(), edge.to.clone())),
-                        fix: Some(format!("Use one of: {}", VALID_FIDELITY_MODES.join(", "))),
+                        fix: Some(Self::fix_message()),
                     });
                 }
             }
         }
         if let Some(fidelity) = graph.default_fidelity() {
-            if !VALID_FIDELITY_MODES.contains(&fidelity) {
+            if fidelity.parse::<Fidelity>().is_err() {
                 diagnostics.push(Diagnostic {
                     rule: self.name().to_string(),
                     severity: Severity::Warning,
                     message: format!("Graph has invalid default_fidelity '{fidelity}'"),
                     node_id: None,
                     edge: None,
-                    fix: Some(format!("Use one of: {}", VALID_FIDELITY_MODES.join(", "))),
+                    fix: Some(Self::fix_message()),
                 });
             }
         }

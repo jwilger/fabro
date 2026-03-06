@@ -217,21 +217,25 @@ fn build_retry_policy(node: &Node, graph: &Graph) -> RetryPolicy {
 /// 1. Incoming edge `fidelity` attribute
 /// 2. Target node `fidelity` attribute
 /// 3. Graph `default_fidelity` attribute
-/// 4. Default: "compact"
+/// 4. Default: Compact
 #[must_use]
-pub fn resolve_fidelity(incoming_edge: Option<&Edge>, node: &Node, graph: &Graph) -> String {
+pub fn resolve_fidelity(
+    incoming_edge: Option<&Edge>,
+    node: &Node,
+    graph: &Graph,
+) -> context::keys::Fidelity {
     if let Some(edge) = incoming_edge {
-        if let Some(f) = edge.fidelity() {
-            return f.to_string();
+        if let Some(f) = edge.fidelity().and_then(|s| s.parse().ok()) {
+            return f;
         }
     }
-    if let Some(f) = node.fidelity() {
-        return f.to_string();
+    if let Some(f) = node.fidelity().and_then(|s| s.parse().ok()) {
+        return f;
     }
-    if let Some(f) = graph.default_fidelity() {
-        return f.to_string();
+    if let Some(f) = graph.default_fidelity().and_then(|s| s.parse().ok()) {
+        return f;
     }
-    "compact".to_string()
+    context::keys::Fidelity::default()
 }
 
 // --- Thread ID resolution (spec 5.4) ---
@@ -1208,7 +1212,9 @@ impl WorkflowRunEngine {
                 }
             }
             // Gap #6: Check if the checkpointed node used full fidelity
-            if cp.context_values.get(context::keys::INTERNAL_FIDELITY) == Some(&serde_json::json!("full")) {
+            if cp.context_values.get(context::keys::INTERNAL_FIDELITY)
+                == Some(&serde_json::json!(context::keys::Fidelity::Full.to_string()))
+            {
                 degrade_fidelity_on_resume = true;
             }
         } else if let Some(start) = start_at {
@@ -1378,19 +1384,22 @@ impl WorkflowRunEngine {
             // Resolve fidelity (spec 5.4) and store in context
             let mut fidelity = resolve_fidelity(incoming_edge, node, graph);
             // Gap #6: On the first node after resume, degrade full -> summary:high
-            if degrade_fidelity_on_resume && fidelity == "full" {
-                fidelity = "summary:high".to_string();
+            if degrade_fidelity_on_resume {
+                fidelity = fidelity.degraded();
             }
             degrade_fidelity_on_resume = false;
-            context.set(context::keys::INTERNAL_FIDELITY, serde_json::json!(&fidelity));
+            context.set(
+                context::keys::INTERNAL_FIDELITY,
+                serde_json::json!(fidelity.to_string()),
+            );
 
             // Preamble injection at execution time (spec 5.4 / 8.3): synthesize a
             // fidelity-appropriate preamble from runtime data for handlers to read
-            if fidelity == "full" {
+            if fidelity == context::keys::Fidelity::Full {
                 context.set(context::keys::CURRENT_PREAMBLE, serde_json::json!(""));
             } else {
                 let preamble =
-                    build_preamble(&fidelity, &context, graph, &completed_nodes, &node_outcomes);
+                    build_preamble(fidelity, &context, graph, &completed_nodes, &node_outcomes);
                 context.set(context::keys::CURRENT_PREAMBLE, serde_json::json!(preamble));
             }
 
@@ -2859,24 +2868,27 @@ mod tests {
 
     #[test]
     fn fidelity_defaults_to_compact() {
+        use crate::context::keys::Fidelity;
         let node = Node::new("work");
         let graph = Graph::new("test");
-        assert_eq!(resolve_fidelity(None, &node, &graph), "compact");
+        assert_eq!(resolve_fidelity(None, &node, &graph), Fidelity::Compact);
     }
 
     #[test]
     fn fidelity_from_graph_default() {
+        use crate::context::keys::Fidelity;
         let node = Node::new("work");
         let mut graph = Graph::new("test");
         graph.attrs.insert(
             "default_fidelity".to_string(),
             AttrValue::String("truncate".to_string()),
         );
-        assert_eq!(resolve_fidelity(None, &node, &graph), "truncate");
+        assert_eq!(resolve_fidelity(None, &node, &graph), Fidelity::Truncate);
     }
 
     #[test]
     fn fidelity_from_node_overrides_graph() {
+        use crate::context::keys::Fidelity;
         let mut node = Node::new("work");
         node.attrs.insert(
             "fidelity".to_string(),
@@ -2887,11 +2899,12 @@ mod tests {
             "default_fidelity".to_string(),
             AttrValue::String("truncate".to_string()),
         );
-        assert_eq!(resolve_fidelity(None, &node, &graph), "full");
+        assert_eq!(resolve_fidelity(None, &node, &graph), Fidelity::Full);
     }
 
     #[test]
     fn fidelity_from_edge_overrides_node() {
+        use crate::context::keys::Fidelity;
         let mut node = Node::new("work");
         node.attrs.insert(
             "fidelity".to_string(),
@@ -2903,7 +2916,10 @@ mod tests {
             AttrValue::String("summary:high".to_string()),
         );
         let graph = Graph::new("test");
-        assert_eq!(resolve_fidelity(Some(&edge), &node, &graph), "summary:high");
+        assert_eq!(
+            resolve_fidelity(Some(&edge), &node, &graph),
+            Fidelity::SummaryHigh
+        );
     }
 
     // --- manifest.json and node status tests ---

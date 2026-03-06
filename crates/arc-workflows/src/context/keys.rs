@@ -3,6 +3,9 @@
 /// All context keys used across the engine, handlers, and preamble are
 /// defined here to prevent typos and improve discoverability.
 
+use std::fmt;
+use std::str::FromStr;
+
 // --- Top-level keys ---
 pub const CURRENT_NODE: &str = "current_node";
 pub const OUTCOME: &str = "outcome";
@@ -71,6 +74,70 @@ pub fn retry_count_key(node_id: &str) -> String {
     format!("{INTERNAL_RETRY_COUNT_PREFIX}{node_id}")
 }
 
+/// Fidelity mode controlling how much prior context is provided to LLM sessions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fidelity {
+    /// Complete context, no summarization — sessions share a thread.
+    Full,
+    /// Minimal: only graph goal and run ID.
+    Truncate,
+    /// Structured nested-bullet summary (default).
+    Compact,
+    /// Brief textual summary (~600 token target).
+    SummaryLow,
+    /// Moderate textual summary (~1500 token target).
+    SummaryMedium,
+    /// Detailed per-stage Markdown report.
+    SummaryHigh,
+}
+
+impl Fidelity {
+    /// Degrade full fidelity to summary:high (used on checkpoint resume).
+    #[must_use]
+    pub fn degraded(self) -> Self {
+        match self {
+            Self::Full => Self::SummaryHigh,
+            other => other,
+        }
+    }
+}
+
+impl Default for Fidelity {
+    fn default() -> Self {
+        Self::Compact
+    }
+}
+
+impl fmt::Display for Fidelity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Full => "full",
+            Self::Truncate => "truncate",
+            Self::Compact => "compact",
+            Self::SummaryLow => "summary:low",
+            Self::SummaryMedium => "summary:medium",
+            Self::SummaryHigh => "summary:high",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl FromStr for Fidelity {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "full" => Ok(Self::Full),
+            "truncate" => Ok(Self::Truncate),
+            "compact" => Ok(Self::Compact),
+            "summary:low" => Ok(Self::SummaryLow),
+            "summary:medium" => Ok(Self::SummaryMedium),
+            "summary:high" => Ok(Self::SummaryHigh),
+            other => Err(format!("unknown fidelity mode: {other}")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,5 +163,43 @@ mod tests {
     #[test]
     fn retry_count_key_formats_correctly() {
         assert_eq!(retry_count_key("plan"), "internal.retry_count.plan");
+    }
+
+    #[test]
+    fn fidelity_display_roundtrips() {
+        let modes = [
+            Fidelity::Full,
+            Fidelity::Truncate,
+            Fidelity::Compact,
+            Fidelity::SummaryLow,
+            Fidelity::SummaryMedium,
+            Fidelity::SummaryHigh,
+        ];
+        for mode in modes {
+            let s = mode.to_string();
+            let parsed: Fidelity = s.parse().unwrap();
+            assert_eq!(parsed, mode);
+        }
+    }
+
+    #[test]
+    fn fidelity_default_is_compact() {
+        assert_eq!(Fidelity::default(), Fidelity::Compact);
+    }
+
+    #[test]
+    fn fidelity_degraded_full_becomes_summary_high() {
+        assert_eq!(Fidelity::Full.degraded(), Fidelity::SummaryHigh);
+    }
+
+    #[test]
+    fn fidelity_degraded_non_full_unchanged() {
+        assert_eq!(Fidelity::Compact.degraded(), Fidelity::Compact);
+        assert_eq!(Fidelity::SummaryHigh.degraded(), Fidelity::SummaryHigh);
+    }
+
+    #[test]
+    fn fidelity_unknown_mode_errors() {
+        assert!("bogus".parse::<Fidelity>().is_err());
     }
 }

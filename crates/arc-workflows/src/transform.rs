@@ -28,15 +28,23 @@ impl Transform for VariableExpansionTransform {
     }
 }
 
-/// For nodes whose fidelity is not "full", prepend a context mode preamble to the prompt.
+/// For nodes whose fidelity is not `Full`, prepend a context mode preamble to the prompt.
 pub struct PreambleTransform;
 
 impl Transform for PreambleTransform {
     fn apply(&self, graph: &mut Graph) {
-        let default_fidelity = graph.default_fidelity().unwrap_or("full").to_string();
+        use crate::context::keys::Fidelity;
+
+        let default_fidelity = graph
+            .default_fidelity()
+            .and_then(|s| s.parse::<Fidelity>().ok())
+            .unwrap_or(Fidelity::Full);
         for node in graph.nodes.values_mut() {
-            let fidelity = node.fidelity().unwrap_or(&default_fidelity).to_string();
-            if fidelity == "full" {
+            let fidelity = node
+                .fidelity()
+                .and_then(|s| s.parse::<Fidelity>().ok())
+                .unwrap_or(default_fidelity);
+            if fidelity == Fidelity::Full {
                 continue;
             }
             let preamble = format!("[Context mode: {fidelity}]\n");

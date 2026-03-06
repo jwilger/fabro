@@ -10,28 +10,34 @@ use crate::outcome::Outcome;
 ///
 /// The preamble provides prior conversation context to the next LLM session,
 /// tailored by the fidelity mode:
-/// - `truncate`: Only graph goal and run ID
-/// - `compact`: Nested-bullet summary with handler-specific sub-items
-/// - `summary:low`: Brief textual summary (~600 token target)
-/// - `summary:medium`: Moderate detail (~1500 token target)
-/// - `summary:high`: Detailed per-stage Markdown report
+/// - `Truncate`: Only graph goal and run ID
+/// - `Compact`: Nested-bullet summary with handler-specific sub-items
+/// - `SummaryLow`: Brief textual summary (~600 token target)
+/// - `SummaryMedium`: Moderate detail (~1500 token target)
+/// - `SummaryHigh`: Detailed per-stage Markdown report
+/// - `Full`: Returns empty string (full-fidelity nodes share a thread)
 #[must_use]
 pub fn build_preamble(
-    fidelity: &str,
+    fidelity: keys::Fidelity,
     context: &Context,
     graph: &Graph,
     completed_nodes: &[String],
     node_outcomes: &HashMap<String, Outcome>,
 ) -> String {
+    use keys::Fidelity;
+
     let goal = graph.goal();
     let run_id = context.run_id();
 
     match fidelity {
-        "truncate" => {
+        Fidelity::Full => String::new(),
+        Fidelity::Truncate => {
             format!("Goal: {goal}\nRun ID: {run_id}\n")
         }
-        "compact" => build_compact_preamble(goal, completed_nodes, node_outcomes, context, graph),
-        "summary:low" => build_summary_preamble(
+        Fidelity::Compact => {
+            build_compact_preamble(goal, completed_nodes, node_outcomes, context, graph)
+        }
+        Fidelity::SummaryLow => build_summary_preamble(
             goal,
             &run_id,
             completed_nodes,
@@ -40,7 +46,7 @@ pub fn build_preamble(
             graph,
             SummaryDetail::Low,
         ),
-        "summary:medium" => build_summary_preamble(
+        Fidelity::SummaryMedium => build_summary_preamble(
             goal,
             &run_id,
             completed_nodes,
@@ -49,7 +55,7 @@ pub fn build_preamble(
             graph,
             SummaryDetail::Medium,
         ),
-        "summary:high" => build_summary_preamble(
+        Fidelity::SummaryHigh => build_summary_preamble(
             goal,
             &run_id,
             completed_nodes,
@@ -58,10 +64,6 @@ pub fn build_preamble(
             graph,
             SummaryDetail::High,
         ),
-        _ => {
-            // Unknown fidelity mode: fall back to compact
-            build_compact_preamble(goal, completed_nodes, node_outcomes, context, graph)
-        }
     }
 }
 
@@ -538,7 +540,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "truncate",
+            keys::Fidelity::Truncate,
             &context,
             &graph,
             &completed_nodes,
@@ -570,7 +572,7 @@ mod tests {
         node_outcomes.insert("code".to_string(), Outcome::success());
 
         let preamble = build_preamble(
-            "truncate",
+            keys::Fidelity::Truncate,
             &context,
             &graph,
             &completed_nodes,
@@ -607,7 +609,7 @@ mod tests {
         );
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -644,7 +646,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -680,7 +682,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -742,7 +744,7 @@ mod tests {
         node_outcomes.insert("work".to_string(), outcome);
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -787,7 +789,7 @@ mod tests {
         node_outcomes.insert("run_tests".to_string(), outcome);
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -832,7 +834,7 @@ mod tests {
         node_outcomes.insert("report".to_string(), outcome);
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -866,7 +868,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -925,7 +927,7 @@ mod tests {
         node_outcomes.insert("step".to_string(), outcome);
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
@@ -958,7 +960,7 @@ mod tests {
         node_outcomes.insert("test".to_string(), Outcome::fail_classify("test failure"));
 
         let preamble = build_preamble(
-            "summary:low",
+            keys::Fidelity::SummaryLow,
             &context,
             &graph,
             &completed_nodes,
@@ -996,7 +998,7 @@ mod tests {
         node_outcomes.insert("step4".to_string(), Outcome::fail_classify("error"));
 
         let preamble = build_preamble(
-            "summary:low",
+            keys::Fidelity::SummaryLow,
             &context,
             &graph,
             &completed_nodes,
@@ -1044,7 +1046,7 @@ mod tests {
         node_outcomes.insert("run_tests".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:low",
+            keys::Fidelity::SummaryLow,
             &context,
             &graph,
             &completed_nodes,
@@ -1091,7 +1093,7 @@ mod tests {
         node_outcomes.insert("report".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:low",
+            keys::Fidelity::SummaryLow,
             &context,
             &graph,
             &completed_nodes,
@@ -1117,7 +1119,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "summary:low",
+            keys::Fidelity::SummaryLow,
             &context,
             &graph,
             &completed_nodes,
@@ -1155,7 +1157,7 @@ mod tests {
         node_outcomes.insert("s7".to_string(), Outcome::success());
 
         let preamble = build_preamble(
-            "summary:medium",
+            keys::Fidelity::SummaryMedium,
             &context,
             &graph,
             &completed_nodes,
@@ -1182,7 +1184,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "summary:medium",
+            keys::Fidelity::SummaryMedium,
             &context,
             &graph,
             &completed_nodes,
@@ -1224,7 +1226,7 @@ mod tests {
         node_outcomes.insert("run_tests".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:medium",
+            keys::Fidelity::SummaryMedium,
             &context,
             &graph,
             &completed_nodes,
@@ -1271,7 +1273,7 @@ mod tests {
         node_outcomes.insert("report".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:medium",
+            keys::Fidelity::SummaryMedium,
             &context,
             &graph,
             &completed_nodes,
@@ -1308,7 +1310,7 @@ mod tests {
         node_outcomes.insert("s6".to_string(), Outcome::success());
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1339,7 +1341,7 @@ mod tests {
         );
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1362,7 +1364,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1392,7 +1394,7 @@ mod tests {
         node_outcomes.insert("work".to_string(), Outcome::success());
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1438,7 +1440,7 @@ mod tests {
         node_outcomes.insert("run_tests".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1494,7 +1496,7 @@ mod tests {
         node_outcomes.insert("report".to_string(), outcome);
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1534,7 +1536,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1575,7 +1577,7 @@ mod tests {
         node_outcomes.insert("work".to_string(), Outcome::success());
 
         let preamble = build_preamble(
-            "summary:high",
+            keys::Fidelity::SummaryHigh,
             &context,
             &graph,
             &completed_nodes,
@@ -1623,39 +1625,6 @@ mod tests {
         assert!(!is_context_key_excluded(keys::COMMAND_OUTPUT));
     }
 
-    // --- unknown fidelity mode ---
-
-    #[test]
-    fn build_preamble_unknown_mode_falls_back_to_compact() {
-        let mut graph = Graph::new("test");
-        graph.attrs.insert(
-            "goal".to_string(),
-            AttrValue::String("Test fallback".to_string()),
-        );
-        let context = Context::new();
-        let completed_nodes = vec!["step1".to_string()];
-        let mut node_outcomes: HashMap<String, Outcome> = HashMap::new();
-        node_outcomes.insert("step1".to_string(), Outcome::success());
-
-        let preamble = build_preamble(
-            "unknown_mode",
-            &context,
-            &graph,
-            &completed_nodes,
-            &node_outcomes,
-        );
-
-        // Should behave like compact: include goal and stages
-        assert!(
-            preamble.contains("Test fallback"),
-            "should contain the goal"
-        );
-        assert!(
-            preamble.contains("step1"),
-            "should list completed stages like compact"
-        );
-    }
-
     // --- empty state ---
 
     #[test]
@@ -1666,7 +1635,7 @@ mod tests {
         let node_outcomes: HashMap<String, Outcome> = HashMap::new();
 
         let preamble = build_preamble(
-            "compact",
+            keys::Fidelity::Compact,
             &context,
             &graph,
             &completed_nodes,
