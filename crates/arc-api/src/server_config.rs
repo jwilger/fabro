@@ -2,10 +2,10 @@ use std::path::{Path, PathBuf};
 
 use arc_workflows::cli::run_config::RunDefaults;
 use arc_workflows::hook::HookConfig;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthProvider {
     #[default]
@@ -13,7 +13,7 @@ pub enum AuthProvider {
     InsecureDisabled,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 pub struct AuthConfig {
     #[serde(default)]
     pub provider: AuthProvider,
@@ -21,21 +21,21 @@ pub struct AuthConfig {
     pub allowed_usernames: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiAuthStrategy {
     Jwt,
     Mtls,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct TlsConfig {
     pub cert: PathBuf,
     pub key: PathBuf,
     pub ca: PathBuf,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct ApiConfig {
     #[serde(default = "default_base_url")]
     pub base_url: String,
@@ -58,14 +58,14 @@ impl Default for ApiConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GitProvider {
     #[default]
     Github,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 pub struct GitConfig {
     #[serde(default)]
     pub provider: GitProvider,
@@ -73,7 +73,7 @@ pub struct GitConfig {
     pub client_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct WebConfig {
     #[serde(default = "default_web_url")]
     pub url: String,
@@ -94,13 +94,13 @@ impl Default for WebConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 pub struct FeatureFlags {
     #[serde(default)]
     pub session_sandboxes: bool,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct ServerConfig {
     pub data_dir: Option<PathBuf>,
     pub max_concurrent_runs: Option<usize>,

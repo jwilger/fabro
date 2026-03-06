@@ -1,7 +1,7 @@
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { Link, Outlet, useLocation, useParams } from "react-router";
 import { apiJson } from "../api-client";
-import type { WorkflowDetail as ApiWorkflowDetail } from "@qltysh/arc-api-client";
+import type { WorkflowDetail as ApiWorkflowDetail, RunConfiguration } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/workflow-detail";
 
 export interface WorkflowEntry {
@@ -9,7 +9,7 @@ export interface WorkflowEntry {
   slug: string;
   description: string;
   filename: string;
-  config: string;
+  config: RunConfiguration;
   graph: string;
 }
 
@@ -21,32 +21,21 @@ export const workflowData: Record<string, WorkflowEntry> = {
     slug: "fix_build",
     filename: "fix_build.dot",
     description: "Automatically diagnoses and fixes CI build failures by analyzing error logs, identifying root causes, and applying targeted code changes.",
-    config: `version = 1
-task = "Diagnose and fix CI build failures"
-graph = "fix_build.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-repo_url = "https://github.com/org/service"
-branch = "main"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 60
-
-[execution.daytona.sandbox.labels]
-project = "fix-build"
-
-[execution.daytona.snapshot]
-name = "fix-build-dev"
-cpu = 4
-memory = 8
-disk = 10
-`,
+    config: {
+      version: 1,
+      goal: "Diagnose and fix CI build failures",
+      graph: "fix_build.dot",
+      llm: { model: "claude-sonnet" },
+      vars: { repo_url: "https://github.com/org/service", branch: "main" },
+      sandbox: {
+        provider: "daytona",
+        daytona: {
+          auto_stop_interval: 60,
+          labels: { project: "fix-build" },
+          snapshot: { name: "fix-build-dev", cpu: 4, memory: 8, disk: 10 },
+        },
+      },
+    },
     graph: `digraph fix_build {
     graph [
         goal="Diagnose and fix CI build failures",
@@ -73,37 +62,22 @@ disk = 10
     slug: "implement",
     filename: "implement.dot",
     description: "Generates production-ready code from a technical blueprint, including tests, documentation, and a pull request ready for review.",
-    config: `version = 1
-task = "Implement feature from technical blueprint"
-graph = "implement.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-spec_path = "specs/feature.md"
-test_framework = "vitest"
-
-[setup]
-commands = ["bun install", "bun run typecheck"]
-timeout_ms = 120000
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 120
-
-[execution.daytona.sandbox.labels]
-project = "implement"
-team = "engineering"
-
-[execution.daytona.snapshot]
-name = "implement-dev"
-cpu = 4
-memory = 8
-disk = 20
-`,
+    config: {
+      version: 1,
+      goal: "Implement feature from technical blueprint",
+      graph: "implement.dot",
+      llm: { model: "claude-sonnet" },
+      vars: { spec_path: "specs/feature.md", test_framework: "vitest" },
+      setup: { commands: ["bun install", "bun run typecheck"], timeout_ms: 120000 },
+      sandbox: {
+        provider: "daytona",
+        daytona: {
+          auto_stop_interval: 120,
+          labels: { project: "implement", team: "engineering" },
+          snapshot: { name: "implement-dev", cpu: 4, memory: 8, disk: 20 },
+        },
+      },
+    },
     graph: `digraph implement {
     graph [
         goal="",
@@ -144,43 +118,21 @@ disk = 20
     slug: "sync_drift",
     filename: "sync_drift.dot",
     description: "Detects configuration and code drift between environments, then generates reconciliation patches to bring everything back in sync.",
-    config: `version = 1
-task = "Detect and reconcile configuration drift across environments"
-graph = "sync_drift.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-source_env = "production"
-target_env = "staging"
-drift_threshold = "warn"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 120
-
-[execution.daytona.sandbox.labels]
-project = "sync-drift"
-team = "platform"
-
-[execution.daytona.snapshot]
-name = "sync-drift-dev"
-cpu = 2
-memory = 4
-disk = 10
-dockerfile = """
-FROM ubuntu:24.04
-RUN apt-get update && apt-get install -y --no-install-recommends \\
-        git curl ca-certificates jq diffutils \\
-    && rm -rf /var/lib/apt/lists/*
-RUN useradd -m -s /bin/bash daytona
-USER daytona
-WORKDIR /home/daytona
-"""
-`,
+    config: {
+      version: 1,
+      goal: "Detect and reconcile configuration drift across environments",
+      graph: "sync_drift.dot",
+      llm: { model: "claude-sonnet" },
+      vars: { source_env: "production", target_env: "staging", drift_threshold: "warn" },
+      sandbox: {
+        provider: "daytona",
+        daytona: {
+          auto_stop_interval: 120,
+          labels: { project: "sync-drift", team: "platform" },
+          snapshot: { name: "sync-drift-dev", cpu: 2, memory: 4, disk: 10 },
+        },
+      },
+    },
     graph: `digraph sync {
     graph [
         goal="Detect and resolve drift between product docs, architecture docs, and code",
@@ -211,33 +163,21 @@ WORKDIR /home/daytona
     slug: "expand",
     filename: "expand.dot",
     description: "Evolves the product by analyzing usage patterns and specifications to propose and implement incremental improvements.",
-    config: `version = 1
-task = "Propose and implement incremental product improvements"
-graph = "expand.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-analytics_window = "30d"
-min_confidence = "0.8"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 180
-
-[execution.daytona.sandbox.labels]
-project = "expand"
-team = "product"
-
-[execution.daytona.snapshot]
-name = "expand-dev"
-cpu = 2
-memory = 4
-disk = 10
-`,
+    config: {
+      version: 1,
+      goal: "Propose and implement incremental product improvements",
+      graph: "expand.dot",
+      llm: { model: "claude-sonnet" },
+      vars: { analytics_window: "30d", min_confidence: "0.8" },
+      sandbox: {
+        provider: "daytona",
+        daytona: {
+          auto_stop_interval: 180,
+          labels: { project: "expand", team: "product" },
+          snapshot: { name: "expand-dev", cpu: 2, memory: 4, disk: 10 },
+        },
+      },
+    },
     graph: `digraph expand {
     graph [
         goal="",

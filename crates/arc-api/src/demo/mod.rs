@@ -102,12 +102,7 @@ pub async fn get_run_configuration(
     State(_state): State<Arc<AppState>>,
     Path(_id): Path<String>,
 ) -> Response {
-    (
-        StatusCode::OK,
-        [("content-type", "text/plain")],
-        runs::configuration(),
-    )
-        .into_response()
+    (StatusCode::OK, Json(runs::configuration())).into_response()
 }
 
 pub async fn steer_run_stub(
@@ -651,11 +646,11 @@ pub async fn list_query_history(
 
 // ── Settings ───────────────────────────────────────────────────────────
 
-pub async fn get_settings(
+pub async fn get_server_configuration(
     _auth: AuthenticatedService,
     State(_state): State<Arc<AppState>>,
 ) -> Response {
-    (StatusCode::OK, Json(settings::groups())).into_response()
+    (StatusCode::OK, Json(settings::server_config())).into_response()
 }
 
 // ── Projects ───────────────────────────────────────────────────────────
@@ -1050,23 +1045,46 @@ mod runs {
         ]
     }
 
-    pub fn configuration() -> String {
-        r#"version = 1
-
-[task]
-goal = "Add rate limiting to auth endpoints"
-repo = "api-server"
-branch = "feature/rate-limiting"
-
-[agent]
-model = "claude-opus-4-6"
-max_retries = 3
-
-[verification]
-enabled = true
-categories = ["traceability", "readability", "reliability", "coverage"]
-"#
-        .to_string()
+    pub fn configuration() -> serde_json::Value {
+        serde_json::to_value(arc_workflows::cli::run_config::WorkflowRunConfig {
+            version: 1,
+            goal: "Add rate limiting to auth endpoints".into(),
+            graph: "implement.dot".into(),
+            directory: Some("/workspace/api-server".into()),
+            llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                model: Some("claude-opus-4-6".into()),
+                provider: Some("anthropic".into()),
+                fallbacks: None,
+            }),
+            setup: Some(arc_workflows::cli::run_config::SetupConfig {
+                commands: vec!["bun install".into(), "bun run typecheck".into()],
+                timeout_ms: Some(120_000),
+            }),
+            sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                provider: Some("daytona".into()),
+                preserve: None,
+                daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                    auto_stop_interval: Some(60),
+                    labels: Some(std::collections::HashMap::from([
+                        ("project".into(), "api-server".into()),
+                    ])),
+                    snapshot: Some(arc_workflows::daytona_sandbox::DaytonaSnapshotConfig {
+                        name: "api-server-dev".into(),
+                        cpu: Some(4),
+                        memory: Some(8),
+                        disk: Some(10),
+                        dockerfile: None,
+                    }),
+                    network: Some(arc_workflows::daytona_sandbox::DaytonaNetwork::Block),
+                }),
+            }),
+            vars: Some(std::collections::HashMap::from([
+                ("repo_url".into(), "https://github.com/org/api-server".into()),
+                ("branch".into(), "feature/rate-limiting".into()),
+            ])),
+            hooks: vec![],
+        })
+        .unwrap()
     }
 }
 
@@ -1140,37 +1158,50 @@ mod workflows {
         ]
     }
 
+    fn run_config_to_api(cfg: arc_workflows::cli::run_config::WorkflowRunConfig) -> RunConfiguration {
+        serde_json::from_value(serde_json::to_value(cfg).unwrap()).unwrap()
+    }
+
     pub fn detail(name: &str) -> Option<WorkflowDetail> {
         let items = [
             WorkflowDetail {
                 title: "Fix Build".into(), slug: "fix_build".into(), filename: "fix_build.dot".into(),
                 description: "Automatically diagnoses and fixes CI build failures by analyzing error logs, identifying root causes, and applying targeted code changes.".into(),
-                config: r#"version = 1
-goal = "Diagnose and fix CI build failures"
-graph = "fix_build.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-repo_url = "https://github.com/org/service"
-branch = "main"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 60
-
-[execution.daytona.sandbox.labels]
-project = "fix-build"
-
-[execution.daytona.snapshot]
-name = "fix-build-dev"
-cpu = 4
-memory = 8
-disk = 10
-"#.into(),
+                config: run_config_to_api(arc_workflows::cli::run_config::WorkflowRunConfig {
+                    version: 1,
+                    goal: "Diagnose and fix CI build failures".into(),
+                    graph: "fix_build.dot".into(),
+                    directory: None,
+                    llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                        model: Some("claude-sonnet".into()),
+                        provider: None,
+                        fallbacks: None,
+                    }),
+                    setup: None,
+                    sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                        provider: Some("daytona".into()),
+                        preserve: None,
+                        daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                            auto_stop_interval: Some(60),
+                            labels: Some(std::collections::HashMap::from([
+                                ("project".into(), "fix-build".into()),
+                            ])),
+                            snapshot: Some(arc_workflows::daytona_sandbox::DaytonaSnapshotConfig {
+                                name: "fix-build-dev".into(),
+                                cpu: Some(4),
+                                memory: Some(8),
+                                disk: Some(10),
+                                dockerfile: None,
+                            }),
+                            network: None,
+                        }),
+                    }),
+                    vars: Some(std::collections::HashMap::from([
+                        ("repo_url".into(), "https://github.com/org/service".into()),
+                        ("branch".into(), "main".into()),
+                    ])),
+                    hooks: vec![],
+                }),
                 graph: r#"digraph fix_build {
     graph [
         goal="Diagnose and fix CI build failures",
@@ -1195,37 +1226,45 @@ disk = 10
             WorkflowDetail {
                 title: "Implement Feature".into(), slug: "implement".into(), filename: "implement.dot".into(),
                 description: "Generates production-ready code from a technical blueprint, including tests, documentation, and a pull request ready for review.".into(),
-                config: r#"version = 1
-goal = "Implement feature from technical blueprint"
-graph = "implement.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-spec_path = "specs/feature.md"
-test_framework = "vitest"
-
-[setup]
-commands = ["bun install", "bun run typecheck"]
-timeout_ms = 120000
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 120
-
-[execution.daytona.sandbox.labels]
-project = "implement"
-team = "engineering"
-
-[execution.daytona.snapshot]
-name = "implement-dev"
-cpu = 4
-memory = 8
-disk = 20
-"#.into(),
+                config: run_config_to_api(arc_workflows::cli::run_config::WorkflowRunConfig {
+                    version: 1,
+                    goal: "Implement feature from technical blueprint".into(),
+                    graph: "implement.dot".into(),
+                    directory: None,
+                    llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                        model: Some("claude-sonnet".into()),
+                        provider: None,
+                        fallbacks: None,
+                    }),
+                    setup: Some(arc_workflows::cli::run_config::SetupConfig {
+                        commands: vec!["bun install".into(), "bun run typecheck".into()],
+                        timeout_ms: Some(120_000),
+                    }),
+                    sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                        provider: Some("daytona".into()),
+                        preserve: None,
+                        daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                            auto_stop_interval: Some(120),
+                            labels: Some(std::collections::HashMap::from([
+                                ("project".into(), "implement".into()),
+                                ("team".into(), "engineering".into()),
+                            ])),
+                            snapshot: Some(arc_workflows::daytona_sandbox::DaytonaSnapshotConfig {
+                                name: "implement-dev".into(),
+                                cpu: Some(4),
+                                memory: Some(8),
+                                disk: Some(20),
+                                dockerfile: None,
+                            }),
+                            network: None,
+                        }),
+                    }),
+                    vars: Some(std::collections::HashMap::from([
+                        ("spec_path".into(), "specs/feature.md".into()),
+                        ("test_framework".into(), "vitest".into()),
+                    ])),
+                    hooks: vec![],
+                }),
                 graph: r#"digraph implement {
     graph [
         goal="",
@@ -1264,34 +1303,43 @@ disk = 20
             WorkflowDetail {
                 title: "Sync Drift".into(), slug: "sync_drift".into(), filename: "sync_drift.dot".into(),
                 description: "Detects configuration and code drift between environments, then generates reconciliation patches to bring everything back in sync.".into(),
-                config: r#"version = 1
-goal = "Detect and reconcile configuration drift across environments"
-graph = "sync_drift.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-source_env = "production"
-target_env = "staging"
-drift_threshold = "warn"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 120
-
-[execution.daytona.sandbox.labels]
-project = "sync-drift"
-team = "platform"
-
-[execution.daytona.snapshot]
-name = "sync-drift-dev"
-cpu = 2
-memory = 4
-disk = 10
-"#.into(),
+                config: run_config_to_api(arc_workflows::cli::run_config::WorkflowRunConfig {
+                    version: 1,
+                    goal: "Detect and reconcile configuration drift across environments".into(),
+                    graph: "sync_drift.dot".into(),
+                    directory: None,
+                    llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                        model: Some("claude-sonnet".into()),
+                        provider: None,
+                        fallbacks: None,
+                    }),
+                    setup: None,
+                    sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                        provider: Some("daytona".into()),
+                        preserve: None,
+                        daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                            auto_stop_interval: Some(120),
+                            labels: Some(std::collections::HashMap::from([
+                                ("project".into(), "sync-drift".into()),
+                                ("team".into(), "platform".into()),
+                            ])),
+                            snapshot: Some(arc_workflows::daytona_sandbox::DaytonaSnapshotConfig {
+                                name: "sync-drift-dev".into(),
+                                cpu: Some(2),
+                                memory: Some(4),
+                                disk: Some(10),
+                                dockerfile: None,
+                            }),
+                            network: None,
+                        }),
+                    }),
+                    vars: Some(std::collections::HashMap::from([
+                        ("source_env".into(), "production".into()),
+                        ("target_env".into(), "staging".into()),
+                        ("drift_threshold".into(), "warn".into()),
+                    ])),
+                    hooks: vec![],
+                }),
                 graph: r#"digraph sync {
     graph [
         goal="Detect and resolve drift between product docs, architecture docs, and code",
@@ -1320,33 +1368,42 @@ disk = 10
             WorkflowDetail {
                 title: "Expand Product".into(), slug: "expand".into(), filename: "expand.dot".into(),
                 description: "Evolves the product by analyzing usage patterns and specifications to propose and implement incremental improvements.".into(),
-                config: r#"version = 1
-goal = "Propose and implement incremental product improvements"
-graph = "expand.dot"
-
-[llm]
-model = "claude-sonnet"
-
-[vars]
-analytics_window = "30d"
-min_confidence = "0.8"
-
-[execution]
-environment = "daytona"
-
-[execution.daytona.sandbox]
-auto_stop_interval = 180
-
-[execution.daytona.sandbox.labels]
-project = "expand"
-team = "product"
-
-[execution.daytona.snapshot]
-name = "expand-dev"
-cpu = 2
-memory = 4
-disk = 10
-"#.into(),
+                config: run_config_to_api(arc_workflows::cli::run_config::WorkflowRunConfig {
+                    version: 1,
+                    goal: "Propose and implement incremental product improvements".into(),
+                    graph: "expand.dot".into(),
+                    directory: None,
+                    llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                        model: Some("claude-sonnet".into()),
+                        provider: None,
+                        fallbacks: None,
+                    }),
+                    setup: None,
+                    sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                        provider: Some("daytona".into()),
+                        preserve: None,
+                        daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                            auto_stop_interval: Some(180),
+                            labels: Some(std::collections::HashMap::from([
+                                ("project".into(), "expand".into()),
+                                ("team".into(), "product".into()),
+                            ])),
+                            snapshot: Some(arc_workflows::daytona_sandbox::DaytonaSnapshotConfig {
+                                name: "expand-dev".into(),
+                                cpu: Some(2),
+                                memory: Some(4),
+                                disk: Some(10),
+                                dockerfile: None,
+                            }),
+                            network: None,
+                        }),
+                    }),
+                    vars: Some(std::collections::HashMap::from([
+                        ("analytics_window".into(), "30d".into()),
+                        ("min_confidence".into(), "0.8".into()),
+                    ])),
+                    hooks: vec![],
+                }),
                 graph: r#"digraph expand {
     graph [
         goal="",
@@ -2446,261 +2503,57 @@ mod insights {
 }
 
 mod settings {
-    use arc_types::*;
+    use crate::server_config::*;
 
-    pub fn groups() -> Vec<SettingGroup> {
-        vec![
-            SettingGroup {
-                id: "general".into(),
-                name: "General".into(),
-                description: "Core platform settings and defaults.".into(),
-                fields: vec![
-                    SettingField {
-                        key: "org_name".into(),
-                        label: "Organization name".into(),
-                        value: "Acme Corp".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "default_branch".into(),
-                        label: "Default branch".into(),
-                        value: "main".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "timezone".into(),
-                        label: "Timezone".into(),
-                        value: "America/New_York".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec![
-                            "America/New_York".into(),
-                            "America/Chicago".into(),
-                            "America/Denver".into(),
-                            "America/Los_Angeles".into(),
-                            "UTC".into(),
-                            "Europe/London".into(),
-                            "Europe/Berlin".into(),
-                            "Asia/Tokyo".into(),
-                        ],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "auto_cancel".into(),
-                        label: "Auto-cancel superseded runs".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                ],
+    pub fn server_config() -> serde_json::Value {
+        serde_json::to_value(ServerConfig {
+            data_dir: Some("/home/arc/.arc".into()),
+            max_concurrent_runs: Some(10),
+            web: WebConfig {
+                url: "https://arc.example.com".into(),
+                auth: AuthConfig {
+                    provider: AuthProvider::Github,
+                    allowed_usernames: vec!["brynary".into(), "alice".into()],
+                },
             },
-            SettingGroup {
-                id: "git".into(),
-                name: "Git & VCS".into(),
-                description: "Version control integration and repository settings.".into(),
-                fields: vec![
-                    SettingField {
-                        key: "github_org".into(),
-                        label: "GitHub organization".into(),
-                        value: "acme-corp".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "clone_protocol".into(),
-                        label: "Clone protocol".into(),
-                        value: "SSH".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec!["SSH".into(), "HTTPS".into()],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "auto_merge".into(),
-                        label: "Auto-merge when checks pass".into(),
-                        value: "false".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "delete_branch".into(),
-                        label: "Delete branch after merge".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "commit_signing".into(),
-                        label: "Require commit signing".into(),
-                        value: "false".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                ],
+            api: ApiConfig {
+                base_url: "https://api.arc.example.com".into(),
+                authentication_strategies: vec![ApiAuthStrategy::Jwt],
+                tls: None,
             },
-            SettingGroup {
-                id: "compute".into(),
-                name: "Compute".into(),
-                description: "Resource allocation and execution environment.".into(),
-                fields: vec![
-                    SettingField {
-                        key: "default_cpu".into(),
-                        label: "Default CPU".into(),
-                        value: "4".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec!["2".into(), "4".into(), "8".into(), "16".into()],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "default_memory".into(),
-                        label: "Default memory".into(),
-                        value: "8 GB".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec!["4 GB".into(), "8 GB".into(), "16 GB".into(), "32 GB".into()],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "max_parallel".into(),
-                        label: "Max parallel runs".into(),
-                        value: "10".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "timeout_minutes".into(),
-                        label: "Run timeout (minutes)".into(),
-                        value: "120".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "gpu_enabled".into(),
-                        label: "GPU acceleration".into(),
-                        value: "false".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                ],
+            git: GitConfig {
+                provider: GitProvider::Github,
+                app_id: Some("12345".into()),
+                client_id: Some("Iv1.abc123".into()),
             },
-            SettingGroup {
-                id: "notifications".into(),
-                name: "Notifications".into(),
-                description: "Alerts and notification delivery preferences.".into(),
-                fields: vec![
-                    SettingField {
-                        key: "slack_webhook".into(),
-                        label: "Slack webhook URL".into(),
-                        value: "https://hooks.slack.com/services/T00/B00/xxxx".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "notify_on_failure".into(),
-                        label: "Notify on failure".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "notify_on_success".into(),
-                        label: "Notify on success".into(),
-                        value: "false".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "notify_on_approval".into(),
-                        label: "Notify on approval needed".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "email_digest".into(),
-                        label: "Daily email digest".into(),
-                        value: "false".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                ],
+            feature_flags: FeatureFlags {
+                session_sandboxes: false,
             },
-            SettingGroup {
-                id: "security".into(),
-                name: "Security".into(),
-                description: "Access control and security policies.".into(),
-                fields: vec![
-                    SettingField {
-                        key: "sso_provider".into(),
-                        label: "SSO provider".into(),
-                        value: "Okta".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec![
-                            "None".into(),
-                            "Okta".into(),
-                            "Azure AD".into(),
-                            "Google Workspace".into(),
-                            "OneLogin".into(),
-                        ],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "mfa_required".into(),
-                        label: "Require MFA".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "session_timeout".into(),
-                        label: "Session timeout".into(),
-                        value: "8 hours".into(),
-                        type_: SettingFieldType::Select,
-                        options: vec![
-                            "1 hour".into(),
-                            "4 hours".into(),
-                            "8 hours".into(),
-                            "24 hours".into(),
-                            "7 days".into(),
-                        ],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "audit_log".into(),
-                        label: "Audit logging".into(),
-                        value: "true".into(),
-                        type_: SettingFieldType::Toggle,
-                        options: vec![],
-                        description: None,
-                    },
-                    SettingField {
-                        key: "ip_allowlist".into(),
-                        label: "IP allowlist".into(),
-                        value: "".into(),
-                        type_: SettingFieldType::Text,
-                        options: vec![],
-                        description: Some(
-                            "Comma-separated CIDRs. Leave empty to allow all.".into(),
-                        ),
-                    },
-                ],
+            run_defaults: arc_workflows::cli::run_config::RunDefaults {
+                directory: None,
+                llm: Some(arc_workflows::cli::run_config::LlmConfig {
+                    model: Some("claude-sonnet".into()),
+                    provider: Some("anthropic".into()),
+                    fallbacks: None,
+                }),
+                setup: None,
+                sandbox: Some(arc_workflows::cli::run_config::SandboxConfig {
+                    provider: Some("daytona".into()),
+                    preserve: None,
+                    daytona: Some(arc_workflows::daytona_sandbox::DaytonaConfig {
+                        auto_stop_interval: Some(60),
+                        labels: None,
+                        snapshot: None,
+                        network: Some(arc_workflows::daytona_sandbox::DaytonaNetwork::Block),
+                    }),
+                }),
+                vars: None,
             },
-        ]
+            hook_config: arc_workflows::hook::HookConfig {
+                hooks: vec![],
+            },
+        })
+        .unwrap()
     }
 }
 

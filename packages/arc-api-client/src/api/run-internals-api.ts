@@ -27,6 +27,8 @@ import type { ErrorResponse } from '../models';
 import type { PaginatedRunStageList } from '../models';
 // @ts-ignore
 import type { PaginatedStageTurnList } from '../models';
+// @ts-ignore
+import type { RunConfiguration } from '../models';
 /**
  * RunInternalsApi - axios parameter creator
  */
@@ -180,7 +182,7 @@ export const RunInternalsApiAxiosParamCreator = function (configuration?: Config
             };
         },
         /**
-         * Returns the TOML configuration file content used to launch this run.
+         * Returns the structured configuration used to launch this run.
          * @summary Retrieve Run Configuration
          * @param {string} id Unique run identifier (ULID).
          * @param {*} [options] Override http request option.
@@ -209,7 +211,7 @@ export const RunInternalsApiAxiosParamCreator = function (configuration?: Config
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
-            localVarHeaderParameter['Accept'] = 'text/plain,application/json';
+            localVarHeaderParameter['Accept'] = 'application/json';
 
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
@@ -315,13 +317,13 @@ export const RunInternalsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Returns the TOML configuration file content used to launch this run.
+         * Returns the structured configuration used to launch this run.
          * @summary Retrieve Run Configuration
          * @param {string} id Unique run identifier (ULID).
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async retrieveRunConfiguration(id: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<string>> {
+        async retrieveRunConfiguration(id: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<RunConfiguration>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.retrieveRunConfiguration(id, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['RunInternalsApi.retrieveRunConfiguration']?.[localVarOperationServerIndex]?.url;
@@ -385,13 +387,13 @@ export const RunInternalsApiFactory = function (configuration?: Configuration, b
             return localVarFp.retrieveRunCheckpoint(id, options).then((request) => request(axios, basePath));
         },
         /**
-         * Returns the TOML configuration file content used to launch this run.
+         * Returns the structured configuration used to launch this run.
          * @summary Retrieve Run Configuration
          * @param {string} id Unique run identifier (ULID).
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        retrieveRunConfiguration(id: string, options?: RawAxiosRequestConfig): AxiosPromise<string> {
+        retrieveRunConfiguration(id: string, options?: RawAxiosRequestConfig): AxiosPromise<RunConfiguration> {
             return localVarFp.retrieveRunConfiguration(id, options).then((request) => request(axios, basePath));
         },
         /**
@@ -450,7 +452,7 @@ export class RunInternalsApi extends BaseAPI {
     }
 
     /**
-     * Returns the TOML configuration file content used to launch this run.
+     * Returns the structured configuration used to launch this run.
      * @summary Retrieve Run Configuration
      * @param {string} id Unique run identifier (ULID).
      * @param {*} [options] Override http request option.

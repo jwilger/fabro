@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::daytona_sandbox::DaytonaConfig;
 
 const SUPPORTED_VERSION: u32 = 1;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkflowRunConfig {
     pub version: u32,
@@ -23,7 +23,7 @@ pub struct WorkflowRunConfig {
     pub hooks: Vec<crate::hook::HookDefinition>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct LlmConfig {
     pub model: Option<String>,
     pub provider: Option<String>,
@@ -31,13 +31,13 @@ pub struct LlmConfig {
     pub fallbacks: Option<HashMap<String, Vec<String>>>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SetupConfig {
     pub commands: Vec<String>,
     pub timeout_ms: Option<u64>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SandboxConfig {
     pub provider: Option<String>,
     pub preserve: Option<bool>,
@@ -47,7 +47,7 @@ pub struct SandboxConfig {
 /// Defaults for workflow runs, loaded from the server config.
 ///
 /// Fields mirror `WorkflowRunConfig` but are all optional.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct RunDefaults {
     pub directory: Option<String>,
     pub llm: Option<LlmConfig>,

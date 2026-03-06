@@ -22,19 +22,19 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base';
 // @ts-ignore
-import type { SettingGroup } from '../models';
+import type { ServerConfiguration } from '../models';
 /**
  * SettingsApi - axios parameter creator
  */
 export const SettingsApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * Returns all server settings organized into groups. Each group contains fields with their current values and input types.
-         * @summary Retrieve Server Settings
+         * Returns the structured server configuration.
+         * @summary Retrieve Server Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        retrieveServerSettings: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        retrieveServerConfiguration: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/settings`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -75,15 +75,15 @@ export const SettingsApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = SettingsApiAxiosParamCreator(configuration)
     return {
         /**
-         * Returns all server settings organized into groups. Each group contains fields with their current values and input types.
-         * @summary Retrieve Server Settings
+         * Returns the structured server configuration.
+         * @summary Retrieve Server Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async retrieveServerSettings(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Array<SettingGroup>>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.retrieveServerSettings(options);
+        async retrieveServerConfiguration(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ServerConfiguration>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.retrieveServerConfiguration(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['SettingsApi.retrieveServerSettings']?.[localVarOperationServerIndex]?.url;
+            const localVarOperationServerBasePath = operationServerMap['SettingsApi.retrieveServerConfiguration']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
     }
@@ -96,13 +96,13 @@ export const SettingsApiFactory = function (configuration?: Configuration, baseP
     const localVarFp = SettingsApiFp(configuration)
     return {
         /**
-         * Returns all server settings organized into groups. Each group contains fields with their current values and input types.
-         * @summary Retrieve Server Settings
+         * Returns the structured server configuration.
+         * @summary Retrieve Server Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        retrieveServerSettings(options?: RawAxiosRequestConfig): AxiosPromise<Array<SettingGroup>> {
-            return localVarFp.retrieveServerSettings(options).then((request) => request(axios, basePath));
+        retrieveServerConfiguration(options?: RawAxiosRequestConfig): AxiosPromise<ServerConfiguration> {
+            return localVarFp.retrieveServerConfiguration(options).then((request) => request(axios, basePath));
         },
     };
 };
@@ -112,13 +112,13 @@ export const SettingsApiFactory = function (configuration?: Configuration, baseP
  */
 export class SettingsApi extends BaseAPI {
     /**
-     * Returns all server settings organized into groups. Each group contains fields with their current values and input types.
-     * @summary Retrieve Server Settings
+     * Returns the structured server configuration.
+     * @summary Retrieve Server Configuration
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */
-    public retrieveServerSettings(options?: RawAxiosRequestConfig) {
-        return SettingsApiFp(this.configuration).retrieveServerSettings(options).then((request) => request(this.axios, this.basePath));
+    public retrieveServerConfiguration(options?: RawAxiosRequestConfig) {
+        return SettingsApiFp(this.configuration).retrieveServerConfiguration(options).then((request) => request(this.axios, this.basePath));
     }
 }
 

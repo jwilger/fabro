@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { RunConfiguration } from './run-configuration';
 
 /**
  * Full detail of a workflow definition including graph and configuration.
@@ -34,10 +37,7 @@ export interface WorkflowDetail {
      * Prose description of what the workflow does.
      */
     'description': string;
-    /**
-     * TOML configuration content for the workflow.
-     */
-    'config': string;
+    'config': RunConfiguration;
     /**
      * DOT language source defining the workflow graph.
      */

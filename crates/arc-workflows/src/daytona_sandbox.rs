@@ -9,7 +9,7 @@ use arc_agent::sandbox::{
 use async_trait::async_trait;
 use rand::Rng;
 use serde::de::{self, MapAccess, Visitor};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::github_app::GitHubAppCredentials;
 
@@ -19,7 +19,7 @@ const DEFAULT_IMAGE: &str = "ubuntu:22.04";
 /// Configuration for a Daytona cloud sandbox.
 ///
 /// Doubles as the TOML deserialization target for `[sandbox.daytona]`.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct DaytonaConfig {
     pub auto_stop_interval: Option<i32>,
     pub labels: Option<HashMap<String, String>>,
@@ -40,6 +40,24 @@ pub enum DaytonaNetwork {
     Block,
     AllowAll,
     AllowList(Vec<String>),
+}
+
+impl Serialize for DaytonaNetwork {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            DaytonaNetwork::Block => serializer.serialize_str("block"),
+            DaytonaNetwork::AllowAll => serializer.serialize_str("allow_all"),
+            DaytonaNetwork::AllowList(cidrs) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("allow_list", cidrs)?;
+                map.end()
+            }
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for DaytonaNetwork {
@@ -106,7 +124,7 @@ impl<'de> Deserialize<'de> for DaytonaNetwork {
 
 /// Snapshot configuration: when present, the sandbox is created from a snapshot
 /// instead of a bare Docker image.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct DaytonaSnapshotConfig {
     pub name: String,
     pub cpu: Option<i32>,

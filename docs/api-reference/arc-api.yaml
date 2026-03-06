@@ -510,16 +510,16 @@ paths:
       operationId: retrieveRunConfiguration
       tags: [Run Internals]
       summary: Retrieve Run Configuration
-      description: Returns the TOML configuration file content used to launch this run.
+      description: Returns the structured configuration used to launch this run.
       parameters:
         - $ref: "#/components/parameters/RunId"
       responses:
         "200":
-          description: Configuration content
+          description: Run configuration
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
+                $ref: "#/components/schemas/RunConfiguration"
         "404":
           description: Run not found
           content:
@@ -991,19 +991,17 @@ paths:
 
   /settings:
     get:
-      operationId: retrieveServerSettings
+      operationId: retrieveServerConfiguration
       tags: [Settings]
-      summary: Retrieve Server Settings
-      description: Returns all server settings organized into groups. Each group contains fields with their current values and input types.
+      summary: Retrieve Server Configuration
+      description: Returns the structured server configuration.
       responses:
         "200":
-          description: Array of setting groups
+          description: Server configuration
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/SettingGroup"
+                $ref: "#/components/schemas/ServerConfiguration"
 
   # ── Projects ──────────────────────────────────────────────────────────
 
@@ -2358,9 +2356,7 @@ components:
           description: Prose description of what the workflow does.
           example: Automatically diagnoses and fixes CI build failures.
         config:
-          type: string
-          description: TOML configuration content for the workflow.
-          example: "version = 1\ngoal = \"Fix CI build failures\""
+          $ref: "#/components/schemas/RunConfiguration"
         graph:
           type: string
           description: DOT language source defining the workflow graph.
@@ -3013,76 +3009,327 @@ components:
           description: Number of rows returned.
           example: 6
 
-    # ── Settings Schemas ─────────────────────────────────────────────────
+    # ── Configuration Schemas ────────────────────────────────────────────
 
-    SettingFieldType:
-      description: Input type for a setting field.
-      type: string
-      enum:
-        - text
-        - select
-        - toggle
-
-    SettingField:
-      description: A single configurable setting within a group.
+    RunConfiguration:
+      description: Structured run configuration mirroring WorkflowRunConfig.
       type: object
       required:
-        - key
-        - label
-        - value
-        - type
+        - version
+        - goal
+        - graph
       properties:
-        key:
+        version:
+          type: integer
+          description: Configuration schema version.
+          example: 1
+        goal:
           type: string
-          description: Machine-readable setting key.
-          example: org_name
-        label:
+          description: Goal description for the run.
+          example: Diagnose and fix CI build failures
+        graph:
           type: string
-          description: Human-readable label displayed in the UI.
-          example: Organization name
-        value:
+          description: DOT graph filename.
+          example: fix_build.dot
+        directory:
           type: string
-          description: Current value of the setting.
-          example: Acme Corp
-        type:
-          $ref: "#/components/schemas/SettingFieldType"
-        options:
+          description: Working directory for the run.
+        llm:
+          $ref: "#/components/schemas/LlmConfiguration"
+        setup:
+          $ref: "#/components/schemas/SetupConfiguration"
+        sandbox:
+          $ref: "#/components/schemas/SandboxConfiguration"
+        vars:
+          type: object
+          additionalProperties:
+            type: string
+          description: Variable map for template expansion.
+        hooks:
           type: array
-          description: Available options for select-type fields.
+          items:
+            $ref: "#/components/schemas/HookDefinition"
+
+    LlmConfiguration:
+      description: LLM provider and model settings.
+      type: object
+      properties:
+        model:
+          type: string
+          description: Model identifier.
+          example: claude-sonnet
+        provider:
+          type: string
+          description: Provider name.
+          example: anthropic
+        fallbacks:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Provider fallback chains.
+
+    SetupConfiguration:
+      description: Setup commands run before the workflow.
+      type: object
+      required:
+        - commands
+      properties:
+        commands:
+          type: array
           items:
             type: string
-          example: ["America/New_York", "UTC", "Europe/London"]
-        description:
-          type: string
-          description: Additional help text for the setting.
-          example: Comma-separated CIDRs. Leave empty to allow all.
+          description: Shell commands to execute.
+        timeout_ms:
+          type: integer
+          description: Timeout per command in milliseconds.
 
-    SettingGroup:
-      description: A logical group of related settings.
+    SandboxConfiguration:
+      description: Sandbox execution environment settings.
+      type: object
+      properties:
+        provider:
+          type: string
+          description: Sandbox provider name.
+          example: daytona
+        preserve:
+          type: boolean
+          description: Whether to preserve the sandbox after the run.
+        daytona:
+          $ref: "#/components/schemas/DaytonaConfiguration"
+
+    DaytonaConfiguration:
+      description: Daytona-specific sandbox settings.
+      type: object
+      properties:
+        auto_stop_interval:
+          type: integer
+          description: Auto-stop interval in seconds.
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Labels applied to the sandbox.
+        snapshot:
+          $ref: "#/components/schemas/DaytonaSnapshotConfiguration"
+        network:
+          description: "Network access mode: \"block\", \"allow_all\", or {\"allow_list\": [...]}."
+
+    DaytonaSnapshotConfiguration:
+      description: Snapshot configuration for Daytona sandboxes.
       type: object
       required:
-        - id
         - name
-        - description
-        - fields
       properties:
-        id:
-          type: string
-          description: Machine-readable group identifier.
-          example: general
         name:
           type: string
-          description: Human-readable group name.
-          example: General
-        description:
+          description: Snapshot name.
+        cpu:
+          type: integer
+          description: CPU cores.
+        memory:
+          type: integer
+          description: Memory in GB.
+        disk:
+          type: integer
+          description: Disk in GB.
+        dockerfile:
           type: string
-          description: Prose description of the settings group.
-          example: Core platform settings and defaults.
-        fields:
+          description: Dockerfile content for snapshot creation.
+
+    HookDefinition:
+      description: A single hook definition. The type discriminator and variant fields are flattened into this object.
+      type: object
+      required:
+        - event
+      properties:
+        name:
+          type: string
+          description: Human-readable hook name.
+        event:
+          type: string
+          description: Event that triggers this hook.
+          enum:
+            - run_start
+            - run_complete
+            - stage_start
+            - stage_complete
+        command:
+          type: string
+          description: Shell command (shorthand for type=command).
+        type:
+          type: string
+          description: Hook execution type.
+          enum:
+            - command
+            - http
+            - prompt
+            - agent
+        url:
+          type: string
+          description: URL for HTTP hooks.
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Headers for HTTP hooks.
+        allowed_env_vars:
           type: array
-          description: Settings within this group.
           items:
-            $ref: "#/components/schemas/SettingField"
+            type: string
+          description: Environment variables allowed in HTTP hook headers.
+        tls:
+          type: string
+          description: TLS verification mode for HTTP hooks.
+          enum:
+            - verify
+            - no_verify
+            - "off"
+        prompt:
+          type: string
+          description: Prompt text for prompt/agent hooks.
+        model:
+          type: string
+          description: Model for prompt/agent hooks.
+        max_tool_rounds:
+          type: integer
+          description: Max tool rounds for agent hooks.
+        matcher:
+          type: string
+          description: Regex matched against node_id or handler_type.
+        blocking:
+          type: boolean
+          description: Whether this hook blocks execution.
+        timeout_ms:
+          type: integer
+          description: Timeout in milliseconds.
+        sandbox:
+          type: boolean
+          description: Whether hook runs in sandbox.
+
+    ServerConfiguration:
+      description: Structured server configuration mirroring ServerConfig.
+      type: object
+      properties:
+        data_dir:
+          type: string
+          description: Data directory path.
+        max_concurrent_runs:
+          type: integer
+          description: Maximum concurrent runs.
+        web:
+          $ref: "#/components/schemas/WebConfiguration"
+        api:
+          $ref: "#/components/schemas/ApiConfiguration"
+        git:
+          $ref: "#/components/schemas/GitConfiguration"
+        feature_flags:
+          $ref: "#/components/schemas/FeatureFlags"
+        directory:
+          type: string
+          description: Default working directory.
+        llm:
+          $ref: "#/components/schemas/LlmConfiguration"
+        setup:
+          $ref: "#/components/schemas/SetupConfiguration"
+        sandbox:
+          $ref: "#/components/schemas/SandboxConfiguration"
+        vars:
+          type: object
+          additionalProperties:
+            type: string
+          description: Default variable map.
+        hooks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HookDefinition"
+
+    WebConfiguration:
+      description: Web UI configuration.
+      type: object
+      properties:
+        url:
+          type: string
+          description: Web UI URL.
+        auth:
+          $ref: "#/components/schemas/AuthConfiguration"
+
+    AuthConfiguration:
+      description: Authentication configuration.
+      type: object
+      properties:
+        provider:
+          type: string
+          description: Auth provider.
+          enum:
+            - github
+            - insecure_disabled
+        allowed_usernames:
+          type: array
+          items:
+            type: string
+          description: Allowed usernames.
+
+    ApiConfiguration:
+      description: API server configuration.
+      type: object
+      properties:
+        base_url:
+          type: string
+          description: API base URL.
+        authentication_strategies:
+          type: array
+          items:
+            type: string
+            enum:
+              - jwt
+              - mtls
+          description: Authentication strategies.
+        tls:
+          $ref: "#/components/schemas/TlsConfiguration"
+
+    TlsConfiguration:
+      description: TLS certificate configuration.
+      type: object
+      required:
+        - cert
+        - key
+        - ca
+      properties:
+        cert:
+          type: string
+          description: Certificate file path.
+        key:
+          type: string
+          description: Key file path.
+        ca:
+          type: string
+          description: CA certificate file path.
+
+    GitConfiguration:
+      description: Git provider configuration.
+      type: object
+      properties:
+        provider:
+          type: string
+          description: Git provider.
+          enum:
+            - github
+        app_id:
+          type: string
+          description: GitHub App ID.
+        client_id:
+          type: string
+          description: GitHub App Client ID.
+
+    FeatureFlags:
+      description: Feature flags.
+      type: object
+      properties:
+        session_sandboxes:
+          type: boolean
+          description: Enable session sandboxes.
 
     # ── Project Schemas ──────────────────────────────────────────────────
 

@@ -222,7 +222,7 @@ fn demo_routes() -> Router<Arc<AppState>> {
         )
         .route("/insights/execute", post(crate::demo::execute_query_stub))
         .route("/insights/history", get(crate::demo::list_query_history))
-        .route("/settings", get(crate::demo::get_settings))
+        .route("/settings", get(crate::demo::get_server_configuration))
         .route("/projects", get(crate::demo::list_projects))
         .route("/projects/{id}/branches", get(crate::demo::list_branches))
         .route("/usage", get(crate::demo::get_aggregate_usage))

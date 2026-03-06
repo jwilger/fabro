@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::types::HookEvent;
 
 /// TLS verification mode for HTTP hooks.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TlsMode {
     /// Require `https://` and verify certificates (default).
@@ -18,7 +18,7 @@ pub enum TlsMode {
 }
 
 /// How a hook is executed.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum HookType {
     Command { command: String },
@@ -42,7 +42,7 @@ pub enum HookType {
 }
 
 /// A single hook definition.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct HookDefinition {
     pub name: Option<String>,
     pub event: HookEvent,
@@ -125,7 +125,7 @@ impl HookDefinition {
 }
 
 /// Top-level hook configuration: a list of hook definitions.
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 pub struct HookConfig {
     #[serde(default)]
     pub hooks: Vec<HookDefinition>,

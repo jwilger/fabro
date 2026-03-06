@@ -2,9 +2,9 @@ import { Link, useParams } from "react-router";
 import { CheckCircleIcon, ArrowPathIcon, PauseCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 import { DocumentTextIcon, MapIcon } from "@heroicons/react/24/outline";
 import { CollapsibleFile } from "../components/collapsible-file";
-import { apiFetch, apiJson } from "../api-client";
+import { apiJson } from "../api-client";
 import { formatDurationSecs } from "../lib/format";
-import type { PaginatedRunStageList } from "@qltysh/arc-api-client";
+import type { PaginatedRunStageList, RunConfiguration } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/run-configuration";
 
 export const handle = { wide: true };
@@ -26,9 +26,9 @@ const statusConfig: Record<StageStatus, { icon: typeof CheckCircleIcon; color: s
 };
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const [{ data: apiStages }, configRes] = await Promise.all([
+  const [{ data: apiStages }, config] = await Promise.all([
     apiJson<PaginatedRunStageList>(`/runs/${params.id}/stages`, { request }),
-    apiFetch(`/runs/${params.id}/configuration`, { request }),
+    apiJson<RunConfiguration>(`/runs/${params.id}/configuration`, { request }),
   ]);
   const stages: Stage[] = apiStages.map((s) => ({
     id: s.id,
@@ -36,13 +36,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     status: s.status as StageStatus,
     duration: s.duration_secs != null ? formatDurationSecs(s.duration_secs) : "--",
   }));
-  const configText = configRes.ok ? await configRes.text() : null;
-  return { stages, configText };
+  return { stages, config };
 }
 
 export default function RunConfiguration({ loaderData }: Route.ComponentProps) {
   const { id } = useParams();
-  const { stages, configText } = loaderData;
+  const { stages, config } = loaderData;
 
   return (
     <div className="flex gap-6">
@@ -51,15 +50,15 @@ export default function RunConfiguration({ loaderData }: Route.ComponentProps) {
           <h3 className="px-2 text-xs font-medium uppercase tracking-wider text-fg-muted">Stages</h3>
           <ul className="mt-2 space-y-0.5">
             {stages.map((stage) => {
-              const config = statusConfig[stage.status];
-              const Icon = config.icon;
+              const cfg = statusConfig[stage.status];
+              const Icon = cfg.icon;
               return (
                 <li key={stage.id}>
                   <Link
                     to={`/runs/${id}/stages/${stage.id}`}
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg-3 transition-colors hover:bg-overlay hover:text-fg"
                   >
-                    <Icon className={`size-4 shrink-0 ${config.color} ${stage.status === "running" ? "animate-spin" : ""}`} />
+                    <Icon className={`size-4 shrink-0 ${cfg.color} ${stage.status === "running" ? "animate-spin" : ""}`} />
                     <span className="flex-1 truncate">{stage.name}</span>
                     <span className="font-mono text-xs tabular-nums text-fg-muted">{stage.duration}</span>
                   </Link>
@@ -95,13 +94,9 @@ export default function RunConfiguration({ loaderData }: Route.ComponentProps) {
       </nav>
 
       <div className="min-w-0 flex-1">
-        {configText ? (
-          <CollapsibleFile
-            file={{ name: "run.toml", contents: configText, lang: "toml" }}
-          />
-        ) : (
-          <p className="text-sm text-fg-muted">No configuration found.</p>
-        )}
+        <CollapsibleFile
+          file={{ name: "run.json", contents: JSON.stringify(config, null, 2), lang: "json" }}
+        />
       </div>
     </div>
   );
