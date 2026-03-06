@@ -28,20 +28,20 @@ import type { CreateSessionResponse } from '../models';
 // @ts-ignore
 import type { ErrorResponse } from '../models';
 // @ts-ignore
-import type { PaginatedSessionGroupList } from '../models';
+import type { PaginatedSessionList } from '../models';
 // @ts-ignore
 import type { SendMessageRequest } from '../models';
 // @ts-ignore
-import type { SessionDetail } from '../models';
+import type { SendSessionMessage200Response } from '../models';
 // @ts-ignore
-import type { SteerRun200Response } from '../models';
+import type { SessionDetail } from '../models';
 /**
  * SessionsApi - axios parameter creator
  */
 export const SessionsApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * 
+         * Start a new interactive chat session. The initial user prompt is required; a model may optionally be specified.
          * @summary Create Session
          * @param {CreateSessionRequest} createSessionRequest 
          * @param {*} [options] Override http request option.
@@ -76,7 +76,7 @@ export const SessionsApiAxiosParamCreator = function (configuration?: Configurat
             };
         },
         /**
-         * 
+         * Returns sessions ordered by recency (newest first).
          * @summary List Sessions
          * @param {number} [pageLimit] 
          * @param {number} [pageOffset] 
@@ -116,9 +116,9 @@ export const SessionsApiAxiosParamCreator = function (configuration?: Configurat
             };
         },
         /**
-         * 
+         * Returns the full session detail including all conversation turns.
          * @summary Retrieve Session
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -150,9 +150,9 @@ export const SessionsApiAxiosParamCreator = function (configuration?: Configurat
             };
         },
         /**
-         * 
+         * Append a user message to an existing session. The server will process it and produce assistant and tool turns asynchronously via the event stream.
          * @summary Send Session Message
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {SendMessageRequest} sendMessageRequest 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -189,9 +189,9 @@ export const SessionsApiAxiosParamCreator = function (configuration?: Configurat
             };
         },
         /**
-         * 
+         * Opens a server-sent event (SSE) stream for real-time session updates. Events include new assistant turns, tool invocations, and completion signals.
          * @summary Stream Session Events
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -232,7 +232,7 @@ export const SessionsApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = SessionsApiAxiosParamCreator(configuration)
     return {
         /**
-         * 
+         * Start a new interactive chat session. The initial user prompt is required; a model may optionally be specified.
          * @summary Create Session
          * @param {CreateSessionRequest} createSessionRequest 
          * @param {*} [options] Override http request option.
@@ -245,23 +245,23 @@ export const SessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 
+         * Returns sessions ordered by recency (newest first).
          * @summary List Sessions
          * @param {number} [pageLimit] 
          * @param {number} [pageOffset] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listSessions(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PaginatedSessionGroupList>> {
+        async listSessions(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PaginatedSessionList>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.listSessions(pageLimit, pageOffset, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['SessionsApi.listSessions']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 
+         * Returns the full session detail including all conversation turns.
          * @summary Retrieve Session
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -272,23 +272,23 @@ export const SessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 
+         * Append a user message to an existing session. The server will process it and produce assistant and tool turns asynchronously via the event stream.
          * @summary Send Session Message
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {SendMessageRequest} sendMessageRequest 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async sendSessionMessage(id: string, sendMessageRequest: SendMessageRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SteerRun200Response>> {
+        async sendSessionMessage(id: string, sendMessageRequest: SendMessageRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SendSessionMessage200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.sendSessionMessage(id, sendMessageRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['SessionsApi.sendSessionMessage']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 
+         * Opens a server-sent event (SSE) stream for real-time session updates. Events include new assistant turns, tool invocations, and completion signals.
          * @summary Stream Session Events
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -308,7 +308,7 @@ export const SessionsApiFactory = function (configuration?: Configuration, baseP
     const localVarFp = SessionsApiFp(configuration)
     return {
         /**
-         * 
+         * Start a new interactive chat session. The initial user prompt is required; a model may optionally be specified.
          * @summary Create Session
          * @param {CreateSessionRequest} createSessionRequest 
          * @param {*} [options] Override http request option.
@@ -318,20 +318,20 @@ export const SessionsApiFactory = function (configuration?: Configuration, baseP
             return localVarFp.createSession(createSessionRequest, options).then((request) => request(axios, basePath));
         },
         /**
-         * 
+         * Returns sessions ordered by recency (newest first).
          * @summary List Sessions
          * @param {number} [pageLimit] 
          * @param {number} [pageOffset] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listSessions(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig): AxiosPromise<PaginatedSessionGroupList> {
+        listSessions(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig): AxiosPromise<PaginatedSessionList> {
             return localVarFp.listSessions(pageLimit, pageOffset, options).then((request) => request(axios, basePath));
         },
         /**
-         * 
+         * Returns the full session detail including all conversation turns.
          * @summary Retrieve Session
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -339,20 +339,20 @@ export const SessionsApiFactory = function (configuration?: Configuration, baseP
             return localVarFp.retrieveSession(id, options).then((request) => request(axios, basePath));
         },
         /**
-         * 
+         * Append a user message to an existing session. The server will process it and produce assistant and tool turns asynchronously via the event stream.
          * @summary Send Session Message
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {SendMessageRequest} sendMessageRequest 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        sendSessionMessage(id: string, sendMessageRequest: SendMessageRequest, options?: RawAxiosRequestConfig): AxiosPromise<SteerRun200Response> {
+        sendSessionMessage(id: string, sendMessageRequest: SendMessageRequest, options?: RawAxiosRequestConfig): AxiosPromise<SendSessionMessage200Response> {
             return localVarFp.sendSessionMessage(id, sendMessageRequest, options).then((request) => request(axios, basePath));
         },
         /**
-         * 
+         * Opens a server-sent event (SSE) stream for real-time session updates. Events include new assistant turns, tool invocations, and completion signals.
          * @summary Stream Session Events
-         * @param {string} id 
+         * @param {string} id Unique session identifier.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -367,7 +367,7 @@ export const SessionsApiFactory = function (configuration?: Configuration, baseP
  */
 export class SessionsApi extends BaseAPI {
     /**
-     * 
+     * Start a new interactive chat session. The initial user prompt is required; a model may optionally be specified.
      * @summary Create Session
      * @param {CreateSessionRequest} createSessionRequest 
      * @param {*} [options] Override http request option.
@@ -378,7 +378,7 @@ export class SessionsApi extends BaseAPI {
     }
 
     /**
-     * 
+     * Returns sessions ordered by recency (newest first).
      * @summary List Sessions
      * @param {number} [pageLimit] 
      * @param {number} [pageOffset] 
@@ -390,9 +390,9 @@ export class SessionsApi extends BaseAPI {
     }
 
     /**
-     * 
+     * Returns the full session detail including all conversation turns.
      * @summary Retrieve Session
-     * @param {string} id 
+     * @param {string} id Unique session identifier.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */
@@ -401,9 +401,9 @@ export class SessionsApi extends BaseAPI {
     }
 
     /**
-     * 
+     * Append a user message to an existing session. The server will process it and produce assistant and tool turns asynchronously via the event stream.
      * @summary Send Session Message
-     * @param {string} id 
+     * @param {string} id Unique session identifier.
      * @param {SendMessageRequest} sendMessageRequest 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -413,9 +413,9 @@ export class SessionsApi extends BaseAPI {
     }
 
     /**
-     * 
+     * Opens a server-sent event (SSE) stream for real-time session updates. Events include new assistant turns, tool invocations, and completion signals.
      * @summary Stream Session Events
-     * @param {string} id 
+     * @param {string} id Unique session identifier.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */

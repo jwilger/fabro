@@ -49,7 +49,7 @@ models/paginated-run-list.ts
 models/paginated-run-stage-list.ts
 models/paginated-run-verification-list.ts
 models/paginated-saved-query-list.ts
-models/paginated-session-group-list.ts
+models/paginated-session-list.ts
 models/paginated-stage-turn-list.ts
 models/paginated-verification-category-list.ts
 models/paginated-workflow-list.ts
@@ -75,8 +75,8 @@ models/run-verification.ts
 models/save-query-request.ts
 models/saved-query.ts
 models/send-message-request.ts
+models/send-session-message200-response.ts
 models/session-detail.ts
-models/session-group.ts
 models/session-list-item.ts
 models/session-turn.ts
 models/setting-field-type.ts

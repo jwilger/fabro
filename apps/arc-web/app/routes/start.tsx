@@ -20,10 +20,10 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Link } from "react-router";
-import { timeAgo } from "../lib/time";
+import { timeAgo, groupSessionsByDate } from "../lib/time";
 import { apiJson } from "../api-client";
 import { getAppConfig } from "../lib/config.server";
-import type { PaginatedProjectList, PaginatedSessionGroupList } from "@qltysh/arc-api-client";
+import type { PaginatedProjectList, PaginatedSessionList } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/start";
 
 export const handle = { hideHeader: true, wide: true };
@@ -36,17 +36,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { feature_flags } = getAppConfig();
   const [{ data: apiProjects }, { data: apiSessions }] = await Promise.all([
     apiJson<PaginatedProjectList>("/projects", { request }),
-    apiJson<PaginatedSessionGroupList>("/sessions", { request }),
+    apiJson<PaginatedSessionList>("/sessions", { request }),
   ]);
   const projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
-  const sessionGroups = apiSessions.map((g) => ({
-    label: g.label,
-    sessions: g.sessions.map((s) => ({
-      id: s.id,
-      title: s.title,
-      created_at: s.created_at,
-    })),
-  }));
+  const sessionGroups = groupSessionsByDate(
+    apiSessions.map((s) => ({ id: s.id, title: s.title, created_at: s.created_at }))
+  );
   return { projects, sessionGroups, feature_flags };
 }
 

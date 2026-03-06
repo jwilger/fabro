@@ -47,9 +47,12 @@ const statusConfig: Record<StageStatus, { icon: typeof CheckCircleIcon; color: s
 };
 
 interface ToolUse {
+  id: string;
   toolName: string;
-  args: string;
+  input: string;
   result: string;
+  isError: boolean;
+  durationMs?: number;
 }
 
 type TurnType =
@@ -72,17 +75,18 @@ function ToolRow({ tool }: { tool: ToolUse }) {
         <ChevronRightIcon className={`size-3 shrink-0 text-fg-muted transition-transform duration-150 ${open ? "rotate-90" : ""}`} />
         <WrenchScrewdriverIcon className="size-3.5 shrink-0 text-fg-muted" />
         <span className="font-mono text-xs text-fg-3">{tool.toolName}</span>
-        <span className="truncate font-mono text-xs text-fg-muted">{tool.args}</span>
+        {tool.durationMs != null && <span className="text-[11px] text-fg-muted">{tool.durationMs}ms</span>}
+        <span className="truncate font-mono text-xs text-fg-muted">{tool.input}</span>
       </button>
       {open && (
         <div className="space-y-px bg-overlay px-2.5 pb-2 pt-1">
           <div className="rounded bg-overlay px-2.5 py-2">
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Args</div>
-            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.args}</pre>
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Input</div>
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.input}</pre>
           </div>
           <div className="rounded bg-overlay px-2.5 py-2">
             <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Result</div>
-            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.result}</pre>
+            <pre className={`whitespace-pre-wrap font-mono text-xs leading-relaxed ${tool.isError ? "text-coral" : "text-fg-3"}`}>{tool.result}</pre>
           </div>
         </div>
       )}
@@ -137,9 +141,12 @@ export default function RunStages({ loaderData }: Route.ComponentProps) {
       return {
         kind: "tool" as const,
         tools: t.tools.map((tu) => ({
+          id: tu.id,
           toolName: tu.tool_name,
-          args: tu.args,
+          input: tu.input,
           result: tu.result,
+          isError: tu.is_error,
+          durationMs: tu.duration_ms,
         })),
       };
     }

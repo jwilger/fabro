@@ -13,18 +13,15 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { PaginationMeta } from './pagination-meta';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { SessionListItem } from './session-list-item';
 
-/**
- * Response returned after successfully creating a session.
- */
-export interface CreateSessionResponse {
-    /**
-     * Unique identifier for the newly created session.
-     */
-    'id': string;
-    /**
-     * ISO 8601 timestamp when the session was created.
-     */
-    'created_at': string;
+export interface PaginatedSessionList {
+    'data': Array<SessionListItem>;
+    'meta': PaginationMeta;
 }
 

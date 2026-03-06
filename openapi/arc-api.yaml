@@ -719,17 +719,17 @@ paths:
       operationId: listSessions
       tags: [Sessions]
       summary: List Sessions
-      description: Returns sessions grouped by recency (e.g. "Today", "Yesterday"). Each group contains a flat list of session summaries.
+      description: Returns sessions ordered by recency (newest first).
       parameters:
         - $ref: "#/components/parameters/PageLimit"
         - $ref: "#/components/parameters/PageOffset"
       responses:
         "200":
-          description: Paginated list of session groups
+          description: Paginated list of sessions
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaginatedSessionGroupList"
+                $ref: "#/components/schemas/PaginatedSessionList"
     post:
       operationId: createSession
       tags: [Sessions]
@@ -1120,7 +1120,7 @@ components:
         meta:
           $ref: "#/components/schemas/PaginationMeta"
 
-    PaginatedSessionGroupList:
+    PaginatedSessionList:
       type: object
       required:
         - data
@@ -1129,7 +1129,7 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/SessionGroup"
+            $ref: "#/components/schemas/SessionListItem"
         meta:
           $ref: "#/components/schemas/PaginationMeta"
 
@@ -1478,25 +1478,39 @@ components:
           type: string
 
     ToolUse:
-      description: A single tool invocation with its arguments and result.
+      description: A single tool invocation with its input, result, and execution metadata.
       type: object
       required:
+        - id
         - tool_name
-        - args
+        - input
         - result
+        - is_error
       properties:
+        id:
+          type: string
+          description: Unique identifier for this tool invocation. Enables correlation in parallel tool use.
+          example: toolu_01A09q90qw90lq917835lq9
         tool_name:
           type: string
           description: Name of the tool that was invoked.
           example: read_file
-        args:
+        input:
           type: string
-          description: JSON-encoded arguments passed to the tool.
+          description: JSON-encoded input passed to the tool.
           example: '{ "path": "src/routes/auth.ts" }'
         result:
           type: string
-          description: Output returned by the tool.
+          description: Output returned by the tool. Contains the error message when is_error is true.
           example: 'import { Router } from "express";'
+        is_error:
+          type: boolean
+          description: Whether the tool invocation failed. When true, the result field contains the error message.
+          example: false
+        duration_ms:
+          type: integer
+          description: Wall-clock execution time of the tool invocation in milliseconds.
+          example: 142
 
     StageTurn:
       type: object
@@ -2064,22 +2078,6 @@ components:
           description: ISO 8601 timestamp when the session was created.
           example: "2026-03-06T14:30:00Z"
 
-    SessionGroup:
-      description: A group of sessions sharing a time-based label (e.g. "Today", "Yesterday").
-      type: object
-      required:
-        - label
-        - sessions
-      properties:
-        label:
-          type: string
-          description: Human-readable group heading.
-          example: Today
-        sessions:
-          type: array
-          description: Sessions belonging to this group, ordered by recency.
-          items:
-            $ref: "#/components/schemas/SessionListItem"
 
     SessionTurn:
       description: A single turn in a session conversation — a user message, assistant response, or tool invocation block.

@@ -14,7 +14,13 @@
 
 
 
+/**
+ * Request body for sending a follow-up message in an existing session.
+ */
 export interface SendMessageRequest {
+    /**
+     * The user message text.
+     */
     'content': string;
 }
 

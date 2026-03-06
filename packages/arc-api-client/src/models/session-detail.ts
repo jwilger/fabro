@@ -17,12 +17,33 @@
 // @ts-ignore
 import type { SessionTurn } from './session-turn';
 
+/**
+ * Full session record including metadata and the complete conversation history.
+ */
 export interface SessionDetail {
+    /**
+     * Unique session identifier.
+     */
     'id': string;
+    /**
+     * Short title summarizing the session topic.
+     */
     'title': string;
+    /**
+     * The LLM model used for this session.
+     */
     'model': string;
+    /**
+     * ISO 8601 timestamp when the session was created.
+     */
     'created_at': string;
+    /**
+     * ISO 8601 timestamp when the session was last updated (e.g. new turn added).
+     */
     'updated_at': string;
+    /**
+     * Ordered list of conversation turns.
+     */
     'turns': Array<SessionTurn>;
 }
 

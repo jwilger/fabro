@@ -14,8 +14,17 @@
 
 
 
+/**
+ * Request body for starting a new session.
+ */
 export interface CreateSessionRequest {
+    /**
+     * The initial user message to start the session.
+     */
     'prompt': string;
+    /**
+     * LLM model to use. If omitted, the server default is used.
+     */
     'model'?: string;
 }
 

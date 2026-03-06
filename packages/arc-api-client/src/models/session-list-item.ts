@@ -14,9 +14,21 @@
 
 
 
+/**
+ * Summary of a session shown in list views.
+ */
 export interface SessionListItem {
+    /**
+     * Unique session identifier.
+     */
     'id': string;
+    /**
+     * Short title summarizing the session topic.
+     */
     'title': string;
+    /**
+     * ISO 8601 timestamp when the session was created.
+     */
     'created_at': string;
 }
 

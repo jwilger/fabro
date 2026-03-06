@@ -14,9 +14,33 @@
 
 
 
+/**
+ * A single tool invocation with its input, result, and execution metadata.
+ */
 export interface ToolUse {
+    /**
+     * Unique identifier for this tool invocation. Enables correlation in parallel tool use.
+     */
+    'id': string;
+    /**
+     * Name of the tool that was invoked.
+     */
     'tool_name': string;
-    'args': string;
+    /**
+     * JSON-encoded input passed to the tool.
+     */
+    'input': string;
+    /**
+     * Output returned by the tool. Contains the error message when is_error is true.
+     */
     'result': string;
+    /**
+     * Whether the tool invocation failed. When true, the result field contains the error message.
+     */
+    'is_error': boolean;
+    /**
+     * Wall-clock execution time of the tool invocation in milliseconds.
+     */
+    'duration_ms'?: number;
 }
 

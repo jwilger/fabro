@@ -14,17 +14,10 @@
 
 
 
-/**
- * Response returned after successfully creating a session.
- */
-export interface CreateSessionResponse {
+export interface SendSessionMessage200Response {
     /**
-     * Unique identifier for the newly created session.
+     * Whether the message was accepted for processing.
      */
-    'id': string;
-    /**
-     * ISO 8601 timestamp when the session was created.
-     */
-    'created_at': string;
+    'accepted': boolean;
 }
 

@@ -17,8 +17,17 @@
 // @ts-ignore
 import type { SessionListItem } from './session-list-item';
 
+/**
+ * A group of sessions sharing a time-based label (e.g. \"Today\", \"Yesterday\").
+ */
 export interface SessionGroup {
+    /**
+     * Human-readable group heading.
+     */
     'label': string;
+    /**
+     * Sessions belonging to this group, ordered by recency.
+     */
     'sessions': Array<SessionListItem>;
 }
 

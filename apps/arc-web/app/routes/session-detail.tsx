@@ -9,9 +9,9 @@ import {
   UserIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
-import { timeAgo } from "../lib/time";
+import { timeAgo, groupSessionsByDate } from "../lib/time";
 import { apiJson } from "../api-client";
-import type { SessionDetail as ApiSessionDetail, PaginatedSessionGroupList } from "@qltysh/arc-api-client";
+import type { SessionDetail as ApiSessionDetail, PaginatedSessionList } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/session-detail";
 
 export const handle = { hideHeader: true, wide: true };
@@ -21,9 +21,9 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const [apiSession, { data: apiGroups }] = await Promise.all([
+  const [apiSession, { data: apiSessions }] = await Promise.all([
     apiJson<ApiSessionDetail>(`/sessions/${params.sessionId}`, { request }),
-    apiJson<PaginatedSessionGroupList>("/sessions", { request }),
+    apiJson<PaginatedSessionList>("/sessions", { request }),
   ]);
   const session: Session = {
     id: apiSession.id,
@@ -36,30 +36,31 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         return {
           kind: "tool" as const,
           tools: t.tools.map((tu) => ({
+            id: tu.id,
             toolName: tu.tool_name,
-            args: tu.args,
+            input: tu.input,
             result: tu.result,
+            isError: tu.is_error,
+            durationMs: tu.duration_ms,
           })),
         };
       }
       return { kind: t.kind as "user" | "assistant", content: t.content ?? "", created_at: t.created_at };
     }),
   };
-  const sessionGroups = apiGroups.map((g) => ({
-    label: g.label,
-    sessions: g.sessions.map((s) => ({
-      id: s.id,
-      title: s.title,
-      created_at: s.created_at,
-    })),
-  }));
+  const sessionGroups = groupSessionsByDate(
+    apiSessions.map((s) => ({ id: s.id, title: s.title, created_at: s.created_at }))
+  );
   return { session, sessionGroups };
 }
 
 interface ToolUse {
+  id: string;
   toolName: string;
-  args: string;
+  input: string;
   result: string;
+  isError: boolean;
+  durationMs?: number;
 }
 
 type Turn =
@@ -98,19 +99,28 @@ const sessions: Record<string, Session> = {
         kind: "tool",
         tools: [
           {
+            id: "toolu_s1_01",
             toolName: "read_file",
-            args: `{ "path": "src/routes/auth.ts" }`,
+            input: `{ "path": "src/routes/auth.ts" }`,
             result: `import { Router } from "express";\nimport { loginHandler } from "../handlers/auth";\nimport { registerHandler } from "../handlers/auth";\n\nconst router = Router();\nrouter.post("/login", loginHandler);\nrouter.post("/register", registerHandler);\n\nexport default router;`,
+            isError: false,
+            durationMs: 45,
           },
           {
+            id: "toolu_s1_02",
             toolName: "read_file",
-            args: `{ "path": "src/middleware/index.ts" }`,
+            input: `{ "path": "src/middleware/index.ts" }`,
             result: `export { authMiddleware } from "./auth";\nexport { corsMiddleware } from "./cors";\nexport { loggingMiddleware } from "./logging";`,
+            isError: false,
+            durationMs: 38,
           },
           {
+            id: "toolu_s1_03",
             toolName: "search_files",
-            args: `{ "pattern": "redis", "path": "src/" }`,
+            input: `{ "pattern": "redis", "path": "src/" }`,
             result: `src/lib/redis.ts:1: import Redis from "ioredis";\nsrc/lib/redis.ts:3: export const redis = new Redis(process.env.REDIS_URL);`,
+            isError: false,
+            durationMs: 210,
           },
         ],
       },
@@ -122,19 +132,28 @@ const sessions: Record<string, Session> = {
         kind: "tool",
         tools: [
           {
+            id: "toolu_s1_04",
             toolName: "write_file",
-            args: `{ "path": "src/middleware/rate-limit.ts" }`,
+            input: `{ "path": "src/middleware/rate-limit.ts" }`,
             result: `File written: src/middleware/rate-limit.ts (47 lines)`,
+            isError: false,
+            durationMs: 65,
           },
           {
+            id: "toolu_s1_05",
             toolName: "edit_file",
-            args: `{ "path": "src/routes/auth.ts", "operations": [{ "type": "insert", "line": 3 }] }`,
+            input: `{ "path": "src/routes/auth.ts", "operations": [{ "type": "insert", "line": 3 }] }`,
             result: `Applied 1 edit to src/routes/auth.ts`,
+            isError: false,
+            durationMs: 42,
           },
           {
+            id: "toolu_s1_06",
             toolName: "edit_file",
-            args: `{ "path": "src/middleware/index.ts", "operations": [{ "type": "append" }] }`,
+            input: `{ "path": "src/middleware/index.ts", "operations": [{ "type": "append" }] }`,
             result: `Applied 1 edit to src/middleware/index.ts`,
+            isError: false,
+            durationMs: 55,
           },
         ],
       },
@@ -164,9 +183,12 @@ const sessions: Record<string, Session> = {
         kind: "tool",
         tools: [
           {
+            id: "toolu_s2_01",
             toolName: "read_file",
-            args: `{ "path": "src/config/parser.ts" }`,
+            input: `{ "path": "src/config/parser.ts" }`,
             result: `export function parseConfig(raw: string): Record<string, string> {\n  const result: Record<string, string> = {};\n  for (const line of raw.split("\\n")) {\n    const match = line.match(/^(\\w+)\\s*=\\s*(.+)$/);\n    if (match) result[match[1]] = match[2].trim();\n  }\n  return result;\n}`,
+            isError: false,
+            durationMs: 52,
           },
         ],
       },
@@ -178,14 +200,20 @@ const sessions: Record<string, Session> = {
         kind: "tool",
         tools: [
           {
+            id: "toolu_s2_02",
             toolName: "write_file",
-            args: `{ "path": "src/config/parser.ts" }`,
+            input: `{ "path": "src/config/parser.ts" }`,
             result: `File written: src/config/parser.ts (62 lines)`,
+            isError: false,
+            durationMs: 78,
           },
           {
+            id: "toolu_s2_03",
             toolName: "run_command",
-            args: `{ "command": "npm test -- --grep 'config parser'" }`,
+            input: `{ "command": "npm test -- --grep 'config parser'" }`,
             result: `PASS src/config/__tests__/parser.test.ts\n  config parser\n    ✓ parses flat keys (2ms)\n    ✓ parses section headers (1ms)\n    ✓ parses dotted keys (1ms)\n    ✓ handles nested sections (1ms)\n\nTest Suites: 1 passed\nTests: 4 passed`,
+            isError: false,
+            durationMs: 2150,
           },
         ],
       },
@@ -207,8 +235,8 @@ const sessions: Record<string, Session> = {
       {
         kind: "tool",
         tools: [
-          { toolName: "search_files", args: `{ "pattern": "createBrowserRouter" }`, result: `src/main.tsx:5: import { createBrowserRouter } from "react-router-dom";\nsrc/main.tsx:8: const router = createBrowserRouter([` },
-          { toolName: "read_file", args: `{ "path": "package.json" }`, result: `"react-router-dom": "^6.22.0"` },
+          { id: "toolu_s3_01", toolName: "search_files", input: `{ "pattern": "createBrowserRouter" }`, result: `src/main.tsx:5: import { createBrowserRouter } from "react-router-dom";\nsrc/main.tsx:8: const router = createBrowserRouter([`, isError: false, durationMs: 180 },
+          { id: "toolu_s3_02", toolName: "read_file", input: `{ "path": "package.json" }`, result: `"react-router-dom": "^6.22.0"`, isError: false, durationMs: 35 },
         ],
       },
       { kind: "assistant", content: "You're on React Router 6.22. The migration to v7 involves:\n\n1. Replace `react-router-dom` with `react-router` (single package)\n2. Update `createBrowserRouter` import path\n3. Migrate data loaders to the new `Route.LoaderArgs` type\n4. Update any `useLoaderData` calls to be type-safe\n\nLet me make these changes." },
@@ -275,17 +303,18 @@ function ToolRow({ tool }: { tool: ToolUse }) {
         <ChevronRightIcon className={`size-3 shrink-0 text-fg-muted transition-transform duration-150 ${open ? "rotate-90" : ""}`} />
         <WrenchScrewdriverIcon className="size-3.5 shrink-0 text-fg-muted" />
         <span className="font-mono text-xs text-fg-3">{tool.toolName}</span>
-        <span className="truncate font-mono text-xs text-fg-muted">{tool.args}</span>
+        {tool.durationMs != null && <span className="text-[11px] text-fg-muted">{tool.durationMs}ms</span>}
+        <span className="truncate font-mono text-xs text-fg-muted">{tool.input}</span>
       </button>
       {open && (
         <div className="space-y-px bg-overlay px-2.5 pb-2 pt-1">
           <div className="rounded bg-overlay px-2.5 py-2">
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Args</div>
-            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.args}</pre>
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Input</div>
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.input}</pre>
           </div>
           <div className="rounded bg-overlay px-2.5 py-2">
             <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Result</div>
-            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-fg-3">{tool.result}</pre>
+            <pre className={`whitespace-pre-wrap font-mono text-xs leading-relaxed ${tool.isError ? "text-coral" : "text-fg-3"}`}>{tool.result}</pre>
           </div>
         </div>
       )}

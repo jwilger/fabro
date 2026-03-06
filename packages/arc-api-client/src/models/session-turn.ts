@@ -17,10 +17,25 @@
 // @ts-ignore
 import type { ToolUse } from './tool-use';
 
+/**
+ * A single turn in a session conversation — a user message, assistant response, or tool invocation block.
+ */
 export interface SessionTurn {
+    /**
+     * The type of turn.
+     */
     'kind': SessionTurnKindEnum;
+    /**
+     * Text content of the turn. Present for user and assistant turns, absent for tool turns.
+     */
     'content'?: string;
+    /**
+     * ISO 8601 timestamp when the turn was created. Typically present for user turns.
+     */
     'created_at'?: string;
+    /**
+     * Tool invocations for this turn. Present only when kind is \"tool\".
+     */
     'tools'?: Array<ToolUse>;
 }
 
