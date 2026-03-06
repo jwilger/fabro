@@ -1411,9 +1411,7 @@ components:
         status:
           $ref: "#/components/schemas/RunStatus"
         error:
-          type: string
-          description: Error message if the run failed.
-          example: "Stage 'apply-changes' exceeded maximum retries."
+          $ref: "#/components/schemas/RunError"
         queue_position:
           type: integer
           description: Position in the queue (1-based). Only present when status is `queued`.
@@ -1565,12 +1563,277 @@ components:
           description: Duration of the check run in seconds.
           example: 154.0
 
+    # ── Reusable Sub-Schemas ───────────────────────────────────────────
+
+    ModelReference:
+      description: Reference to a model by its identifier.
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Model identifier.
+          example: claude-opus-4-6
+
+    WorkflowReference:
+      description: Reference to a workflow by its slug.
+      type: object
+      required:
+        - slug
+      properties:
+        slug:
+          type: string
+          description: URL-safe workflow slug.
+          example: implement
+
+    RunReference:
+      description: Reference to a run with its title.
+      type: object
+      required:
+        - id
+        - title
+      properties:
+        id:
+          type: string
+          description: Unique run identifier.
+          example: run-047
+        title:
+          type: string
+          description: Human-readable run title.
+          example: "PR #312 — Add OAuth2 PKCE flow"
+
+    RepositoryReference:
+      description: Reference to a repository by name.
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Repository name.
+          example: api-server
+
+    CategoryReference:
+      description: Reference to a verification category by name.
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Category name.
+          example: Traceability
+
+    TokenUsage:
+      description: Token and cost usage totals.
+      type: object
+      required:
+        - input_tokens
+        - output_tokens
+        - cost
+      properties:
+        input_tokens:
+          type: integer
+          description: Number of input tokens consumed.
+          example: 28640
+        output_tokens:
+          type: integer
+          description: Number of output tokens generated.
+          example: 8750
+        cost:
+          type: number
+          description: Cost in USD.
+          example: 0.72
+
+    CodeLocation:
+      description: A file and line location in the codebase.
+      type: object
+      properties:
+        file:
+          type: string
+          description: File path.
+          example: src/middleware/rate-limit.ts
+        line:
+          type: integer
+          description: Line number in the file.
+          example: 42
+
+    RunError:
+      description: Error information for a failed run.
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message.
+          example: "Stage 'apply-changes' exceeded maximum retries."
+
+    RunPullRequest:
+      description: Pull request information for a run.
+      type: object
+      required:
+        - number
+      properties:
+        number:
+          type: integer
+          description: Pull request number.
+          example: 889
+        additions:
+          type: integer
+          description: Lines added.
+          example: 234
+        deletions:
+          type: integer
+          description: Lines deleted.
+          example: 67
+        comments:
+          type: integer
+          description: Number of review comments.
+          example: 4
+        checks:
+          type: array
+          description: CI check run results.
+          items:
+            $ref: "#/components/schemas/CheckRun"
+
+    RunTimings:
+      description: Timing information for a run.
+      type: object
+      required:
+        - elapsed_secs
+      properties:
+        elapsed_secs:
+          type: number
+          description: Wall-clock time elapsed in seconds.
+          example: 420.0
+        elapsed_warning:
+          type: boolean
+          description: Whether the elapsed time exceeds the expected threshold.
+          example: false
+
+    SandboxResources:
+      description: Compute resources allocated to a sandbox.
+      type: object
+      required:
+        - cpu
+        - memory
+      properties:
+        cpu:
+          type: integer
+          description: Number of CPU cores.
+          example: 4
+        memory:
+          type: integer
+          description: Memory in GB.
+          example: 8
+
+    RunSandbox:
+      description: Sandbox environment for a run.
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Sandbox identifier.
+          example: sb-a1b2c3d4
+        resources:
+          $ref: "#/components/schemas/SandboxResources"
+
+    RunQuestion:
+      description: A pending human-in-the-loop question summary.
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Question text.
+          example: Accept or push for another round?
+
+    AggregateUsageTotals:
+      description: Aggregate usage totals across all runs.
+      type: object
+      required:
+        - runs
+        - input_tokens
+        - output_tokens
+        - cost
+        - runtime_secs
+      properties:
+        runs:
+          type: integer
+          description: Total number of completed runs.
+          example: 9
+        input_tokens:
+          type: integer
+          description: Total input tokens.
+          example: 643860
+        output_tokens:
+          type: integer
+          description: Total output tokens.
+          example: 189720
+        cost:
+          type: number
+          description: Total cost in USD.
+          example: 20.34
+        runtime_secs:
+          type: number
+          description: Total runtime in seconds.
+          example: 3501.0
+
+    WorkflowSchedule:
+      description: Schedule configuration for a workflow.
+      type: object
+      required:
+        - expression
+      properties:
+        expression:
+          type: string
+          description: Cron-like schedule expression.
+          example: "0 */6 * * *"
+        next_run:
+          type: string
+          description: Human-readable relative timestamp of the next run.
+          example: in 4 hours
+
+    WorkflowLastRun:
+      description: Information about a workflow's most recent run.
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+          description: Human-readable relative timestamp.
+          example: 2 hours ago
+
+    UsageStageRef:
+      description: Reference to a usage stage.
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Stage identifier (slug).
+          example: propose-changes
+        name:
+          type: string
+          description: Human-readable stage name.
+          example: Propose Changes
+
+    # ── Run Board Schemas (updated) ─────────────────────────────────────
+
     RunListItem:
       description: Summary of a run shown in the board view.
       type: object
       required:
         - id
-        - repo
+        - repository
         - title
         - workflow
         - status
@@ -1580,61 +1843,24 @@ components:
           type: string
           description: Unique run identifier (ULID).
           example: 01JNQVR7M0EJ5GKAT2SC4ERS1Z
-        repo:
-          type: string
-          description: Repository name.
-          example: api-server
+        repository:
+          $ref: "#/components/schemas/RepositoryReference"
         title:
           type: string
           description: Human-readable title describing the run's goal.
           example: Add rate limiting to auth endpoints
         workflow:
-          type: string
-          description: Slug of the workflow that produced this run.
-          example: implement
+          $ref: "#/components/schemas/WorkflowReference"
         status:
           $ref: "#/components/schemas/BoardColumn"
-        number:
-          type: integer
-          description: Pull request number, if the run has opened a PR.
-          example: 889
-        additions:
-          type: integer
-          description: Lines added in the run's diff.
-          example: 234
-        deletions:
-          type: integer
-          description: Lines deleted in the run's diff.
-          example: 67
-        checks:
-          type: array
-          description: CI check run results for the run's PR.
-          items:
-            $ref: "#/components/schemas/CheckRun"
-        elapsed_secs:
-          type: number
-          description: Wall-clock time elapsed since the run started, in seconds.
-          example: 420.0
-        elapsed_warning:
-          type: boolean
-          description: Whether the elapsed time exceeds the expected threshold.
-          example: false
-        resources:
-          type: string
-          description: Compute resources allocated to the run.
-          example: 4 CPU / 8 GB
-        comments:
-          type: integer
-          description: Number of review comments on the run's PR.
-          example: 4
+        pull_request:
+          $ref: "#/components/schemas/RunPullRequest"
+        timings:
+          $ref: "#/components/schemas/RunTimings"
+        sandbox:
+          $ref: "#/components/schemas/RunSandbox"
         question:
-          type: string
-          description: Text of a pending human-in-the-loop question, if any.
-          example: Accept or push for another round?
-        sandbox_id:
-          type: string
-          description: Identifier of the sandbox environment running this run.
-          example: sb-a1b2c3d4
+          $ref: "#/components/schemas/RunQuestion"
         created_at:
           type: string
           format: date-time
@@ -1877,35 +2103,19 @@ components:
       required:
         - stage
         - model
-        - input_tokens
-        - output_tokens
+        - usage
         - runtime_secs
-        - cost
       properties:
         stage:
-          type: string
-          description: Human-readable stage name.
-          example: Propose Changes
+          $ref: "#/components/schemas/UsageStageRef"
         model:
-          type: string
-          description: Model slug used for this stage.
-          example: claude-opus-4-6
-        input_tokens:
-          type: integer
-          description: Number of input tokens consumed.
-          example: 28640
-        output_tokens:
-          type: integer
-          description: Number of output tokens generated.
-          example: 8750
+          $ref: "#/components/schemas/ModelReference"
+        usage:
+          $ref: "#/components/schemas/TokenUsage"
         runtime_secs:
           type: number
           description: Wall-clock runtime in seconds.
           example: 154.0
-        cost:
-          type: number
-          description: Cost in USD for this stage.
-          example: 0.72
 
     UsageTotals:
       description: Aggregate usage totals across all stages of a run.
@@ -1939,30 +2149,16 @@ components:
       required:
         - model
         - stages
-        - input_tokens
-        - output_tokens
-        - cost
+        - usage
       properties:
         model:
-          type: string
-          description: Model slug.
-          example: claude-opus-4-6
+          $ref: "#/components/schemas/ModelReference"
         stages:
           type: integer
           description: Number of stages that used this model.
           example: 2
-        input_tokens:
-          type: integer
-          description: Total input tokens for this model.
-          example: 33780
-        output_tokens:
-          type: integer
-          description: Total output tokens for this model.
-          example: 9690
-        cost:
-          type: number
-          description: Total cost in USD for this model.
-          example: 1.35
+        usage:
+          $ref: "#/components/schemas/TokenUsage"
 
     RunUsage:
       description: Complete usage breakdown for a single run.
@@ -1989,33 +2185,11 @@ components:
       description: Aggregate token and cost usage across all runs since server start.
       type: object
       required:
-        - total_runs
-        - total_input_tokens
-        - total_output_tokens
-        - total_cost
-        - total_runtime_secs
+        - totals
         - by_model
       properties:
-        total_runs:
-          type: integer
-          description: Total number of completed runs.
-          example: 9
-        total_input_tokens:
-          type: integer
-          description: Total input tokens across all runs.
-          example: 643860
-        total_output_tokens:
-          type: integer
-          description: Total output tokens across all runs.
-          example: 189720
-        total_cost:
-          type: number
-          description: Total cost in USD across all runs.
-          example: 20.34
-        total_runtime_secs:
-          type: number
-          description: Total wall-clock runtime in seconds.
-          example: 3501.0
+        totals:
+          $ref: "#/components/schemas/AggregateUsageTotals"
         by_model:
           type: array
           description: Usage grouped by model.
@@ -2093,14 +2267,8 @@ components:
       required:
         - guidance
       properties:
-        file:
-          type: string
-          description: File path to target with the guidance.
-          example: src/middleware/rate-limit.ts
-        line:
-          type: integer
-          description: Line number in the file to annotate.
-          example: 42
+        location:
+          $ref: "#/components/schemas/CodeLocation"
         guidance:
           type: string
           description: Guidance text for the agent.
@@ -2156,17 +2324,9 @@ components:
           description: DOT graph filename.
           example: fix_build.dot
         last_run:
-          type: string
-          description: Human-readable relative timestamp of the last run.
-          example: 2 hours ago
+          $ref: "#/components/schemas/WorkflowLastRun"
         schedule:
-          type: string
-          description: Cron-like schedule expression, if the workflow runs on a schedule.
-          example: "0 */6 * * *"
-        next_run:
-          type: string
-          description: Human-readable relative timestamp of the next scheduled run.
-          example: in 4 hours
+          $ref: "#/components/schemas/WorkflowSchedule"
 
     WorkflowDetail:
       description: Full detail of a workflow definition including graph and configuration.
@@ -2306,9 +2466,7 @@ components:
         type:
           $ref: "#/components/schemas/VerificationType"
         category:
-          type: string
-          description: Name of the category this control belongs to.
-          example: Traceability
+          $ref: "#/components/schemas/CategoryReference"
 
     ControlPerformance:
       description: Performance metrics for a verification control.
@@ -2365,24 +2523,15 @@ components:
       description: Result of a recent verification control evaluation for a specific run.
       type: object
       required:
-        - run_id
-        - run_title
+        - run
         - workflow
         - result
         - timestamp
       properties:
-        run_id:
-          type: string
-          description: Identifier of the run that was evaluated.
-          example: run-047
-        run_title:
-          type: string
-          description: Title of the evaluated run.
-          example: "PR #312 — Add OAuth2 PKCE flow"
+        run:
+          $ref: "#/components/schemas/RunReference"
         workflow:
-          type: string
-          description: Workflow that produced the run.
-          example: code_review
+          $ref: "#/components/schemas/WorkflowReference"
         result:
           $ref: "#/components/schemas/VerificationStatus"
         timestamp:
@@ -2490,25 +2639,16 @@ components:
       description: Summary of a run retrospective shown in list views.
       type: object
       required:
-        - run_id
-        - workflow_name
-        - goal
+        - run
+        - workflow
         - timestamp
         - stats
         - friction_point_count
       properties:
-        run_id:
-          type: string
-          description: Identifier of the run this retro belongs to.
-          example: run-1
-        workflow_name:
-          type: string
-          description: Name of the workflow that produced the run.
-          example: implement
-        goal:
-          type: string
-          description: The run's goal.
-          example: Add rate limiting to auth endpoints
+        run:
+          $ref: "#/components/schemas/RunReference"
+        workflow:
+          $ref: "#/components/schemas/WorkflowReference"
         timestamp:
           type: string
           format: date-time
@@ -2546,9 +2686,7 @@ components:
           description: Short title summarizing the session topic.
           example: Add rate limiting to auth endpoints
         model:
-          type: string
-          description: The LLM model used for this session.
-          example: claude-opus-4-6
+          $ref: "#/components/schemas/ModelReference"
         last_message_preview:
           type: string
           description: Truncated snippet of the most recent turn's content.
@@ -2663,9 +2801,7 @@ components:
           description: Short title summarizing the session topic.
           example: Add rate limiting to auth endpoints
         model:
-          type: string
-          description: The LLM model used for this session.
-          example: claude-opus-4-6
+          $ref: "#/components/schemas/ModelReference"
         created_at:
           type: string
           format: date-time
@@ -2717,9 +2853,7 @@ components:
           description: Server-generated title for the session.
           example: Add rate limiting to auth endpoints
         model:
-          type: string
-          description: The resolved LLM model for this session (may be the server default).
-          example: claude-opus-4-6
+          $ref: "#/components/schemas/ModelReference"
         created_at:
           type: string
           format: date-time
