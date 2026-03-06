@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1210" height="155" viewBox="0 0 1210 155" xmlns="http://www.w3.org/2000/svg">
+<style>
+  @media (prefers-color-scheme: dark) {
+    [fill="#1a1a1a"] { fill: #e5e5e5; }
+    [fill="#666666"] { fill: #aaaaaa; }
+    [stroke="#666666"] { stroke: #aaaaaa; }
+    [stroke="#999999"] { stroke: #777777; }
+  }
+</style>
+<g>
+  <!-- START (Mdiamond) at (40, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="40,37 10,55 40,73 70,55"/>
+  <polyline fill="none" stroke="#357f9e" points="20,49 20,61"/>
+  <polyline fill="none" stroke="#357f9e" points="30,67 50,67"/>
+  <polyline fill="none" stroke="#357f9e" points="60,61 60,49"/>
+  <polyline fill="none" stroke="#357f9e" points="50,43 30,43"/>
+  <text xml:space="preserve" text-anchor="middle" x="40" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Start</text>
+
+  <!-- SPEC (ellipse) at (120, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="120" cy="55" rx="26" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="120" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Spec</text>
+
+  <!-- SETUP (ellipse) at (210, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="210" cy="55" rx="30" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="210" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Setup</text>
+
+  <!-- GATE 1 (diamond) at (292, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="292,35 272,55 292,75 312,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="292" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- DATA (ellipse) at (370, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="370" cy="55" rx="25" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="370" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Data</text>
+
+  <!-- GATE 2 (diamond) at (448, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="448,35 428,55 448,75 468,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="448" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- LOGIC (ellipse) at (526, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="526" cy="55" rx="28" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="526" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Logic</text>
+
+  <!-- GATE 3 (diamond) at (606, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="606,35 586,55 606,75 626,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="606" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- UI (ellipse) at (670, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="670" cy="55" rx="16" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="670" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">UI</text>
+
+  <!-- GATE 4 (diamond) at (738, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="738,35 718,55 738,75 758,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="738" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- INTEGRATE (ellipse) at (826, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="826" cy="55" rx="38" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="826" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Integrate</text>
+
+  <!-- GATE 5 (diamond) at (916, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="916,35 896,55 916,75 936,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="916" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- REVIEW (ellipse) at (1003, 55) -->
+  <ellipse fill="none" stroke="#357f9e" cx="1003" cy="55" rx="32" ry="18"/>
+  <text xml:space="preserve" text-anchor="middle" x="1003" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Review</text>
+
+  <!-- GATE 6 (diamond) at (1085, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="1085,35 1065,55 1085,75 1105,55"/>
+  <text xml:space="preserve" text-anchor="middle" x="1085" y="59" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#1a1a1a">OK?</text>
+
+  <!-- EXIT (Msquare) at (1160, 55) -->
+  <polygon fill="none" stroke="#357f9e" points="1145,37 1175,37 1175,73 1145,73"/>
+  <polyline fill="none" stroke="#357f9e" points="1155,37 1145,47"/>
+  <polyline fill="none" stroke="#357f9e" points="1145,63 1155,73"/>
+  <polyline fill="none" stroke="#357f9e" points="1165,73 1175,63"/>
+  <polyline fill="none" stroke="#357f9e" points="1175,47 1165,37"/>
+  <text xml:space="preserve" text-anchor="middle" x="1160" y="59" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#1a1a1a">Exit</text>
+
+  <!-- === FORWARD EDGES === -->
+
+  <!-- start -> spec -->
+  <path fill="none" stroke="#666666" d="M70,55 L84,55"/>
+  <polygon fill="#666666" stroke="#666666" points="84,51.5 94,55 84,58.5"/>
+
+  <!-- spec -> setup -->
+  <path fill="none" stroke="#666666" d="M146,55 L170,55"/>
+  <polygon fill="#666666" stroke="#666666" points="170,51.5 180,55 170,58.5"/>
+
+  <!-- setup -> gate1 -->
+  <path fill="none" stroke="#666666" d="M240,55 L262,55"/>
+  <polygon fill="#666666" stroke="#666666" points="262,51.5 272,55 262,58.5"/>
+
+  <!-- gate1 -> data -->
+  <path fill="none" stroke="#666666" d="M312,55 L335,55"/>
+  <polygon fill="#666666" stroke="#666666" points="335,51.5 345,55 335,58.5"/>
+
+  <!-- data -> gate2 -->
+  <path fill="none" stroke="#666666" d="M395,55 L418,55"/>
+  <polygon fill="#666666" stroke="#666666" points="418,51.5 428,55 418,58.5"/>
+
+  <!-- gate2 -> logic -->
+  <path fill="none" stroke="#666666" d="M468,55 L488,55"/>
+  <polygon fill="#666666" stroke="#666666" points="488,51.5 498,55 488,58.5"/>
+
+  <!-- logic -> gate3 -->
+  <path fill="none" stroke="#666666" d="M554,55 L576,55"/>
+  <polygon fill="#666666" stroke="#666666" points="576,51.5 586,55 576,58.5"/>
+
+  <!-- gate3 -> ui -->
+  <path fill="none" stroke="#666666" d="M626,55 L644,55"/>
+  <polygon fill="#666666" stroke="#666666" points="644,51.5 654,55 644,58.5"/>
+
+  <!-- ui -> gate4 -->
+  <path fill="none" stroke="#666666" d="M686,55 L708,55"/>
+  <polygon fill="#666666" stroke="#666666" points="708,51.5 718,55 708,58.5"/>
+
+  <!-- gate4 -> integrate -->
+  <path fill="none" stroke="#666666" d="M758,55 L778,55"/>
+  <polygon fill="#666666" stroke="#666666" points="778,51.5 788,55 778,58.5"/>
+
+  <!-- integrate -> gate5 -->
+  <path fill="none" stroke="#666666" d="M864,55 L886,55"/>
+  <polygon fill="#666666" stroke="#666666" points="886,51.5 896,55 886,58.5"/>
+
+  <!-- gate5 -> review -->
+  <path fill="none" stroke="#666666" d="M936,55 L961,55"/>
+  <polygon fill="#666666" stroke="#666666" points="961,51.5 971,55 961,58.5"/>
+
+  <!-- review -> gate6 -->
+  <path fill="none" stroke="#666666" d="M1035,55 L1055,55"/>
+  <polygon fill="#666666" stroke="#666666" points="1055,51.5 1065,55 1055,58.5"/>
+
+  <!-- gate6 -> exit -->
+  <path fill="none" stroke="#666666" d="M1105,55 L1135,55"/>
+  <polygon fill="#666666" stroke="#666666" points="1135,51.5 1145,55 1135,58.5"/>
+
+  <!-- === RETRY ARCS (above, from gate top back to phase top) === -->
+
+  <!-- gate1 -> setup [Retry] -->
+  <path fill="none" stroke="#666666" d="M287,35 C282,12 218,12 213,35"/>
+  <polygon fill="#666666" stroke="#666666" points="209,29 213,37 217,29"/>
+  <text xml:space="preserve" text-anchor="middle" x="251" y="10" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">Retry</text>
+
+  <!-- gate2 -> data [Retry] -->
+  <path fill="none" stroke="#666666" d="M443,35 C438,12 378,12 373,35"/>
+  <polygon fill="#666666" stroke="#666666" points="369,29 373,37 377,29"/>
+
+  <!-- gate3 -> logic [Retry] -->
+  <path fill="none" stroke="#666666" d="M601,35 C596,12 534,12 529,35"/>
+  <polygon fill="#666666" stroke="#666666" points="525,29 529,37 533,29"/>
+
+  <!-- gate4 -> ui [Retry] -->
+  <path fill="none" stroke="#666666" d="M733,35 C728,12 678,12 673,35"/>
+  <polygon fill="#666666" stroke="#666666" points="669,29 673,37 677,29"/>
+
+  <!-- gate5 -> integrate [Retry] -->
+  <path fill="none" stroke="#666666" d="M911,35 C906,12 834,12 829,35"/>
+  <polygon fill="#666666" stroke="#666666" points="825,29 829,37 833,29"/>
+
+  <!-- === FIX ARC (below, from gate6 back to UI) === -->
+
+  <!-- gate6 -> ui [Fix] -->
+  <path fill="none" stroke="#666666" d="M1085,75 C1085,138 670,138 670,73"/>
+  <polygon fill="#666666" stroke="#666666" points="666,79 670,71 674,79"/>
+  <text xml:space="preserve" text-anchor="middle" x="878" y="143" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">Fix</text>
+</g>
+</svg>

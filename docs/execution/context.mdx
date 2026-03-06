@@ -19,6 +19,13 @@ Start → Plan → Implement → Test → Exit
 
 Context is thread-safe and shared across the entire run. Parallel branches receive an isolated **deep copy** of the context at the point of fan-out, so branches can't interfere with each other. When branches merge, the fan-in handler records the results under `parallel.fan_in.*` keys.
 
+## How agents access context
+
+Agents do not have a tool to query the context store directly. Instead, context is made available through two mechanisms:
+
+- **Preamble injection** — When a node starts, Arc assembles a preamble from the current context and prepends it to the node's prompt. The [fidelity setting](#fidelity-controlling-agent-context) controls how detailed this preamble is.
+- **Context updates** — Agents can write to the context by including a `context_updates` object in a JSON response. See [Transitions](/workflows/transitions#agent-transitions) for the response format.
+
 ## Keys set by handlers
 
 Each handler type writes specific keys into the context after execution:
@@ -191,3 +198,41 @@ response.plan → file:///tmp/logs/artifacts/values/response.plan.json
 The preamble renderer resolves these pointers and displays a reference to the file path. For remote sandboxes (Docker, Daytona), Arc syncs artifact files to the sandbox at `{working_directory}/.arc/artifacts/` so agents can read them.
 
 This keeps the context lean — large LLM responses, test output, and file listings don't bloat checkpoint files or overwhelm preamble summaries.
+
+## Context compaction
+
+During long-running agent sessions, the conversation history can grow large enough to exceed the LLM's context window. **Context compaction** automatically summarizes older turns and replaces them with a structured summary, keeping the session running without manual intervention.
+
+Compaction is always enabled and runs with hardcoded defaults — there are no user-facing configuration options.
+
+### When it triggers
+
+After every assistant turn, Arc estimates the total token usage of the system prompt and conversation history (using a rough heuristic of 1 token per 4 characters). If the estimate exceeds **80%** of the model's context window, compaction runs.
+
+### How it works
+
+1. **Split history** — The conversation is divided into older turns (to be summarized) and the most recent **6 turns** (preserved verbatim).
+2. **Render old turns** — Older turns are serialized to a human-readable text format. Tool call arguments and tool results are truncated to 500 characters each.
+3. **Summarize via LLM** — Arc makes a non-streaming LLM call (using the same model and provider as the agent session) with a structured summarization prompt. The summary uses these sections:
+   - **Goal** — what the user asked for
+   - **Progress** — what was accomplished, with file paths and key decisions
+   - **Key Decisions** — important choices and their rationale
+   - **Failed Approaches** — what was tried and didn't work
+   - **Open Issues** — remaining bugs, edge cases, or TODOs
+   - **Next Steps** — what should happen next
+   - **File Operations** — if the agent has tracked file modifications, this section is copied verbatim into the summary
+4. **Replace history** — All old turns are removed and replaced with a single `[Context Summary]` system message containing the structured summary. The preserved recent turns remain unchanged.
+
+### Failure behavior
+
+Compaction failures are **non-fatal**. If the summarization LLM call fails, Arc emits an `Agent.Error` event and the session continues with the original uncompacted history. The next assistant turn will trigger another compaction attempt.
+
+### Events
+
+Compaction emits three events to the [event stream](/execution/observability#event-stream):
+
+| Event | When | Key fields |
+|---|---|---|
+| `Agent.ContextWindowWarning` | Token estimate exceeds 80% of context window | `estimated_tokens`, `context_window_size`, `usage_percent` |
+| `Agent.CompactionStarted` | Compaction begins | `estimated_tokens`, `context_window_size` |
+| `Agent.CompactionCompleted` | Summary generated and history replaced | `original_turn_count`, `preserved_turn_count`, `summary_token_estimate`, `tracked_file_count` |

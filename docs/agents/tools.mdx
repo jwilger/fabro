@@ -215,6 +215,20 @@ Tool output is truncated before being stored in conversation history to prevent 
 
 Limits can be overridden per-tool via `SessionConfig.tool_output_limits`.
 
+### Error handling
+
+When a tool call fails, the error is returned to the agent as a tool result with an error flag — the agent loop continues. Tool errors do **not** fail the stage. The LLM sees the error message and decides how to respond: retry the call, try an alternative approach, or move on.
+
+Common error cases:
+
+| Error | Cause |
+|---|---|
+| Unknown tool | The agent called a tool that doesn't exist |
+| Argument validation failure | Arguments don't match the tool's JSON Schema |
+| File not found | The target file doesn't exist |
+| Command timeout | A shell command exceeded its timeout |
+| Read-before-write | The agent tried to write to a file it hasn't read (see [guardrail](#read-before-write-guardrail)) |
+
 ### Timeouts
 
 Shell commands have two timeout settings:

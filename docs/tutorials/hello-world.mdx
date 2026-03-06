@@ -2,3 +2,132 @@
 title: "Hello World"
 description: "Your first workflow: prompt nodes, tool use, and sub-agents"
 ---
+
+This tutorial walks through three minimal workflows that introduce the building blocks of Arc: a one-shot prompt, an agent with tool access, and a sub-agent delegation pattern.
+
+## Prerequisites
+
+Complete the [Quick Start](/getting-started/quick-start) so you have a working `arc` binary and at least one LLM API key configured.
+
+## 1. One-shot prompt
+
+The simplest possible workflow has one node that sends a prompt to an LLM and exits.
+
+<Frame>
+  <img src="/images/tutorial-hello.svg" alt="Hello World workflow: Start → Compose → Exit" />
+</Frame>
+
+```dot title="hello.dot"
+digraph Hello {
+    graph [goal="Write a haiku about software workflows"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    compose [label="Compose", prompt="Write a haiku (5-7-5 syllable) about software workflows. Output only the haiku, nothing else.", shape=tab, reasoning_effort="low"]
+
+    start -> compose -> exit
+}
+```
+
+Run it:
+
+```bash
+arc run start demo/01-hello.dot
+```
+
+### What's happening
+
+- `shape=tab` makes this a **prompt node** — a single LLM call with no tool access. Good for generation, summarization, and classification.
+- `reasoning_effort="low"` tells the model to think less. This is a simple task that doesn't need deep reasoning.
+- `graph [goal="..."]` describes the workflow's purpose. Arc uses it in preambles and retrospectives.
+
+Every workflow needs exactly one `start` node (`shape=Mdiamond`) and one `exit` node (`shape=Msquare`).
+
+## 2. Agent with tools
+
+An **agent node** (the default `box` shape) runs an LLM in a loop with access to tools — bash, file reading, file editing, grep, and glob. The agent calls tools autonomously until it decides the task is complete.
+
+<Frame>
+  <img src="/images/tutorial-tool-use.svg" alt="Tool Use workflow: Start → Explore → Exit" />
+</Frame>
+
+```dot title="tool-use.dot"
+digraph ToolUse {
+    graph [goal="Explore the current directory using shell tools"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    explore [label="Explore", prompt="Use bash to list the files in the current directory, then read the first 5 lines of any README or CLAUDE.md file you find. Summarize what this project is about in 2-3 sentences."]
+
+    start -> explore -> exit
+}
+```
+
+```bash
+arc run start demo/02-tool-use.dot
+```
+
+### What's happening
+
+- No `shape` attribute means the default `box` — an **agent node**.
+- The agent has access to [built-in tools](/agents/tools): `shell`, `read_file`, `write_file`, `edit_file`, `grep`, `glob`, `web_search`, and `web_fetch`.
+- The agent decides which tools to call and when to stop. Arc handles the tool loop automatically.
+
+### Prompt vs. agent nodes
+
+| | Prompt node (`tab`) | Agent node (`box`) |
+|---|---|---|
+| LLM calls | Single call | Multi-turn loop |
+| Tool access | None | Full toolset |
+| Use case | Analysis, generation | Tasks requiring file I/O and commands |
+
+## 3. Sub-agents
+
+An agent can spawn **sub-agents** to delegate work. Sub-agents run in their own session and return results to the parent.
+
+<Frame>
+  <img src="/images/tutorial-subagent.svg" alt="Sub-agent workflow: Start → Research → Exit" />
+</Frame>
+
+```dot title="sub-agent.dot"
+digraph SubAgent {
+    graph [goal="Research and summarize using a sub-agent"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    research [label="Research", prompt="You have a sub-agent available via the spawn_agent tool. Spawn a sub-agent to list the files in the current directory and read the first 10 lines of any README or CLAUDE.md. Then, using the sub-agent's findings, write a 2-sentence summary of the project."]
+
+    start -> research -> exit
+}
+```
+
+```bash
+arc run start demo/03-subagent.dot
+```
+
+### What's happening
+
+- The parent agent uses `spawn_agent` to create a child session, then `wait` to collect the result.
+- Sub-agents have their own tool access and conversation history — they don't see the parent's context.
+- This pattern is useful for parallelizing research, isolating risky operations, or keeping the parent's context window lean.
+
+See [Sub-agents](/agents/subagents) for the full tool reference.
+
+## What you've learned
+
+- **Prompt nodes** (`shape=tab`) make a single LLM call — no tools
+- **Agent nodes** (default `box`) run a multi-turn tool loop
+- **Sub-agents** let an agent delegate to independent child sessions
+- Every workflow needs a `start` node, an `exit` node, and a `goal`
+
+## Next
+
+<Card title="Plan & Implement" icon="arrow-right" href="/tutorials/plan-implement">
+  Add human gates and revision loops to a multi-step workflow.
+</Card>

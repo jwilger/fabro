@@ -98,6 +98,16 @@ Maximum subagent depth (1) reached
 
 The depth limit is set via the `max_subagent_depth` field in the session configuration.
 
+## Error handling
+
+When a sub-agent fails, the error is captured and returned to the parent via the `wait` tool — the parent stage does **not** automatically fail. The parent LLM sees the error message and decides how to respond: retry, try a different approach, or report the failure.
+
+Specific failure modes:
+
+- **Sub-agent hits `max_turns`** — The sub-agent stops naturally and returns its last output as a successful result. The parent sees a normal completion with the final assistant message.
+- **Sub-agent panics or errors** — The error is captured and returned through `wait` as a failure result. The parent can inspect the error and decide what to do.
+- **`spawn_agent` fails** (e.g. depth limit exceeded) — The error is returned immediately as a tool result. The parent can adjust its approach without waiting.
+
 ## Event forwarding
 
 Sub-agent events (tool calls, assistant messages, errors) are forwarded to the parent session's event stream as `SubAgentEvent` wrappers. This means the parent's progress log captures the full activity of all children, giving you visibility into what sub-agents are doing.
