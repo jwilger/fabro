@@ -42,7 +42,15 @@ When launched with `arc run start run.toml`, Arc replaces `$repo_name`, `$repo_u
 
 If a `$variable` in the DOT file has no matching entry in `[vars]`, Arc raises an error. This catches typos early — a misspelled `$langauge` fails immediately rather than passing a literal `$langauge` to the LLM.
 
-A bare `$` not followed by an identifier character (e.g. `costs $5`) is left as-is.
+### Escaping `$`
+
+To include a literal `$` in the output, write `$$`:
+
+```dot
+test [prompt="The env var is $$HOME"]
+```
+
+This produces `The env var is $HOME` without treating `$HOME` as a variable reference. A bare `$` not followed by an identifier character (e.g. `costs $5`) does not need escaping.
 
 ## The `$goal` variable
 

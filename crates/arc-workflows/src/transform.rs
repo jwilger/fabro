@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::graph::{AttrValue, Edge, Graph, Node};
 use crate::stylesheet::{apply_stylesheet, parse_stylesheet};
 
@@ -12,12 +14,14 @@ pub struct VariableExpansionTransform;
 impl Transform for VariableExpansionTransform {
     fn apply(&self, graph: &mut Graph) {
         let goal = graph.goal().to_string();
+        let vars = HashMap::from([("goal".to_string(), goal)]);
         for node in graph.nodes.values_mut() {
             if let Some(AttrValue::String(prompt)) = node.attrs.get("prompt") {
-                if prompt.contains("$goal") {
-                    let expanded = prompt.replace("$goal", &goal);
-                    node.attrs
-                        .insert("prompt".to_string(), AttrValue::String(expanded));
+                if let Ok(expanded) = crate::cli::run_config::expand_vars(prompt, &vars) {
+                    if expanded != *prompt {
+                        node.attrs
+                            .insert("prompt".to_string(), AttrValue::String(expanded));
+                    }
                 }
             }
         }
@@ -190,6 +194,32 @@ mod tests {
         // Should not panic
         transform.apply(&mut graph);
         assert!(!graph.nodes["plan"].attrs.contains_key("prompt"));
+    }
+
+    #[test]
+    fn variable_expansion_escaped_dollar_goal() {
+        let mut graph = Graph::new("test");
+        graph.attrs.insert(
+            "goal".to_string(),
+            AttrValue::String("Fix bugs".to_string()),
+        );
+
+        let mut node = Node::new("plan");
+        node.attrs.insert(
+            "prompt".to_string(),
+            AttrValue::String("literal $$goal here".to_string()),
+        );
+        graph.nodes.insert("plan".to_string(), node);
+
+        let transform = VariableExpansionTransform;
+        transform.apply(&mut graph);
+
+        let prompt = graph.nodes["plan"]
+            .attrs
+            .get("prompt")
+            .and_then(AttrValue::as_str)
+            .unwrap();
+        assert_eq!(prompt, "literal $goal here");
     }
 
     #[test]

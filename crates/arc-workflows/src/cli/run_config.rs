@@ -189,7 +189,10 @@ pub fn expand_vars(source: &str, vars: &HashMap<String, String>) -> anyhow::Resu
     while i < len {
         if bytes[i] == b'$' {
             let start = i + 1;
-            if start < len && (bytes[start].is_ascii_alphabetic() || bytes[start] == b'_') {
+            if start < len && bytes[start] == b'$' {
+                result.push('$');
+                i = start + 1;
+            } else if start < len && (bytes[start].is_ascii_alphabetic() || bytes[start] == b'_') {
                 let mut end = start + 1;
                 while end < len && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
                     end += 1;
@@ -313,6 +316,27 @@ language = "python"
     fn expand_dollar_not_followed_by_ident() {
         let vars = HashMap::new();
         assert_eq!(expand_vars("costs $5", &vars).unwrap(), "costs $5");
+    }
+
+    #[test]
+    fn expand_escaped_dollar() {
+        let vars = HashMap::from([("name".to_string(), "world".to_string())]);
+        assert_eq!(
+            expand_vars("literal $$name here", &vars).unwrap(),
+            "literal $name here"
+        );
+    }
+
+    #[test]
+    fn expand_escaped_dollar_at_end() {
+        let vars = HashMap::new();
+        assert_eq!(expand_vars("trailing $$", &vars).unwrap(), "trailing $");
+    }
+
+    #[test]
+    fn expand_escaped_dollar_before_non_ident() {
+        let vars = HashMap::new();
+        assert_eq!(expand_vars("price is $$5", &vars).unwrap(), "price is $5");
     }
 
     #[test]
