@@ -97,8 +97,8 @@ function ToolRow({ tool }: { tool: ToolUse }) {
 function ToolBlock({ tools }: { tools: ToolUse[] }) {
   return (
     <div className="rounded-md border border-line bg-overlay overflow-hidden">
-      {tools.map((tool, i) => (
-        <ToolRow key={i} tool={tool} />
+      {tools.map((tool) => (
+        <ToolRow key={tool.id} tool={tool} />
       ))}
     </div>
   );
@@ -222,11 +222,11 @@ export default function RunStages({ loaderData }: Route.ComponentProps) {
         {mappedTurns.map((turn, i) => {
           switch (turn.kind) {
             case "system":
-              return <SystemBlock key={i} content={turn.content} />;
+              return <SystemBlock key={`turn-${i}`} content={turn.content} />;
             case "assistant":
-              return <AssistantBlock key={i} content={turn.content} />;
+              return <AssistantBlock key={`turn-${i}`} content={turn.content} />;
             case "tool":
-              return <ToolBlock key={i} tools={turn.tools} />;
+              return <ToolBlock key={`turn-${i}`} tools={turn.tools} />;
           }
         })}
       </div>

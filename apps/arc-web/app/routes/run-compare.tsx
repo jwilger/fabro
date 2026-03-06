@@ -231,7 +231,7 @@ function DiffStat({ additions, deletions }: { additions: number; deletions: numb
       <div className="flex gap-0.5">
         {Array.from({ length: BLOCK_COUNT }, (_, i) => (
           <span
-            key={i}
+            key={`block-${i}`}
             className={`inline-block size-2.5 rounded-sm ${i < addBlocks ? "bg-mint" : "bg-coral"}`}
           />
         ))}

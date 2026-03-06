@@ -220,7 +220,9 @@ function ChecksStatus({ checks }: { checks: CheckRun[] }) {
   return (
     <div
       className="-mx-4 mt-3 overflow-hidden border-y border-line"
+      role="group"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onKeyDown={(e) => { e.stopPropagation(); }}
     >
       <button
         type="button"

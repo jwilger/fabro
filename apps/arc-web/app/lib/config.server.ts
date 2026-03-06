@@ -28,7 +28,7 @@ interface WebConfig {
   auth: AuthConfig;
 }
 
-export interface AppConfig {
+interface AppConfig {
   web: WebConfig;
   api: ApiConfig;
   git: GitConfig;

@@ -166,7 +166,7 @@ function EvaluationBar({ evaluations }: { evaluations: readonly EvaluationResult
       <div className="flex items-center gap-1">
         {evaluations.map((result, i) => (
           <div
-            key={i}
+            key={`eval-${i}`}
             className={`h-6 flex-1 rounded-sm ${
               result === "pass"
                 ? "bg-mint/70"

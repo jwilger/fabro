@@ -329,8 +329,8 @@ function ToolRow({ tool }: { tool: ToolUse }) {
 function ToolBlock({ tools }: { tools: ToolUse[] }) {
   return (
     <div className="rounded-md border border-line bg-overlay overflow-hidden">
-      {tools.map((tool, i) => (
-        <ToolRow key={i} tool={tool} />
+      {tools.map((tool) => (
+        <ToolRow key={tool.id} tool={tool} />
       ))}
     </div>
   );
@@ -462,14 +462,14 @@ export default function SessionDetail({ loaderData }: Route.ComponentProps) {
             {session.turns.map((turn, i) => {
               switch (turn.kind) {
                 case "user":
-                  return <UserBlock key={i} content={turn.content} created_at={turn.created_at} />;
+                  return <UserBlock key={`turn-${i}`} content={turn.content} created_at={turn.created_at} />;
                 case "assistant": {
                   const next = session.turns[i + 1];
                   const showCopy = next?.kind !== "tool";
-                  return <AssistantBlock key={i} content={turn.content} showCopy={showCopy} />;
+                  return <AssistantBlock key={`turn-${i}`} content={turn.content} showCopy={showCopy} />;
                 }
                 case "tool":
-                  return <div key={i} className="pl-10"><ToolBlock tools={turn.tools} /></div>;
+                  return <div key={`turn-${i}`} className="pl-10"><ToolBlock tools={turn.tools} /></div>;
               }
             })}
           </div>

@@ -30,7 +30,7 @@ async function signToken(sub?: string): Promise<string> {
     .sign(key);
 }
 
-export interface ApiOptions {
+interface ApiOptions {
   init?: RequestInit;
   request?: Request;
 }

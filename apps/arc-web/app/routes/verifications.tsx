@@ -284,7 +284,7 @@ function EvaluationDots({ evaluations }: { evaluations: readonly EvaluationResul
     <div className="flex items-center gap-0.5">
       {evaluations.map((result, i) => (
         <span
-          key={i}
+          key={`eval-${i}`}
           className={`inline-block size-2.5 rounded-sm ${
             result === "pass"
               ? "bg-mint/70"

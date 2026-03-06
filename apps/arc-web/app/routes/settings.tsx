@@ -294,13 +294,12 @@ function SidebarNav({ activeId, groups }: { activeId: string; groups: SettingGro
           const active = activeId === group.id;
           return (
             <li key={group.id}>
-              <a
-                href={`#section-${group.id}`}
-                onClick={(e) => {
-                  e.preventDefault();
+              <button
+                type="button"
+                onClick={() => {
                   document.getElementById(`section-${group.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-all duration-200 ${
                   active
                     ? `${colors.glow} ${colors.icon} font-medium`
                     : "text-fg-3 hover:text-fg-2 hover:bg-overlay"
@@ -308,7 +307,7 @@ function SidebarNav({ activeId, groups }: { activeId: string; groups: SettingGro
               >
                 <Icon className={`size-4 ${active ? colors.icon : "text-fg-muted"}`} />
                 {group.name}
-              </a>
+              </button>
             </li>
           );
         })}

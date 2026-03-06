@@ -86,7 +86,7 @@ export default function RunRetro({ loaderData }: Route.ComponentProps) {
             {retro.learnings.map((learning, i) => {
               const config = learningCategoryConfig[learning.category];
               return (
-                <div key={i} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
+                <div key={learning.text} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
                   <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${config.text} bg-overlay`}>
                     {config.label}
                   </span>
@@ -106,7 +106,7 @@ export default function RunRetro({ loaderData }: Route.ComponentProps) {
             {retro.friction_points.map((fp, i) => {
               const config = frictionKindConfig[fp.kind];
               return (
-                <div key={i} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
+                <div key={fp.description} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
                   <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${config.text} bg-overlay`}>
                     {config.label}
                   </span>
@@ -133,7 +133,7 @@ export default function RunRetro({ loaderData }: Route.ComponentProps) {
             {retro.open_items.map((item, i) => {
               const config = openItemKindConfig[item.kind];
               return (
-                <div key={i} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
+                <div key={item.description} className="flex items-start gap-3 rounded-md border border-line bg-panel/60 px-4 py-3">
                   <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${config.text} bg-overlay`}>
                     {config.label}
                   </span>

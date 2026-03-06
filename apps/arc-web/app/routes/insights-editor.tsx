@@ -273,9 +273,9 @@ function ResultTable({ result }: { result: QueryResult }) {
           </tr>
         </thead>
         <tbody>
-          {result.rows.map((row, i) => (
+          {result.rows.map((row) => (
             <tr
-              key={i}
+              key={String(row[result.columns[0]])}
               className="border-b border-line transition-colors hover:bg-overlay"
             >
               {result.columns.map((col) => {
@@ -352,7 +352,7 @@ function SqlEditor({
         aria-hidden="true"
       >
         {Array.from({ length: lineCount }, (_, i) => (
-          <span key={i} className="text-[11px]">
+          <span key={i + 1} className="text-[11px]">
             {i + 1}
           </span>
         ))}
@@ -609,10 +609,11 @@ export default function InsightsEditor() {
               </button>
             </div>
             <div className="p-5">
-              <label className="mb-2 block text-xs font-medium text-fg-3">
+              <label htmlFor="ai-query-prompt" className="mb-2 block text-xs font-medium text-fg-3">
                 Describe what you want to query
               </label>
               <textarea
+                id="ai-query-prompt"
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 placeholder="e.g. Show me the average build time per workflow over the last 30 days"

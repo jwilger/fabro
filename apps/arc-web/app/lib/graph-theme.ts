@@ -67,4 +67,3 @@ export function getGraphTheme(theme: Theme): GraphTheme {
   return theme === "dark" ? dark : light;
 }
 
-export type { GraphTheme };
