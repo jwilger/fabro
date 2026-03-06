@@ -32,6 +32,10 @@ tags:
   - name: Settings
     description: Platform configuration
 
+security:
+  - BearerAuth: []
+  - mTLS: []
+
 paths:
   # ── Discovery ────────────────────────────────────────────────────────
 
@@ -41,6 +45,7 @@ paths:
       tags: [Discovery]
       summary: API Discovery
       description: Returns discovery URLs for the API.
+      security: []
       responses:
         "200":
           description: Discovery URLs
@@ -54,6 +59,7 @@ paths:
       operationId: getHealth
       tags: [Discovery]
       summary: Health Check
+      security: []
       responses:
         "200":
           description: Service is healthy
@@ -68,6 +74,7 @@ paths:
       tags: [Discovery]
       summary: OpenAPI Specification
       description: Returns the OpenAPI spec as JSON.
+      security: []
       responses:
         "200":
           description: OpenAPI specification
@@ -1045,6 +1052,26 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Ed25519-signed JWT issued by arc-web. Required claims: iss ("arc-web"),
+        iat, exp. Optional sub claim (GitHub profile URL) identifies the user.
+    # OpenAPI 3.1 defines type: mutualTLS, but our parser (openapiv3) only
+    # supports 3.0 scheme types. We use apiKey as a placeholder; actual mTLS
+    # enforcement happens at the transport layer via client certificates.
+    mTLS:
+      type: apiKey
+      in: header
+      name: X-mTLS-Client-CN
+      description: >
+        Mutual TLS: client certificate signed by the configured CA. Identity
+        is extracted from the certificate's Common Name (CN). This scheme is
+        enforced at the transport layer, not via an HTTP header.
+
   parameters:
     RunId:
       name: id
