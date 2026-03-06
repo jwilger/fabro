@@ -361,6 +361,13 @@ impl CodergenBackend for AgentApiBackend {
             (self.create_session(node, sandbox).await?, false)
         };
 
+        tracing::debug!(
+            node = %node.id,
+            fidelity = %fidelity,
+            reused = is_reused,
+            "Agent session ready"
+        );
+
         // File change tracking: shared between spawned task and main fn.
         let pending_tool_calls: Arc<Mutex<HashMap<String, String>>> =
             Arc::new(Mutex::new(HashMap::new()));

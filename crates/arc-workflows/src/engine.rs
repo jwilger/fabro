@@ -224,18 +224,27 @@ pub fn resolve_fidelity(
     node: &Node,
     graph: &Graph,
 ) -> context::keys::Fidelity {
-    if let Some(edge) = incoming_edge {
-        if let Some(f) = edge.fidelity().and_then(|s| s.parse().ok()) {
-            return f;
-        }
-    }
-    if let Some(f) = node.fidelity().and_then(|s| s.parse().ok()) {
-        return f;
-    }
-    if let Some(f) = graph.default_fidelity().and_then(|s| s.parse().ok()) {
-        return f;
-    }
-    context::keys::Fidelity::default()
+    let (resolved, source) = if let Some(f) = incoming_edge
+        .and_then(|e| e.fidelity())
+        .and_then(|s| s.parse().ok())
+    {
+        (f, "edge")
+    } else if let Some(f) = node.fidelity().and_then(|s| s.parse().ok()) {
+        (f, "node")
+    } else if let Some(f) = graph.default_fidelity().and_then(|s| s.parse().ok()) {
+        (f, "graph")
+    } else {
+        (context::keys::Fidelity::default(), "default")
+    };
+
+    tracing::debug!(
+        node = %node.id,
+        fidelity = %resolved,
+        source = source,
+        "Fidelity resolved"
+    );
+
+    resolved
 }
 
 // --- Thread ID resolution (spec 5.4) ---
@@ -1385,7 +1394,16 @@ impl WorkflowRunEngine {
             let mut fidelity = resolve_fidelity(incoming_edge, node, graph);
             // Gap #6: On the first node after resume, degrade full -> summary:high
             if degrade_fidelity_on_resume {
+                let original = fidelity;
                 fidelity = fidelity.degraded();
+                if fidelity != original {
+                    tracing::debug!(
+                        node = %current_node_id,
+                        from = %original,
+                        to = %fidelity,
+                        "Fidelity degraded on checkpoint resume"
+                    );
+                }
             }
             degrade_fidelity_on_resume = false;
             context.set(
