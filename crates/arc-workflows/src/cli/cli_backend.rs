@@ -70,9 +70,9 @@ async fn ensure_cli(
         provider: provider_str.to_string(),
     });
 
-    // Check if the CLI is already installed
+    // Check if the CLI is already installed (include ~/.local/bin for npm-installed CLIs)
     let version_check = sandbox
-        .exec_command(&format!("{cli_name} --version"), 30_000, None, None, None)
+        .exec_command(&format!("PATH=\"$HOME/.local/bin:$PATH\" {cli_name} --version"), 30_000, None, None, None)
         .await
         .map_err(|e| ArcError::handler(format!("Failed to check {cli_name} version: {e}")))?;
 
@@ -88,47 +88,25 @@ async fn ensure_cli(
         return Ok(());
     }
 
-    // Check if Node.js is available
-    let node_check = sandbox
-        .exec_command("node --version", 30_000, None, None, None)
-        .await
-        .map_err(|e| ArcError::handler(format!("Failed to check node version: {e}")))?;
-
-    let mut node_installed = false;
-    if node_check.exit_code != 0 {
-        // Install Node.js via NodeSource
-        let node_install_cmd = "apt-get update -qq && apt-get install -y -qq curl ca-certificates && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs";
-        let node_result = sandbox
-            .exec_command(node_install_cmd, 120_000, None, None, None)
-            .await
-            .map_err(|e| ArcError::handler(format!("Failed to install Node.js: {e}")))?;
-
-        if node_result.exit_code != 0 {
-            let duration_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
-            let stderr: String = node_result.stderr.chars().rev().take(500).collect::<Vec<_>>().into_iter().rev().collect();
-            let error_msg = format!("Node.js install exited with code {}: {stderr}", node_result.exit_code);
-            emitter.emit(&WorkflowRunEvent::CliEnsureFailed {
-                cli_name: cli_name.to_string(),
-                provider: provider_str.to_string(),
-                error: error_msg.clone(),
-                duration_ms,
-            });
-            return Err(ArcError::handler(error_msg));
-        }
-        node_installed = true;
-    }
-
-    // Install the CLI via npm
-    let npm_cmd = format!("npm install -g {}", cli.npm_package());
-    let npm_result = sandbox
-        .exec_command(&npm_cmd, 120_000, None, None, None)
+    // Install Node.js (if needed) and the CLI in a single shell so PATH persists
+    let install_cmd = format!(
+        "export PATH=\"$HOME/.local/bin:$PATH\" && \
+         (node --version >/dev/null 2>&1 || \
+          (mkdir -p ~/.local && curl -fsSL https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.gz | tar -xz --strip-components=1 -C ~/.local)) && \
+         npm install -g {}",
+        cli.npm_package()
+    );
+    let install_result = sandbox
+        .exec_command(&install_cmd, 180_000, None, None, None)
         .await
         .map_err(|e| ArcError::handler(format!("Failed to install {cli_name}: {e}")))?;
 
-    if npm_result.exit_code != 0 {
+    let node_installed = true;
+    if install_result.exit_code != 0 {
         let duration_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let stderr: String = npm_result.stderr.chars().rev().take(500).collect::<Vec<_>>().into_iter().rev().collect();
-        let error_msg = format!("{cli_name} npm install exited with code {}: {stderr}", npm_result.exit_code);
+        let output = if install_result.stderr.is_empty() { &install_result.stdout } else { &install_result.stderr };
+        let detail: String = output.chars().rev().take(500).collect::<Vec<_>>().into_iter().rev().collect();
+        let error_msg = format!("{cli_name} install exited with code {}: {detail}", install_result.exit_code);
         emitter.emit(&WorkflowRunEvent::CliEnsureFailed {
             cli_name: cli_name.to_string(),
             provider: provider_str.to_string(),
@@ -470,16 +448,16 @@ impl CodergenBackend for AgentCliBackend {
         // Forward provider API key so the CLI tool can authenticate.
         // Written to a temp file and sourced, since Daytona's exec API doesn't
         // support env vars and inline export would leak keys in logs.
-        let env_lines: Vec<String> = provider
-            .api_key_env_vars()
-            .iter()
-            .filter_map(|name| {
-                std::env::var(name)
-                    .ok()
-                    .map(|val| format!("export {name}='{val}'"))
-            })
-            .collect();
-        if !env_lines.is_empty() {
+        let mut env_lines: Vec<String> = vec![
+            // Ensure npm-installed CLIs in ~/.local/bin are on PATH
+            "export PATH=\"$HOME/.local/bin:$PATH\"".to_string(),
+        ];
+        env_lines.extend(provider.api_key_env_vars().iter().filter_map(|name| {
+            std::env::var(name)
+                .ok()
+                .map(|val| format!("export {name}='{val}'"))
+        }));
+        {
             sandbox
                 .write_file(&env_path, &env_lines.join("\n"))
                 .await
@@ -491,12 +469,8 @@ impl CodergenBackend for AgentCliBackend {
             tracing::warn!("Failed to disable sandbox auto-stop: {e}");
         }
 
-        // 3b. Launch CLI command in background
-        let inner_command = if env_lines.is_empty() {
-            command.clone()
-        } else {
-            format!(". {env_path} && {command}")
-        };
+        // 3b. Launch CLI command in background (env file is always written)
+        let inner_command = format!(". {env_path} && {command}");
         // Use setsid (if available) to create a new session so the child process is
         // fully detached from the shell. Without this, Daytona's POST /process/execute
         // blocks until ALL descendant processes exit, causing a 60s HTTP timeout.
@@ -820,12 +794,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ensure_cli_installs_when_missing_with_node() {
-        // version check fails, node check succeeds, npm install succeeds
+    async fn ensure_cli_installs_when_missing() {
+        // version check fails, combined install succeeds
         let sandbox: Arc<dyn Sandbox> = Arc::new(CliMockSandbox::new(vec![
             fail_result(127),  // claude --version
-            ok_result(),       // node --version
-            ok_result(),       // npm install -g
+            ok_result(),       // combined node + npm install
         ]));
         let emitter = Arc::new(EventEmitter::new());
 
@@ -834,57 +807,21 @@ mod tests {
 
         let mock = sandbox.as_ref() as *const dyn Sandbox as *const CliMockSandbox;
         let commands = unsafe { &*mock }.commands();
-        assert_eq!(commands.len(), 3);
-        assert!(commands[2].contains("npm install -g @anthropic-ai/claude-code"));
+        assert_eq!(commands.len(), 2);
+        assert!(commands[1].contains("npm install -g @anthropic-ai/claude-code"));
     }
 
     #[tokio::test]
-    async fn ensure_cli_installs_node_and_cli() {
-        // version check fails, node check fails, node install succeeds, npm install succeeds
+    async fn ensure_cli_fails_on_install_failure() {
         let sandbox: Arc<dyn Sandbox> = Arc::new(CliMockSandbox::new(vec![
             fail_result(127),  // claude --version
-            fail_result(127),  // node --version
-            ok_result(),       // apt-get ... nodejs
-            ok_result(),       // npm install -g
-        ]));
-        let emitter = Arc::new(EventEmitter::new());
-
-        let result = ensure_cli(AgentCli::Claude, Provider::Anthropic, &sandbox, &emitter).await;
-        assert!(result.is_ok());
-
-        let mock = sandbox.as_ref() as *const dyn Sandbox as *const CliMockSandbox;
-        let commands = unsafe { &*mock }.commands();
-        assert_eq!(commands.len(), 4);
-        assert!(commands[2].contains("nodesource"));
-        assert!(commands[3].contains("npm install -g"));
-    }
-
-    #[tokio::test]
-    async fn ensure_cli_fails_on_node_install_failure() {
-        let sandbox: Arc<dyn Sandbox> = Arc::new(CliMockSandbox::new(vec![
-            fail_result(127),  // claude --version
-            fail_result(127),  // node --version
-            fail_result(1),    // node install fails
+            fail_result(1),    // combined install fails
         ]));
         let emitter = Arc::new(EventEmitter::new());
 
         let result = ensure_cli(AgentCli::Claude, Provider::Anthropic, &sandbox, &emitter).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Node.js install"));
-    }
-
-    #[tokio::test]
-    async fn ensure_cli_fails_on_npm_install_failure() {
-        let sandbox: Arc<dyn Sandbox> = Arc::new(CliMockSandbox::new(vec![
-            fail_result(127),  // claude --version
-            ok_result(),       // node --version
-            fail_result(1),    // npm install fails
-        ]));
-        let emitter = Arc::new(EventEmitter::new());
-
-        let result = ensure_cli(AgentCli::Claude, Provider::Anthropic, &sandbox, &emitter).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("npm install"));
+        assert!(result.unwrap_err().to_string().contains("install exited with code"));
     }
 
     // -- Cycle 1: cli_command_for_provider --
