@@ -57,7 +57,7 @@ enum Command {
     /// Parse a DOT file and print its AST
     Parse(arc_workflows::cli::ParseArgs),
     /// List and test LLM models
-    Models {
+    Model {
         #[command(subcommand)]
         command: Option<arc_llm::cli::ModelsCommand>,
     },
@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
         Command::Run { .. } => "run",
         Command::Validate(_) => "validate",
         Command::Parse(_) => "parse",
-        Command::Models { .. } => "models",
+        Command::Model { .. } => "model",
         Command::Serve(_) => "serve",
         Command::Doctor { .. } => "doctor",
         Command::Setup => "setup",
@@ -202,7 +202,7 @@ async fn main() -> Result<()> {
         Command::Parse(args) => {
             arc_workflows::cli::parse::parse_command(&args)?;
         }
-        Command::Models { command } => {
+        Command::Model { command } => {
             let cli_config = cli_config::load_cli_config(None)?;
             let resolved = cli_config::resolve_mode(
                 cli.mode,

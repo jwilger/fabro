@@ -9,9 +9,9 @@ fn arc() -> Command {
 // == Models ===================================================================
 
 #[test]
-fn models_list_prints_all_models() {
+fn model_list_prints_all_models() {
     arc()
-        .args(["models", "list"])
+        .args(["model", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("claude-opus-4-6"))
@@ -25,9 +25,9 @@ fn models_list_prints_all_models() {
 }
 
 #[test]
-fn models_list_filters_by_provider() {
+fn model_list_filters_by_provider() {
     let assert = arc()
-        .args(["models", "list", "--provider", "anthropic"])
+        .args(["model", "list", "--provider", "anthropic"])
         .assert()
         .success()
         .stdout(predicate::str::contains("claude-opus-4-6"))
@@ -40,9 +40,9 @@ fn models_list_filters_by_provider() {
 }
 
 #[test]
-fn models_list_filters_by_query() {
+fn model_list_filters_by_query() {
     arc()
-        .args(["models", "list", "--query", "opus"])
+        .args(["model", "list", "--query", "opus"])
         .assert()
         .success()
         .stdout(predicate::str::contains("claude-opus-4-6"))
@@ -50,27 +50,27 @@ fn models_list_filters_by_query() {
 }
 
 #[test]
-fn models_list_query_is_case_insensitive() {
+fn model_list_query_is_case_insensitive() {
     arc()
-        .args(["models", "list", "--query", "OPUS"])
+        .args(["model", "list", "--query", "OPUS"])
         .assert()
         .success()
         .stdout(predicate::str::contains("claude-opus-4-6"));
 }
 
 #[test]
-fn models_list_query_matches_aliases() {
+fn model_list_query_matches_aliases() {
     arc()
-        .args(["models", "list", "--query", "codex"])
+        .args(["model", "list", "--query", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("gpt-5.2-codex"));
 }
 
 #[test]
-fn models_bare_defaults_to_list() {
+fn model_bare_defaults_to_list() {
     arc()
-        .args(["models"])
+        .args(["model"])
         .assert()
         .success()
         .stdout(predicate::str::contains("claude-opus-4-6"))

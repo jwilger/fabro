@@ -121,9 +121,9 @@ The precedence order is: node-level stylesheet > run config TOML > CLI flags > s
 View all available models, or filter by provider:
 
 ```bash
-arc models list
-arc models list --provider anthropic
-arc models list --query codex
+arc model list
+arc model list --provider anthropic
+arc model list --query codex
 ```
 
 ### Test models
@@ -131,9 +131,9 @@ arc models list --query codex
 Verify that your API keys are working by sending a test prompt to each configured provider:
 
 ```bash
-arc models test
-arc models test --model claude-sonnet-4-5
-arc models test --provider openai
+arc model test
+arc model test --model claude-sonnet-4-5
+arc model test --provider openai
 ```
 
 This is useful for confirming connectivity after setup or when adding a new provider key.

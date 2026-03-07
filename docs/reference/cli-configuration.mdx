@@ -49,7 +49,7 @@ Defaults for `arc agent` sessions.
 | Key | Description | Values | Default |
 |---|---|---|---|
 | `provider` | LLM provider | `"anthropic"`, `"openai"`, `"gemini"`, etc. | `"anthropic"` |
-| `model` | Model name | Any model ID from `arc models list` | Per provider |
+| `model` | Model name | Any model ID from `arc model list` | Per provider |
 | `permissions` | Tool permission level | `"read-only"`, `"read-write"`, `"full"` | `"read-write"` |
 | `output_format` | Output format | `"text"`, `"json"` | `"text"` |
 
@@ -72,7 +72,7 @@ Defaults for `arc llm prompt` and `arc llm chat`.
 
 | Key | Description | Values | Default |
 |---|---|---|---|
-| `model` | Model name | Any model ID from `arc models list` | Per provider |
+| `model` | Model name | Any model ID from `arc model list` | Per provider |
 
 <Note>
 The `[llm]` section only sets the default model. Use `[agent]` to configure provider, permissions, and output format for `arc agent`.

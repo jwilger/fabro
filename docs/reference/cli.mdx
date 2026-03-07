@@ -168,14 +168,14 @@ arc llm chat -m claude-opus-4-6 -s "You are a helpful coding assistant"
 
 ---
 
-## `arc models list`
+## `arc model list`
 
-List available LLM models from the built-in catalog. Running `arc models` with no subcommand also lists models.
+List available LLM models from the built-in catalog. Running `arc model` with no subcommand also lists models.
 
 ```bash
-arc models list
-arc models list -p anthropic
-arc models list -q sonnet
+arc model list
+arc model list -p anthropic
+arc model list -q sonnet
 ```
 
 | Flag | Description |
@@ -183,14 +183,14 @@ arc models list -q sonnet
 | `-p, --provider <PROVIDER>` | Filter by provider |
 | `-q, --query <QUERY>` | Search for models matching this string (checks ID, display name, and aliases) |
 
-## `arc models test`
+## `arc model test`
 
 Test model availability by sending a simple prompt to each model and reporting the result.
 
 ```bash
-arc models test
-arc models test -p anthropic
-arc models test -m claude-sonnet-4-5
+arc model test
+arc model test -p anthropic
+arc model test -m claude-sonnet-4-5
 ```
 
 | Flag | Description |
