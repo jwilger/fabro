@@ -1,0 +1,45 @@
+---
+title: "Steering"
+description: "Guide running agents with real-time course corrections"
+---
+
+Steering lets you send guidance to an agent while it's working — without waiting for a human gate or stopping the run. If you see the agent heading down the wrong path, you can nudge it back on track mid-stage.
+
+## How steering works
+
+A steering message is injected into the agent's conversation as a user-role message. The agent sees it on its next LLM turn — after the current tool call finishes — and can adjust its approach immediately.
+
+The delivery flow:
+
+1. You send a `POST /runs/{id}/steer` request with your guidance text
+2. The message is queued on the agent session's steering queue
+3. Before the next LLM call, Arc drains the queue and injects each message as a `Steering` turn in the conversation history
+4. The LLM sees the guidance alongside its existing context and adjusts accordingly
+
+Steering is **asynchronous** — the API returns `202 Accepted` immediately. The agent picks up the message at its next natural pause point (between tool calls), not mid-execution.
+
+See the [Steer Run API reference](/api-reference/human-in-the-loop/steer-run) for the full request and response schema.
+
+## When steering is delivered
+
+Steering messages are drained from the queue at two points during the agent loop:
+
+1. **Before the first LLM call** — any messages queued before the agent starts its first turn
+2. **After each tool execution round** — between tool results being collected and the next LLM call
+
+This means there is a natural latency between sending a steering message and the agent seeing it. If the agent is in the middle of a long-running shell command, the message waits until that command finishes and the next LLM turn begins.
+
+Multiple steering messages sent in quick succession are all delivered together at the next drain point.
+
+## Steering vs. human gates
+
+Steering and [human gates](/workflows/human-in-the-loop) serve different purposes:
+
+| | Steering | Human gates |
+|---|---|---|
+| **When** | Any time during an agent stage | At a defined point in the workflow graph |
+| **Blocks execution** | No — agent continues working | Yes — workflow pauses until a choice is made |
+| **Defined in the graph** | No — sent ad hoc via the API | Yes — `hexagon` nodes with edge options |
+| **Use case** | Course corrections, hints, focus changes | Approval decisions, strategy selection, go/no-go |
+
+Use human gates for structured decisions that are part of the workflow design. Use steering for reactive guidance when you're watching a run and want to intervene.
