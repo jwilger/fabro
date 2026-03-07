@@ -359,6 +359,12 @@ struct PaginatedModelsResponse {
     data: Vec<ModelInfo>,
 }
 
+#[derive(Deserialize)]
+struct ModelTestResponse {
+    status: String,
+    error_message: Option<String>,
+}
+
 async fn fetch_models_from_server(
     client: &reqwest::Client,
     base_url: &str,
@@ -394,6 +400,99 @@ async fn fetch_models_from_server(
     Ok(models)
 }
 
+async fn test_model_via_server(
+    client: &reqwest::Client,
+    base_url: &str,
+    model_id: &str,
+) -> Result<ModelTestResponse> {
+    let url = format!("{base_url}/models/{model_id}/test");
+    let response = client
+        .post(&url)
+        .send()
+        .await
+        .with_context(|| format!("Failed to connect to server at {base_url}"))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        bail!("Server returned {status}: {body}");
+    }
+
+    response
+        .json()
+        .await
+        .context("Failed to parse model test response from server")
+}
+
+async fn test_models_via_server(
+    server: &ServerConnection,
+    provider: Option<&str>,
+    model: Option<&str>,
+    s: &Styles,
+) -> Result<()> {
+    let models_to_test = if let Some(model_id) = model {
+        let all = fetch_models_from_server(&server.client, &server.base_url, None).await?;
+        let found: Vec<_> = all.into_iter().filter(|m| m.id == model_id).collect();
+        if found.is_empty() {
+            bail!("Unknown model: {model_id}");
+        }
+        found
+    } else {
+        fetch_models_from_server(&server.client, &server.base_url, provider).await?
+    };
+
+    if models_to_test.is_empty() {
+        bail!("No models found");
+    }
+
+    println!(
+        "{}",
+        s.bold_dim.apply_to(format!(
+            "{:<30} {:<12} {:>10}  {:>7}   {:>7}  {:>10}  RESULT",
+            "MODEL", "PROVIDER", "CONTEXT", "COST", "", "SPEED",
+        )),
+    );
+
+    let mut failures = 0u32;
+    for info in &models_to_test {
+        let result =
+            test_model_via_server(&server.client, &server.base_url, &info.id).await;
+
+        let (status_color, status) = match result {
+            Ok(resp) if resp.status == "ok" => (&s.green, "ok".to_string()),
+            Ok(resp) => {
+                failures += 1;
+                let msg = resp
+                    .error_message
+                    .unwrap_or_else(|| "unknown error".to_string());
+                (&s.red, format!("error: {msg}"))
+            }
+            Err(e) => {
+                failures += 1;
+                (&s.red, format!("error: {e}"))
+            }
+        };
+
+        println!(
+            "{} {} {:>10}  {:>7} / {:<7}  {}  {}",
+            s.bold.apply_to(format!("{:<30}", info.id)),
+            s.dim.apply_to(format!("{:<12}", info.provider)),
+            format_context_window(info.limits.context_window),
+            format_cost(info.costs.input_cost_per_mtok),
+            format_cost(info.costs.output_cost_per_mtok),
+            s.cyan
+                .apply_to(format!("{:>10}", format_speed(info.estimated_output_tps))),
+            status_color.apply_to(&status),
+        );
+    }
+
+    if failures > 0 {
+        bail!("{failures} model(s) failed");
+    }
+
+    Ok(())
+}
+
 pub async fn run_models(
     command: Option<ModelsCommand>,
     server: Option<ServerConnection>,
@@ -427,12 +526,14 @@ pub async fn run_models(
 
             print_models_table(&models, &styles);
         }
-        ModelsCommand::Test { provider, model } => {
-            if server.is_some() {
-                bail!("models test is not supported in server mode");
+        ModelsCommand::Test { provider, model } => match &server {
+            Some(s) => {
+                test_models_via_server(s, provider.as_deref(), model.as_deref(), &styles).await?;
             }
-            test_models(provider.as_deref(), model.as_deref(), &styles).await?;
-        }
+            None => {
+                test_models(provider.as_deref(), model.as_deref(), &styles).await?;
+            }
+        },
     }
 
     Ok(())
@@ -691,24 +792,68 @@ mod tests {
         assert_eq!(result.provider_options, None);
     }
 
-    // --- run_models server mode rejection ---
+    // --- test_model_via_server ---
 
     #[tokio::test]
-    async fn models_test_rejects_server_mode() {
-        let server = ServerConnection {
-            client: reqwest::Client::new(),
-            base_url: "http://unused".to_string(),
-        };
-        let command = Some(ModelsCommand::Test {
-            provider: None,
-            model: None,
-        });
-        let result = run_models(command, Some(server)).await;
-        let err = result.unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "models test is not supported in server mode"
-        );
+    async fn test_model_via_server_parses_ok() {
+        let server = httpmock::MockServer::start_async().await;
+        server.mock_async(|when, then| {
+            when.method("POST").path("/models/test-model/test");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .body(serde_json::json!({
+                    "model_id": "test-model",
+                    "status": "ok"
+                }).to_string());
+        }).await;
+
+        let client = reqwest::Client::new();
+        let resp = test_model_via_server(&client, &server.url(""), "test-model")
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status, "ok");
+        assert!(resp.error_message.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_model_via_server_parses_error() {
+        let server = httpmock::MockServer::start_async().await;
+        server.mock_async(|when, then| {
+            when.method("POST").path("/models/test-model/test");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .body(serde_json::json!({
+                    "model_id": "test-model",
+                    "status": "error",
+                    "error_message": "timeout"
+                }).to_string());
+        }).await;
+
+        let client = reqwest::Client::new();
+        let resp = test_model_via_server(&client, &server.url(""), "test-model")
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status, "error");
+        assert_eq!(resp.error_message.as_deref(), Some("timeout"));
+    }
+
+    #[tokio::test]
+    async fn test_model_via_server_404() {
+        let server = httpmock::MockServer::start_async().await;
+        server.mock_async(|when, then| {
+            when.method("POST").path("/models/bad-model/test");
+            then.status(404)
+                .header("Content-Type", "application/json")
+                .body(serde_json::json!({
+                    "errors": [{"status": "404", "title": "Not Found", "detail": "Model not found"}]
+                }).to_string());
+        }).await;
+
+        let client = reqwest::Client::new();
+        let result = test_model_via_server(&client, &server.url(""), "bad-model").await;
+        assert!(result.is_err());
     }
 
     // --- fetch_models_from_server ---

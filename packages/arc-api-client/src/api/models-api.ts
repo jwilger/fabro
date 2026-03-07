@@ -22,6 +22,10 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base';
 // @ts-ignore
+import type { ErrorResponse } from '../models';
+// @ts-ignore
+import type { ModelTestResult } from '../models';
+// @ts-ignore
 import type { PaginatedModelList } from '../models';
 /**
  * ModelsApi - axios parameter creator
@@ -75,6 +79,47 @@ export const ModelsApiAxiosParamCreator = function (configuration?: Configuratio
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * Tests a model by sending a simple prompt and reporting pass/fail.
+         * @summary Test Model
+         * @param {string} id The model identifier.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        testModel: async (id: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'id' is not null or undefined
+            assertParamExists('testModel', 'id', id)
+            const localVarPath = `/models/{id}/test`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication mTLS required
+            await setApiKeyToObject(localVarHeaderParameter, "X-mTLS-Client-CN", configuration)
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            localVarHeaderParameter['Accept'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -98,6 +143,19 @@ export const ModelsApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['ModelsApi.listModels']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * Tests a model by sending a simple prompt and reporting pass/fail.
+         * @summary Test Model
+         * @param {string} id The model identifier.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async testModel(id: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelTestResult>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.testModel(id, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ModelsApi.testModel']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -118,6 +176,16 @@ export const ModelsApiFactory = function (configuration?: Configuration, basePat
         listModels(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig): AxiosPromise<PaginatedModelList> {
             return localVarFp.listModels(pageLimit, pageOffset, options).then((request) => request(axios, basePath));
         },
+        /**
+         * Tests a model by sending a simple prompt and reporting pass/fail.
+         * @summary Test Model
+         * @param {string} id The model identifier.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        testModel(id: string, options?: RawAxiosRequestConfig): AxiosPromise<ModelTestResult> {
+            return localVarFp.testModel(id, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -135,6 +203,17 @@ export class ModelsApi extends BaseAPI {
      */
     public listModels(pageLimit?: number, pageOffset?: number, options?: RawAxiosRequestConfig) {
         return ModelsApiFp(this.configuration).listModels(pageLimit, pageOffset, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Tests a model by sending a simple prompt and reporting pass/fail.
+     * @summary Test Model
+     * @param {string} id The model identifier.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public testModel(id: string, options?: RawAxiosRequestConfig) {
+        return ModelsApiFp(this.configuration).testModel(id, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

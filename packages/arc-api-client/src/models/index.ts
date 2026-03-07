@@ -45,6 +45,7 @@ export * from './model-costs';
 export * from './model-features';
 export * from './model-limits';
 export * from './model-reference';
+export * from './model-test-result';
 export * from './open-item';
 export * from './open-item-kind';
 export * from './paginated-api-question-list';

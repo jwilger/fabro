@@ -1094,6 +1094,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedModelList"
 
+  /models/{id}/test:
+    post:
+      operationId: testModel
+      tags: [Models]
+      summary: Test Model
+      description: Tests a model by sending a simple prompt and reporting pass/fail.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The model identifier.
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelTestResult"
+        "404":
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Settings ──────────────────────────────────────────────────────────
 
   /settings:
@@ -1532,6 +1559,28 @@ components:
         default:
           type: boolean
           description: Whether this is the default model for its provider.
+
+    ModelTestResult:
+      description: Result of testing a model with a simple prompt.
+      type: object
+      required:
+        - model_id
+        - status
+      properties:
+        model_id:
+          type: string
+          description: The model identifier that was tested.
+          example: "claude-opus-4-6"
+        status:
+          type: string
+          enum:
+            - ok
+            - error
+          description: Whether the model responded successfully.
+        error_message:
+          type: string
+          nullable: true
+          description: Error details when status is "error".
 
     PaginatedSavedQueryList:
       description: Paginated list of saved queries.

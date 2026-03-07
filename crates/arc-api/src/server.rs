@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -236,6 +237,7 @@ fn demo_routes() -> Router<Arc<AppState>> {
         .route("/insights/execute", post(crate::demo::execute_query_stub))
         .route("/insights/history", get(crate::demo::list_query_history))
         .route("/models", get(crate::demo::list_models))
+        .route("/models/{id}/test", post(test_model))
         .route("/settings", get(crate::demo::get_server_configuration))
         .route("/projects", get(crate::demo::list_projects))
         .route("/projects/{id}/branches", get(crate::demo::list_branches))
@@ -288,6 +290,7 @@ fn real_routes() -> Router<Arc<AppState>> {
         .route("/insights/execute", post(not_implemented))
         .route("/insights/history", get(not_implemented))
         .route("/models", get(crate::demo::list_models))
+        .route("/models/{id}/test", post(test_model))
         .route("/settings", get(not_implemented))
         .route("/projects", get(not_implemented))
         .route("/projects/{id}/branches", get(not_implemented))
@@ -929,6 +932,52 @@ async fn cancel_run(
     }
 }
 
+async fn test_model(
+    _auth: AuthenticatedService,
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Response {
+    let Some(info) = arc_llm::catalog::get_model_info(&id) else {
+        return ApiError::not_found(format!("Model not found: {id}")).into_response();
+    };
+
+    if state.dry_run {
+        return Json(serde_json::json!({
+            "model_id": id,
+            "status": "ok",
+        }))
+        .into_response();
+    }
+
+    let params = arc_llm::generate::GenerateParams::new(&info.id)
+        .provider(&info.provider)
+        .prompt("Say OK")
+        .max_tokens(16);
+
+    let result =
+        tokio::time::timeout(Duration::from_secs(30), arc_llm::generate::generate(params)).await;
+
+    match result {
+        Ok(Ok(_)) => Json(serde_json::json!({
+            "model_id": id,
+            "status": "ok",
+        }))
+        .into_response(),
+        Ok(Err(e)) => Json(serde_json::json!({
+            "model_id": id,
+            "status": "error",
+            "error_message": e.to_string(),
+        }))
+        .into_response(),
+        Err(_) => Json(serde_json::json!({
+            "model_id": id,
+            "status": "error",
+            "error_message": "timeout (30s)",
+        }))
+        .into_response(),
+    }
+}
+
 async fn get_retro(
     _auth: AuthenticatedService,
     State(state): State<Arc<AppState>>,
@@ -1046,6 +1095,76 @@ mod tests {
     async fn body_json(body: Body) -> serde_json::Value {
         let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap();
         serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_model_unknown_returns_404() {
+        let app = test_app_with(test_db().await);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/nonexistent-model-xyz/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_model_known_returns_200_with_status() {
+        let app = test_app_with(test_db().await);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/claude-opus-4-6/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["model_id"], "claude-opus-4-6");
+        assert!(body["status"] == "ok" || body["status"] == "error");
+    }
+
+    #[tokio::test]
+    async fn test_model_dry_run_returns_ok() {
+        let state = create_app_state_with_options(test_db().await, test_registry, true, 5);
+        let app = build_router(state, AuthMode::Disabled);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/claude-opus-4-6/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["model_id"], "claude-opus-4-6");
+        assert_eq!(body["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn test_model_dry_run_unknown_returns_404() {
+        let state = create_app_state_with_options(test_db().await, test_registry, true, 5);
+        let app = build_router(state, AuthMode::Disabled);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/nonexistent-model-xyz/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

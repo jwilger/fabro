@@ -847,6 +847,41 @@ mod serve_dry_run {
     }
 
     #[tokio::test]
+    async fn test_model_known_via_full_router() {
+        let app = dry_run_app().await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/claude-opus-4-6/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["model_id"], "claude-opus-4-6");
+        // No API keys in test env, so status will be "error"
+        assert!(body["status"] == "ok" || body["status"] == "error");
+    }
+
+    #[tokio::test]
+    async fn test_model_unknown_via_full_router() {
+        let app = dry_run_app().await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/models/nonexistent-model-xyz/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn dry_run_serve_rejects_invalid_dot() {
         let app = dry_run_app().await;
 
