@@ -106,6 +106,13 @@
         "icon": "graduation-cap",
         "groups": [
           {
+            "group": "Overview",
+            "icon": "compass",
+            "pages": [
+              "getting-started/comparison"
+            ]
+          },
+          {
             "group": "Workflow Tutorials",
             "icon": "graduation-cap",
             "pages": [
