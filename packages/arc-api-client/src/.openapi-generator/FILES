@@ -1,9 +1,9 @@
 api.ts
+api/completions-api.ts
 api/discovery-api.ts
 api/human-in-the-loop-api.ts
 api/insights-api.ts
 api/models-api.ts
-api/projects-api.ts
 api/retros-api.ts
 api/run-internals-api.ts
 api/run-outputs-api.ts
@@ -26,13 +26,15 @@ models/assistant-stage-turn.ts
 models/assistant-turn.ts
 models/auth-configuration.ts
 models/board-column.ts
-models/branch.ts
 models/check-run-status.ts
 models/check-run.ts
 models/code-location.ts
+models/completion-response.ts
+models/completion-usage.ts
 models/control-detail.ts
 models/control-info.ts
 models/control-performance.ts
+models/create-completion-request.ts
 models/create-session-request.ts
 models/create-session-response.ts
 models/criterion-reference.ts
@@ -69,10 +71,8 @@ models/model.ts
 models/open-item-kind.ts
 models/open-item.ts
 models/paginated-api-question-list.ts
-models/paginated-branch-list.ts
 models/paginated-history-entry-list.ts
 models/paginated-model-list.ts
-models/paginated-project-list.ts
 models/paginated-retro-list.ts
 models/paginated-run-list.ts
 models/paginated-run-stage-list.ts
@@ -86,7 +86,6 @@ models/paginated-workflow-list.ts
 models/pagination-meta.ts
 models/preview-url-request.ts
 models/preview-url-response.ts
-models/project.ts
 models/question-type.ts
 models/recent-control-result.ts
 models/repository-reference.ts

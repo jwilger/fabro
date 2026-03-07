@@ -539,25 +539,6 @@ pub async fn get_server_configuration(
     (StatusCode::OK, Json(settings::server_config())).into_response()
 }
 
-// ── Projects ───────────────────────────────────────────────────────────
-
-pub async fn list_projects(
-    _auth: AuthenticatedService,
-    State(_state): State<Arc<AppState>>,
-    Query(pagination): Query<PaginationParams>,
-) -> Response {
-    paginated_response(projects::list_items(), &pagination)
-}
-
-pub async fn list_branches(
-    _auth: AuthenticatedService,
-    State(_state): State<Arc<AppState>>,
-    Path(_id): Path<String>,
-    Query(pagination): Query<PaginationParams>,
-) -> Response {
-    paginated_response(projects::branches(), &pagination)
-}
-
 // ── Usage ──────────────────────────────────────────────────────────────
 
 pub async fn get_aggregate_usage(
@@ -2696,40 +2677,3 @@ mod settings {
     }
 }
 
-mod projects {
-    use arc_types::*;
-
-    pub fn list_items() -> Vec<Project> {
-        vec![
-            Project {
-                id: "arc-web".into(),
-                name: "arc-web".into(),
-            },
-            Project {
-                id: "arc-workflows".into(),
-                name: "arc-workflows".into(),
-            },
-            Project {
-                id: "arc-cli".into(),
-                name: "arc-cli".into(),
-            },
-        ]
-    }
-
-    pub fn branches() -> Vec<Branch> {
-        vec![
-            Branch {
-                id: "main".into(),
-                name: "main".into(),
-            },
-            Branch {
-                id: "develop".into(),
-                name: "develop".into(),
-            },
-            Branch {
-                id: "feature/start-page".into(),
-                name: "feature/start-page".into(),
-            },
-        ]
-    }
-}

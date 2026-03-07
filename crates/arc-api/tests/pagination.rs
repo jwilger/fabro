@@ -81,14 +81,6 @@ const ENDPOINTS: &[PaginatedEndpoint] = &[
         name: "listSessions",
     },
     PaginatedEndpoint {
-        path: "/projects",
-        name: "listProjects",
-    },
-    PaginatedEndpoint {
-        path: "/projects/arc-web/branches",
-        name: "listBranches",
-    },
-    PaginatedEndpoint {
         path: "/insights/queries",
         name: "listSavedQueries",
     },

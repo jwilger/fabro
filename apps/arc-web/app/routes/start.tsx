@@ -23,7 +23,7 @@ import { Link } from "react-router";
 import { timeAgo, groupSessionsByDate } from "../lib/time";
 import { apiJson } from "../api-client";
 import { getAppConfig } from "../lib/config.server";
-import type { PaginatedProjectList, PaginatedSessionList } from "@qltysh/arc-api-client";
+import type { PaginatedSessionList } from "@qltysh/arc-api-client";
 import type { Route } from "./+types/start";
 
 export const handle = { hideHeader: true, wide: true };
@@ -34,16 +34,18 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { feature_flags } = getAppConfig();
-  const [{ data: apiProjects }, { data: apiSessions }] = await Promise.all([
-    apiJson<PaginatedProjectList>("/projects", { request }),
-    apiJson<PaginatedSessionList>("/sessions", { request }),
-  ]);
-  const projects = apiProjects.map((p) => ({ id: p.id, name: p.name }));
+  const { data: apiSessions } = await apiJson<PaginatedSessionList>("/sessions", { request });
   const sessionGroups = groupSessionsByDate(
     apiSessions.map((s) => ({ id: s.id, title: s.title, created_at: s.created_at }))
   );
-  return { projects, sessionGroups, feature_flags };
+  return { sessionGroups, feature_flags };
 }
+
+const projects = [
+  { id: "arc-web", name: "arc-web" },
+  { id: "arc-workflows", name: "arc-workflows" },
+  { id: "arc-cli", name: "arc-cli" },
+];
 
 const branches = [
   { id: "main", name: "main" },
@@ -97,7 +99,7 @@ function SessionSidebar({ groups }: { groups: { label: string; sessions: { id: s
 }
 
 export default function Start({ loaderData }: Route.ComponentProps) {
-  const { projects, sessionGroups, feature_flags } = loaderData;
+  const { sessionGroups, feature_flags } = loaderData;
   const [prompt, setPrompt] = useState("");
   const [project, setProject] = useState(projects[0]);
   const [branch, setBranch] = useState(branches[0]);

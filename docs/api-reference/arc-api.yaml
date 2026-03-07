@@ -27,8 +27,6 @@ tags:
     description: Interactive chat sessions
   - name: Retros
     description: Run retrospectives
-  - name: Projects
-    description: Project and branch management
   - name: Models
     description: Available LLM models
   - name: Settings
@@ -1137,49 +1135,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ServerConfiguration"
 
-  # ── Projects ──────────────────────────────────────────────────────────
-
-  /projects:
-    get:
-      operationId: listProjects
-      tags: [Projects]
-      summary: List Projects
-      description: Returns a paginated list of registered projects (repositories).
-      parameters:
-        - $ref: "#/components/parameters/PageLimit"
-        - $ref: "#/components/parameters/PageOffset"
-      responses:
-        "200":
-          description: Paginated list of projects
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PaginatedProjectList"
-
-  /projects/{id}/branches:
-    get:
-      operationId: listBranches
-      tags: [Projects]
-      summary: List Branches
-      description: Returns a paginated list of branches for a specific project.
-      parameters:
-        - $ref: "#/components/parameters/ProjectId"
-        - $ref: "#/components/parameters/PageLimit"
-        - $ref: "#/components/parameters/PageOffset"
-      responses:
-        "200":
-          description: Paginated list of branches
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PaginatedBranchList"
-        "404":
-          description: Project not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
 components:
   securitySchemes:
     BearerAuth:
@@ -1273,15 +1228,6 @@ components:
       schema:
         type: string
       example: "1"
-
-    ProjectId:
-      name: id
-      in: path
-      required: true
-      description: Unique identifier of a project (repository).
-      schema:
-        type: string
-      example: arc-web
 
     CheckpointFilter:
       name: checkpoint
@@ -1400,34 +1346,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SessionListItem"
-        meta:
-          $ref: "#/components/schemas/PaginationMeta"
-
-    PaginatedProjectList:
-      description: Paginated list of projects.
-      type: object
-      required:
-        - data
-        - meta
-      properties:
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/Project"
-        meta:
-          $ref: "#/components/schemas/PaginationMeta"
-
-    PaginatedBranchList:
-      description: Paginated list of branches.
-      type: object
-      required:
-        - data
-        - meta
-      properties:
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/Branch"
         meta:
           $ref: "#/components/schemas/PaginationMeta"
 
@@ -4003,40 +3921,6 @@ components:
         session_sandboxes:
           type: boolean
           description: Enable session sandboxes.
-
-    # ── Project Schemas ──────────────────────────────────────────────────
-
-    Project:
-      description: A registered project (repository).
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-          description: Unique project identifier.
-          example: arc-web
-        name:
-          type: string
-          description: Human-readable project name.
-          example: arc-web
-
-    Branch:
-      description: A branch within a project.
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-          description: Branch identifier.
-          example: main
-        name:
-          type: string
-          description: Branch name.
-          example: main
 
     # ── Discovery Schemas ────────────────────────────────────────────────
 

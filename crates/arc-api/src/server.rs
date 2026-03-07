@@ -240,8 +240,6 @@ fn demo_routes() -> Router<Arc<AppState>> {
         .route("/models", get(crate::demo::list_models))
         .route("/models/{id}/test", post(test_model))
         .route("/settings", get(crate::demo::get_server_configuration))
-        .route("/projects", get(crate::demo::list_projects))
-        .route("/projects/{id}/branches", get(crate::demo::list_branches))
         .route("/usage", get(crate::demo::get_aggregate_usage))
 }
 
@@ -293,8 +291,6 @@ fn real_routes() -> Router<Arc<AppState>> {
         .route("/models", get(crate::demo::list_models))
         .route("/models/{id}/test", post(test_model))
         .route("/settings", get(not_implemented))
-        .route("/projects", get(not_implemented))
-        .route("/projects/{id}/branches", get(not_implemented))
         .route("/usage", get(get_aggregate_usage))
 }
 
