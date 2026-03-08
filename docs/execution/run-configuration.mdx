@@ -155,6 +155,8 @@ cpu = 4
 memory = 8
 disk = 20
 dockerfile = "FROM rust:1.85-slim-bookworm\nRUN apt-get update"
+# Or reference an external Dockerfile:
+# dockerfile = { path = "./Dockerfile" }
 ```
 
 | Field | Description |
@@ -165,7 +167,7 @@ dockerfile = "FROM rust:1.85-slim-bookworm\nRUN apt-get update"
 | `snapshot.cpu` | CPU cores for the snapshot. |
 | `snapshot.memory` | Memory in GB for the snapshot. |
 | `snapshot.disk` | Disk in GB for the snapshot. |
-| `snapshot.dockerfile` | Dockerfile content for building the snapshot image. |
+| `snapshot.dockerfile` | Dockerfile content (inline string) or path (`{ path = "..." }`) for building the snapshot image. Paths are resolved relative to the TOML file's directory. |
 | `network` | Network access mode: `"allow_all"` (default), `"block"`, or `{ allow_list = ["..."] }`. See [Sandboxing](/administration/sandboxing#network-access-control). |
 
 ### `[vars]`
