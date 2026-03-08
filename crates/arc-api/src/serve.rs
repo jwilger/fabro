@@ -168,38 +168,40 @@ pub async fn serve_command(args: ServeArgs, styles: &'static Styles) -> anyhow::
     }
 
     // Optionally start webhook listener
-    let webhook_manager = {
+    let webhook_app_id = {
         let cfg = shared_config.read().expect("config lock poisoned");
         match (&cfg.git.webhooks, &cfg.git.app_id) {
-            (Some(_webhook_config), Some(app_id)) => {
-                let secret = std::env::var("GITHUB_APP_WEBHOOK_SECRET").ok();
-                let private_key_pem = read_github_private_key();
-                match (secret, private_key_pem) {
-                    (Some(secret), Some(pem)) => {
-                        let app_id = app_id.clone();
-                        drop(cfg);
-                        match crate::github_webhooks::WebhookManager::start(
-                            secret.into_bytes(),
-                            &app_id,
-                            &pem,
-                        )
-                        .await
-                        {
-                            Ok(manager) => Some(manager),
-                            Err(err) => {
-                                error!(error = %err, "Failed to start webhook listener");
-                                None
-                            }
-                        }
-                    }
-                    _ => {
-                        warn!("Webhook config present but GITHUB_APP_WEBHOOK_SECRET or GITHUB_APP_PRIVATE_KEY not set; skipping webhook listener");
-                        None
-                    }
-                }
-            }
+            (Some(_), Some(app_id)) => Some(app_id.clone()),
             _ => None,
         }
+    };
+    let webhook_manager = match webhook_app_id {
+        Some(app_id) => {
+            let secret = std::env::var("GITHUB_APP_WEBHOOK_SECRET").ok();
+            let private_key_pem = read_github_private_key();
+            match (secret, private_key_pem) {
+                (Some(secret), Some(pem)) => {
+                    match crate::github_webhooks::WebhookManager::start(
+                        secret.into_bytes(),
+                        &app_id,
+                        &pem,
+                    )
+                    .await
+                    {
+                        Ok(manager) => Some(manager),
+                        Err(err) => {
+                            error!(error = %err, "Failed to start webhook listener");
+                            None
+                        }
+                    }
+                }
+                _ => {
+                    warn!("Webhook config present but GITHUB_APP_WEBHOOK_SECRET or GITHUB_APP_PRIVATE_KEY not set; skipping webhook listener");
+                    None
+                }
+            }
+        }
+        None => None,
     };
 
     // Spawn config polling task
