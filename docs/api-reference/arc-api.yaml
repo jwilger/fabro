@@ -1569,23 +1569,91 @@ components:
 
     # ── Completion Schemas ─────────────────────────────────────────────
 
+    CompletionMessage:
+      description: A message in the conversation.
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool, developer]
+          description: The role of the message author.
+        content:
+          type: array
+          description: Content parts of the message.
+          items:
+            $ref: "#/components/schemas/CompletionContentPart"
+        name:
+          type: string
+          description: Optional name for the message author.
+        tool_call_id:
+          type: string
+          description: Tool call ID for tool result messages.
+
+    CompletionContentPart:
+      description: A content part within a message, discriminated by `kind`.
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          description: "Content part type: text, image, tool_call, tool_result, thinking, etc."
+        data:
+          description: Content data, structure depends on kind.
+
+    CompletionToolDefinition:
+      description: A tool available for the model to call.
+      type: object
+      required: [name, description, parameters]
+      properties:
+        name:
+          type: string
+          description: Tool name.
+        description:
+          type: string
+          description: Human-readable tool description.
+        parameters:
+          description: JSON Schema for the tool's parameters.
+
+    CompletionToolChoice:
+      description: Controls how the model selects tools.
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [auto, none, required, named]
+          description: Tool selection mode.
+        tool_name:
+          type: string
+          description: Required when mode is "named".
+
     CreateCompletionRequest:
       type: object
-      required: [prompt]
+      required: [messages]
       properties:
-        prompt:
-          type: string
-          description: The user prompt text.
+        messages:
+          type: array
+          description: The conversation messages.
+          items:
+            $ref: "#/components/schemas/CompletionMessage"
         model:
           type: string
           description: Model ID or alias. Server picks default if omitted.
         system:
           type: string
-          description: System prompt.
+          description: System prompt (convenience; prepended as a system message).
         stream:
           type: boolean
           default: true
           description: Stream response via SSE.
+        tools:
+          type: array
+          description: Tool definitions available to the model.
+          items:
+            $ref: "#/components/schemas/CompletionToolDefinition"
+        tool_choice:
+          $ref: "#/components/schemas/CompletionToolChoice"
         schema:
           description: JSON Schema for structured output.
         temperature:
@@ -1597,6 +1665,19 @@ components:
         top_p:
           type: number
           format: double
+        stop_sequences:
+          type: array
+          items:
+            type: string
+          description: Stop sequences.
+        reasoning_effort:
+          type: string
+          description: Reasoning effort level.
+        provider:
+          type: string
+          description: Provider to route to.
+        provider_options:
+          description: Provider-specific options.
 
     CompletionUsage:
       type: object
@@ -1611,18 +1692,17 @@ components:
 
     CompletionResponse:
       type: object
-      required: [id, model, content, stop_reason, usage]
+      required: [id, model, message, stop_reason, usage]
       properties:
         id:
           type: string
         model:
           type: string
-        content:
-          type: string
-          description: Generated text.
+        message:
+          $ref: "#/components/schemas/CompletionMessage"
         stop_reason:
           type: string
-          description: Why generation stopped (end_turn, max_tokens).
+          description: Why generation stopped (end_turn, max_tokens, tool_calls).
         usage:
           $ref: "#/components/schemas/CompletionUsage"
         output:

@@ -358,6 +358,14 @@ pub async fn run_with_args(
     args: AgentArgs,
     mcp_servers: Vec<arc_mcp::config::McpServerConfig>,
 ) -> anyhow::Result<()> {
+    run_with_args_and_client(args, None, mcp_servers).await
+}
+
+pub async fn run_with_args_and_client(
+    args: AgentArgs,
+    llm_client: Option<Client>,
+    mcp_servers: Vec<arc_mcp::config::McpServerConfig>,
+) -> anyhow::Result<()> {
     // Resolve color support once, leak to get 'static lifetime for use across threads
     let styles: &'static Styles = Box::leak(Box::new(Styles::detect_stderr()));
 
@@ -369,15 +377,18 @@ pub async fn run_with_args(
         .parse()
         .map_err(|e: String| anyhow::anyhow!("{e}"))?;
 
-    // Validate provider API key
-    if !provider.has_api_key() {
-        anyhow::bail!("API key not set for provider '{provider}'");
-    }
-
-    // Build LLM client
-    let mut client = Client::from_env()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create LLM client: {e}"))?;
+    // Build LLM client — use provided client or create from env
+    let mut client = if let Some(c) = llm_client {
+        c
+    } else {
+        // Validate provider API key only in standalone mode
+        if !provider.has_api_key() {
+            anyhow::bail!("API key not set for provider '{provider}'");
+        }
+        Client::from_env()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create LLM client: {e}"))?
+    };
 
     if args.verbose {
         client.add_middleware(Arc::new(VerboseMiddleware { styles }));

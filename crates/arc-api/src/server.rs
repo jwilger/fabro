@@ -108,6 +108,7 @@ pub struct AppState {
     pub hook_config: arc_workflows::hook::HookConfig,
     git_author: arc_workflows::git::GitAuthor,
     pub sessions: crate::sessions::SessionStore,
+    llm_client: tokio::sync::OnceCell<arc_llm::client::Client>,
 }
 
 /// Build the axum Router with all run endpoints.
@@ -405,6 +406,7 @@ pub fn create_app_state_with_options(
         hook_config: arc_workflows::hook::HookConfig::default(),
         git_author,
         sessions: crate::sessions::new_session_store(),
+        llm_client: tokio::sync::OnceCell::new(),
     })
 }
 
@@ -1076,6 +1078,65 @@ async fn test_model(
     }
 }
 
+fn finish_reason_to_api_stop_reason(reason: &arc_llm::types::FinishReason) -> String {
+    match reason {
+        arc_llm::types::FinishReason::Stop => "end_turn".to_string(),
+        arc_llm::types::FinishReason::Length => "max_tokens".to_string(),
+        arc_llm::types::FinishReason::ToolCalls => "tool_calls".to_string(),
+        arc_llm::types::FinishReason::ContentFilter => "content_filter".to_string(),
+        arc_llm::types::FinishReason::Error => "error".to_string(),
+        arc_llm::types::FinishReason::Other(s) => s.clone(),
+    }
+}
+
+fn convert_api_message(msg: &arc_types::CompletionMessage) -> arc_llm::types::Message {
+    let role = match msg.role {
+        arc_types::CompletionMessageRole::System => arc_llm::types::Role::System,
+        arc_types::CompletionMessageRole::User => arc_llm::types::Role::User,
+        arc_types::CompletionMessageRole::Assistant => arc_llm::types::Role::Assistant,
+        arc_types::CompletionMessageRole::Tool => arc_llm::types::Role::Tool,
+        arc_types::CompletionMessageRole::Developer => arc_llm::types::Role::Developer,
+    };
+    let content: Vec<arc_llm::types::ContentPart> = msg
+        .content
+        .iter()
+        .filter_map(|part| {
+            let json = serde_json::to_value(part).ok()?;
+            serde_json::from_value(json).ok()
+        })
+        .collect();
+    arc_llm::types::Message {
+        role,
+        content,
+        name: msg.name.clone(),
+        tool_call_id: msg.tool_call_id.clone(),
+    }
+}
+
+fn convert_llm_message(msg: &arc_llm::types::Message) -> arc_types::CompletionMessage {
+    let role = match msg.role {
+        arc_llm::types::Role::System => arc_types::CompletionMessageRole::System,
+        arc_llm::types::Role::User => arc_types::CompletionMessageRole::User,
+        arc_llm::types::Role::Assistant => arc_types::CompletionMessageRole::Assistant,
+        arc_llm::types::Role::Tool => arc_types::CompletionMessageRole::Tool,
+        arc_llm::types::Role::Developer => arc_types::CompletionMessageRole::Developer,
+    };
+    let content: Vec<arc_types::CompletionContentPart> = msg
+        .content
+        .iter()
+        .filter_map(|part| {
+            let json = serde_json::to_value(part).ok()?;
+            serde_json::from_value(json).ok()
+        })
+        .collect();
+    arc_types::CompletionMessage {
+        role,
+        content,
+        name: msg.name.clone(),
+        tool_call_id: msg.tool_call_id.clone(),
+    }
+}
+
 fn finish_reason_to_stop_reason(reason: &arc_llm::types::FinishReason) -> &'static str {
     match reason {
         arc_llm::types::FinishReason::Stop => "end_turn",
@@ -1096,25 +1157,70 @@ async fn create_completion(
             .map_or_else(|| "claude-sonnet-4-5".to_string(), |m| m.id.clone())
     });
 
-    let info = arc_llm::catalog::get_model_info(&model_id);
+    let catalog_info = arc_llm::catalog::get_model_info(&model_id);
 
-    // Build GenerateParams
-    let mut params = arc_llm::generate::GenerateParams::new(&model_id).prompt(&req.prompt);
-    if let Some(ref info) = info {
-        params = params.provider(&info.provider);
-    }
+    // Resolve provider: explicit request > catalog > None
+    let provider_name = req
+        .provider
+        .or_else(|| catalog_info.as_ref().map(|i| i.provider.clone()));
+
+    info!(model = %model_id, provider = ?provider_name, "Completion request received");
+
+    // Build messages list
+    let mut messages: Vec<arc_llm::types::Message> = Vec::new();
     if let Some(system) = req.system {
-        params = params.system(&system);
+        messages.push(arc_llm::types::Message::system(system));
     }
-    if let Some(temp) = req.temperature {
-        params = params.temperature(temp);
+    for msg in &req.messages {
+        messages.push(convert_api_message(msg));
     }
-    if let Some(max_tokens) = req.max_tokens {
-        params = params.max_tokens(max_tokens);
-    }
-    if let Some(top_p) = req.top_p {
-        params = params.top_p(top_p);
-    }
+
+    // Convert tools
+    let tools: Option<Vec<arc_llm::types::ToolDefinition>> = if req.tools.is_empty() {
+        None
+    } else {
+        Some(
+            req.tools
+                .into_iter()
+                .map(|t| arc_llm::types::ToolDefinition {
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.parameters,
+                })
+                .collect(),
+        )
+    };
+
+    // Convert tool_choice
+    let tool_choice: Option<arc_llm::types::ToolChoice> = req.tool_choice.map(|tc| match tc.mode {
+        arc_types::CompletionToolChoiceMode::Auto => arc_llm::types::ToolChoice::Auto,
+        arc_types::CompletionToolChoiceMode::None => arc_llm::types::ToolChoice::None,
+        arc_types::CompletionToolChoiceMode::Required => arc_llm::types::ToolChoice::Required,
+        arc_types::CompletionToolChoiceMode::Named => {
+            arc_llm::types::ToolChoice::named(tc.tool_name.unwrap_or_default())
+        }
+    });
+
+    // Build the LLM request
+    let request = arc_llm::types::Request {
+        model: model_id.clone(),
+        messages,
+        provider: provider_name,
+        tools,
+        tool_choice,
+        response_format: None,
+        temperature: req.temperature,
+        top_p: req.top_p,
+        max_tokens: req.max_tokens,
+        stop_sequences: if req.stop_sequences.is_empty() {
+            None
+        } else {
+            Some(req.stop_sequences)
+        },
+        reasoning_effort: req.reasoning_effort,
+        metadata: None,
+        provider_options: req.provider_options,
+    };
 
     // Force non-streaming for structured output
     let use_stream = req.stream && req.schema.is_none();
@@ -1123,34 +1229,35 @@ async fn create_completion(
     if state.dry_run {
         let msg_id = ulid::Ulid::new().to_string();
         if use_stream {
-            let sse_stream = futures_util::stream::iter(vec![
-                Ok::<_, std::convert::Infallible>(
-                    Event::default().event("message_start").data(
-                        serde_json::json!({
-                            "type": "message_start",
-                            "message": {
-                                "id": msg_id,
-                                "type": "message",
-                                "role": "assistant",
-                                "content": [],
-                                "model": model_id,
-                                "stop_reason": null,
-                                "usage": {"input_tokens": 0}
-                            }
-                        })
-                        .to_string(),
-                    ),
+            let sse_stream = futures_util::stream::iter(vec![Ok::<_, std::convert::Infallible>(
+                Event::default().event("message_start").data(
+                    serde_json::json!({
+                        "type": "message_start",
+                        "message": {
+                            "id": msg_id,
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [],
+                            "model": model_id,
+                            "stop_reason": null,
+                            "usage": {"input_tokens": 0}
+                        }
+                    })
+                    .to_string(),
                 ),
-                Ok(Event::default()
-                    .event("message_stop")
-                    .data(serde_json::json!({"type": "message_stop"}).to_string())),
-            ]);
+            )]);
             return Sse::new(sse_stream).into_response();
         }
+        let empty_msg = arc_types::CompletionMessage {
+            role: arc_types::CompletionMessageRole::Assistant,
+            content: vec![],
+            name: None,
+            tool_call_id: None,
+        };
         return Json(arc_types::CompletionResponse {
             id: msg_id,
             model: model_id,
-            content: String::new(),
+            message: empty_msg,
             stop_reason: "end_turn".to_string(),
             usage: arc_types::CompletionUsage {
                 input_tokens: 0,
@@ -1161,9 +1268,25 @@ async fn create_completion(
         .into_response();
     }
 
+    // Get or create LLM client (cached in AppState)
+    let client = match state
+        .llm_client
+        .get_or_try_init(|| arc_llm::client::Client::from_env())
+        .await
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to create LLM client: {e}"),
+            )
+            .into_response()
+        }
+    };
+
     if use_stream {
-        // Streaming path
-        let stream_result = match arc_llm::generate::stream(params).await {
+        // Streaming path: forward all StreamEvents as SSE
+        let stream_result = match client.stream(&request).await {
             Ok(s) => s,
             Err(e) => {
                 return ApiError::new(StatusCode::BAD_GATEWAY, format!("LLM error: {e}"))
@@ -1280,12 +1403,28 @@ async fn create_completion(
         let msg_id = ulid::Ulid::new().to_string();
 
         if let Some(schema) = req.schema {
+            // Structured output uses generate_object for JSON parsing logic
+            let mut params = arc_llm::generate::GenerateParams::new(&request.model)
+                .messages(request.messages)
+                .client(std::sync::Arc::new(client.clone()));
+            if let Some(ref p) = request.provider {
+                params = params.provider(p);
+            }
+            if let Some(temp) = request.temperature {
+                params = params.temperature(temp);
+            }
+            if let Some(max_tokens) = request.max_tokens {
+                params = params.max_tokens(max_tokens);
+            }
+            if let Some(top_p) = request.top_p {
+                params = params.top_p(top_p);
+            }
             match arc_llm::generate::generate_object(params, schema).await {
                 Ok(result) => Json(arc_types::CompletionResponse {
                     id: msg_id,
                     model: model_id,
-                    content: result.text(),
-                    stop_reason: finish_reason_to_stop_reason(&result.finish_reason).to_string(),
+                    message: convert_llm_message(&result.response.message),
+                    stop_reason: finish_reason_to_api_stop_reason(&result.finish_reason),
                     usage: arc_types::CompletionUsage {
                         input_tokens: result.usage.input_tokens,
                         output_tokens: result.usage.output_tokens,
@@ -1297,15 +1436,15 @@ async fn create_completion(
                     .into_response(),
             }
         } else {
-            match arc_llm::generate::generate(params).await {
-                Ok(result) => Json(arc_types::CompletionResponse {
-                    id: msg_id,
-                    model: model_id,
-                    content: result.text(),
-                    stop_reason: finish_reason_to_stop_reason(&result.finish_reason).to_string(),
+            match client.complete(&request).await {
+                Ok(response) => Json(arc_types::CompletionResponse {
+                    id: response.id,
+                    model: response.model,
+                    message: convert_llm_message(&response.message),
+                    stop_reason: finish_reason_to_api_stop_reason(&response.finish_reason),
                     usage: arc_types::CompletionUsage {
-                        input_tokens: result.usage.input_tokens,
-                        output_tokens: result.usage.output_tokens,
+                        input_tokens: response.usage.input_tokens,
+                        output_tokens: response.usage.output_tokens,
                     },
                     output: None,
                 })
@@ -2293,7 +2432,7 @@ mod tests {
             .header("content-type", "application/json")
             .body(Body::from(
                 serde_json::to_string(&serde_json::json!({
-                    "prompt": "Hello",
+                    "messages": [{"role": "user", "content": [{"kind": "text", "data": "Hello"}]}],
                     "stream": false
                 }))
                 .unwrap(),
@@ -2307,6 +2446,7 @@ mod tests {
         assert!(body["id"].is_string());
         assert!(body["model"].is_string());
         assert_eq!(body["stop_reason"], "end_turn");
+        assert!(body["message"].is_object());
         assert!(body["usage"]["input_tokens"].is_number());
         assert!(body["usage"]["output_tokens"].is_number());
     }
@@ -2328,7 +2468,7 @@ mod tests {
             .header("content-type", "application/json")
             .body(Body::from(
                 serde_json::to_string(&serde_json::json!({
-                    "prompt": "Hello",
+                    "messages": [{"role": "user", "content": [{"kind": "text", "data": "Hello"}]}],
                     "stream": true
                 }))
                 .unwrap(),
@@ -2349,7 +2489,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_completion_missing_prompt_returns_422() {
+    async fn create_completion_missing_messages_returns_422() {
         let app = test_app_with(test_db().await);
 
         let req = Request::builder()

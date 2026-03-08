@@ -398,7 +398,7 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
     let use_stream = !args.no_stream && schema.is_none();
 
     let mut body = serde_json::json!({
-        "prompt": prompt_text,
+        "messages": [{"role": "user", "content": [{"kind": "text", "data": prompt_text}]}],
         "stream": use_stream,
     });
     if let Some(ref model) = args.model {
@@ -438,31 +438,27 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
         }
 
         let show_usage = args.usage;
-        let mut output_usage: Option<serde_json::Value> = None;
+        let mut output_usage: Option<crate::types::Usage> = None;
 
         parse_sse_frames(response, |event_type, data| {
             match event_type {
-                "content_block_delta" => {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                        if let Some(text) = parsed["delta"]["text"].as_str() {
-                            print!("{text}");
-                            let _ = io::stdout().flush();
+                "stream_event" => {
+                    if let Ok(event) = serde_json::from_str::<crate::types::StreamEvent>(data) {
+                        match event {
+                            crate::types::StreamEvent::TextDelta { delta, .. } => {
+                                print!("{delta}");
+                                let _ = io::stdout().flush();
+                            }
+                            crate::types::StreamEvent::Finish { usage, .. } => {
+                                if show_usage {
+                                    output_usage = Some(usage);
+                                }
+                            }
+                            crate::types::StreamEvent::Error { error, .. } => {
+                                bail!("Server error: {error}");
+                            }
+                            _ => {}
                         }
-                    }
-                }
-                "message_delta" => {
-                    if show_usage {
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                            output_usage = Some(parsed);
-                        }
-                    }
-                }
-                "error" => {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                        let msg = parsed["error"]["message"]
-                            .as_str()
-                            .unwrap_or("Unknown error");
-                        bail!("Server error: {msg}");
                     }
                 }
                 _ => {}
@@ -474,8 +470,7 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
 
         if show_usage {
             if let Some(usage) = output_usage {
-                let output_tokens = usage["usage"]["output_tokens"].as_i64().unwrap_or(0);
-                eprintln!("Tokens: output {output_tokens}");
+                print_usage(&usage);
             }
         }
     } else {
@@ -502,11 +497,12 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
         if schema.is_some() {
             if let Some(output) = result.get("output") {
                 println!("{}", serde_json::to_string_pretty(output)?);
-            } else if let Some(content) = result["content"].as_str() {
-                print!("{content}");
+            } else {
+                // Extract text from message.content parts
+                print_message_text(&result["message"]);
             }
-        } else if let Some(content) = result["content"].as_str() {
-            print!("{content}");
+        } else {
+            print_message_text(&result["message"]);
         }
 
         if args.usage {
@@ -522,6 +518,19 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
     }
 
     Ok(())
+}
+
+/// Extract and print text from a CompletionMessage JSON value.
+fn print_message_text(message: &serde_json::Value) {
+    if let Some(content) = message["content"].as_array() {
+        for part in content {
+            if part["kind"].as_str() == Some("text") {
+                if let Some(text) = part["data"].as_str() {
+                    print!("{text}");
+                }
+            }
+        }
+    }
 }
 
 /// Parse SSE frames from a server response, calling `on_frame` for each complete frame.
@@ -1378,14 +1387,11 @@ mod tests {
     async fn run_prompt_via_server_streaming() {
         let mock_server = httpmock::MockServer::start_async().await;
         let sse_body = "\
-event: message_start\n\
-data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"test\",\"stop_reason\":null,\"usage\":{\"input_tokens\":5}}}\n\
+event: stream_event\n\
+data: {\"type\":\"text_delta\",\"delta\":\"Hi\",\"text_id\":null}\n\
 \n\
-event: content_block_delta\n\
-data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\n\
-\n\
-event: message_stop\n\
-data: {\"type\":\"message_stop\"}\n\
+event: stream_event\n\
+data: {\"type\":\"finish\",\"finish_reason\":\"stop\",\"usage\":{\"input_tokens\":5,\"output_tokens\":2,\"total_tokens\":7},\"response\":{\"id\":\"r1\",\"model\":\"test\",\"provider\":\"test\",\"message\":{\"role\":\"assistant\",\"content\":[{\"kind\":\"text\",\"data\":\"Hi\"}],\"name\":null,\"tool_call_id\":null},\"finish_reason\":\"stop\",\"usage\":{\"input_tokens\":5,\"output_tokens\":2,\"total_tokens\":7},\"raw\":null,\"warnings\":[],\"rate_limit\":null}}\n\
 \n";
 
         let mock = mock_server

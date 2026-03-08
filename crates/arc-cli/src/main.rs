@@ -216,12 +216,42 @@ async fn main() -> Result<()> {
                 exec_defaults.and_then(|a| a.permissions),
                 exec_defaults.and_then(|a| a.output_format),
             );
+            let resolved =
+                cli_config::resolve_mode(cli.mode, cli.server_url.as_deref(), &cli_config);
             let mcp_servers: Vec<arc_mcp::config::McpServerConfig> = cli_config
                 .mcp_servers
                 .into_iter()
                 .map(|(name, entry)| entry.into_config(name))
                 .collect();
-            arc_agent::cli::run_with_args(args, mcp_servers).await?
+            match resolved.mode {
+                cli_config::ExecutionMode::Server => {
+                    tracing::info!(mode = "server", "Agent session starting");
+                    let http_client = cli_config::build_server_client(resolved.tls.as_ref())?;
+                    let provider_name = args
+                        .provider
+                        .clone()
+                        .unwrap_or_else(|| "anthropic".to_string());
+                    let adapter = std::sync::Arc::new(arc_llm::providers::ArcServerAdapter::new(
+                        http_client,
+                        &resolved.server_base_url,
+                        &provider_name,
+                    ));
+                    let mut client = arc_llm::client::Client::new(
+                        std::collections::HashMap::new(),
+                        None,
+                        vec![],
+                    );
+                    client.register_provider(adapter).await.map_err(|e| {
+                        anyhow::anyhow!("Failed to register arc server adapter: {e}")
+                    })?;
+                    arc_agent::cli::run_with_args_and_client(args, Some(client), mcp_servers)
+                        .await?
+                }
+                cli_config::ExecutionMode::Standalone => {
+                    tracing::info!(mode = "standalone", "Agent session starting");
+                    arc_agent::cli::run_with_args(args, mcp_servers).await?
+                }
+            }
         }
         Command::Run(mut args) => {
             let styles: &'static arc_util::terminal::Styles =
