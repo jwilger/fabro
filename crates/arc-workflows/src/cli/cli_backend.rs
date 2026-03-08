@@ -486,21 +486,50 @@ impl CodergenBackend for AgentCliBackend {
             let _ = tokio::fs::write(stage_dir.join("provider_used.json"), json).await;
         }
 
-        // Forward provider API key so the CLI tool can authenticate.
-        // Written to a temp file and sourced, since Daytona's exec API doesn't
-        // support env vars and inline export would leak keys in logs.
-        let mut env_lines: Vec<String> = vec![
-            // Ensure npm-installed CLIs in ~/.local/bin are on PATH
-            "export PATH=\"$HOME/.local/bin:$PATH\"".to_string(),
-        ];
-        env_lines.extend(provider.api_key_env_vars().iter().filter_map(|name| {
-            std::env::var(name)
-                .ok()
-                .map(|val| format!("export {name}='{}'", shell_escape(&val)))
-        }));
-        for (name, val) in &self.env {
-            env_lines.push(format!("export {name}='{}'", shell_escape(val)));
+        // Forward provider API key and custom env vars so the CLI tool can authenticate.
+        // Build a HashMap to pass via exec_command's env_vars parameter — this
+        // prepends `export` statements directly into the base64-encoded command,
+        // avoiding filesystem-to-process race conditions that can occur when
+        // writing an env file via the fs API and sourcing it via the process API.
+        let mut launch_env: HashMap<String, String> = HashMap::new();
+        for name in provider.api_key_env_vars() {
+            if let Ok(val) = std::env::var(name) {
+                launch_env.insert((*name).to_string(), val);
+            }
         }
+        for (name, val) in &self.env {
+            launch_env.insert(name.clone(), val.clone());
+        }
+
+        // Codex CLI requires `codex login --with-api-key` to store credentials;
+        // it does not read OPENAI_API_KEY from the environment at runtime.
+        if cli == AgentCli::Codex {
+            if let Some(api_key) = launch_env.get("OPENAI_API_KEY") {
+                let login_cmd = format!(
+                    "PATH=\"$HOME/.local/bin:$PATH\" echo '{}' | codex login --with-api-key",
+                    shell_escape(api_key)
+                );
+                let login_result = sandbox
+                    .exec_command(&login_cmd, 30_000, None, None, None)
+                    .await
+                    .map_err(|e| ArcError::handler(format!("codex login failed: {e}")))?;
+                if login_result.exit_code != 0 {
+                    tracing::warn!(
+                        exit_code = login_result.exit_code,
+                        "codex login --with-api-key failed: {}",
+                        login_result.stderr
+                    );
+                }
+            }
+        }
+
+        // Also write env file as fallback for commands that source it (e.g. ensure_cli PATH)
+        let mut env_lines: Vec<String> = vec!["export PATH=\"$HOME/.local/bin:$PATH\"".to_string()];
+        env_lines.extend(
+            launch_env
+                .iter()
+                .map(|(k, v)| format!("export {k}='{}'", shell_escape(v))),
+        );
         {
             sandbox
                 .write_file(&env_path, &env_lines.join("\n"))
@@ -524,8 +553,13 @@ impl CodergenBackend for AgentCliBackend {
             "SID=$(command -v setsid || true)\n$SID sh -c '{inner_command} > {stdout_path} 2>{stderr_path}; echo $? > {exit_code_path}' </dev/null >/dev/null 2>&1 &\necho $!"
         );
         let launch_start = std::time::Instant::now();
+        let launch_env_ref = if launch_env.is_empty() {
+            None
+        } else {
+            Some(&launch_env)
+        };
         let launch_result = sandbox
-            .exec_command(&bg_command, 30_000, None, None, None)
+            .exec_command(&bg_command, 30_000, None, launch_env_ref, None)
             .await
             .map_err(|e| ArcError::handler(format!("Failed to launch CLI command: {e}")))?;
         let pid = launch_result.stdout.trim();
