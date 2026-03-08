@@ -11,19 +11,21 @@ arc run start run.toml
 
 ## Minimal example
 
-A run config requires three fields:
+A run config requires two fields:
 
 ```toml title="run.toml"
 version = 1
-goal = "Implement the login feature"
 graph = "workflow.dot"
+goal = "Implement the login feature"
 ```
 
-| Field | Description |
-|---|---|
-| `version` | Config format version. Must be `1`. |
-| `goal` | What the workflow should accomplish. Passed to agents and used in retrospectives. |
-| `graph` | Path to the DOT workflow file, resolved relative to the TOML file's directory. |
+| Field | Required | Description |
+|---|---|---|
+| `version` | Yes | Config format version. Must be `1`. |
+| `graph` | Yes | Path to the DOT workflow file, resolved relative to the TOML file's directory. |
+| `goal` | No | What the workflow should accomplish. Passed to agents and used in retrospectives. Can also be provided via `--goal` CLI flag or DOT graph `goal` attribute. |
+
+Goal precedence: CLI `--goal` > TOML `goal` > DOT graph attribute.
 
 ## Full example
 
@@ -322,7 +324,7 @@ The same merge behavior applies to Daytona labels. All other fields use simple "
 Arc validates the run config when it loads:
 
 - **Version check** — Only `version = 1` is accepted. Other versions are rejected immediately.
-- **Required fields** — `version`, `goal`, and `graph` are all required. Missing any of them is an error.
+- **Required fields** — `version` and `graph` are required. `goal` is optional (can be provided via `--goal` or DOT graph attribute).
 - **Unknown fields** — Extra fields not listed above are rejected (`deny_unknown_fields`).
 - **Variable check** — Any `$variable` in the DOT file without a matching `[vars]` entry produces an error.
 

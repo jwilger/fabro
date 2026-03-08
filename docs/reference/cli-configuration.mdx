@@ -20,6 +20,7 @@ CLI flags always take the highest priority:
 ## Full example
 
 ```toml title="cli.toml"
+verbose = true
 mode = "server"
 
 [server]
@@ -48,6 +49,17 @@ email = "arc-bot@company.com"
 ```
 
 All fields are optional. You can include just the sections and keys you want to override.
+
+## `verbose`
+
+Enable verbose output by default for `arc run start` and `arc doctor`, without passing `-v` every time.
+
+| Value | Description |
+|---|---|
+| `true` | Verbose output on by default |
+| `false` | Normal output (default) |
+
+The `-v` / `--verbose` CLI flag always takes effect regardless of this setting.
 
 ## `[exec]` section
 

@@ -47,6 +47,9 @@ level = "info"
 name = "arc-bot"
 email = "arc-bot@company.com"
 
+[git.webhooks]
+strategy = "tailscale_funnel"
+
 # Run defaults — applied to every run unless overridden by the run config
 [llm]
 model = "claude-sonnet-4-5"
@@ -114,6 +117,16 @@ Customize the git author identity used for checkpoint commits. When not set, def
 | `email` | Git author email | `"arc@local"` |
 
 The CLI can also set `[git.author]` in `cli.toml` to override the server default.
+
+### `[git.webhooks]` section
+
+Enable automatic GitHub webhook delivery via Tailscale funnel. When configured, `arc serve` binds a local HTTP listener, exposes it through `tailscale funnel`, and updates the GitHub App's webhook URL on startup. Incoming webhooks are verified with HMAC-SHA256.
+
+| Key | Description | Values |
+|---|---|---|
+| `strategy` | Webhook delivery method | `"tailscale_funnel"` |
+
+Requires a configured GitHub App (`[git]` section with `app_id` and `client_id`) and the `GITHUB_APP_WEBHOOK_SECRET` environment variable.
 
 ### `[checkpoint]` section
 

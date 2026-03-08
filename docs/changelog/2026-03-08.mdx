@@ -1,7 +1,16 @@
 ---
-title: "Sandbox reliability and @file validation"
+title: "GitHub webhooks, sandbox reliability, and @file validation"
 date: "2026-03-08"
 ---
+
+## GitHub webhook listener
+
+Arc's server can now receive GitHub App webhooks automatically when you enable Tailscale funnel. On startup, it binds a local HTTP listener, exposes it via `tailscale funnel`, and patches the GitHub App's webhook URL — no manual ngrok or port forwarding setup needed. Incoming webhooks are verified with HMAC-SHA256 before processing.
+
+```toml title="server.toml"
+[git.webhooks]
+strategy = "tailscale_funnel"
+```
 
 ## Sandbox command reliability
 
@@ -11,11 +20,16 @@ The default stall watchdog timeout has also increased from 10 to 30 minutes, giv
 
 ## @file reference validation
 
-The workflow validator now catches unresolved `@file` references before execution starts. Previously, a typo like `@file(src/mising.txt)` would silently pass through as literal text in the prompt. Now you get a clear validation error pointing to the bad reference.
+The workflow validator and `arc validate` now catch unresolved `@file` references before execution starts. Previously, a typo like `@file(src/mising.txt)` would silently pass through as literal text in the prompt. Now you get a clear validation error pointing to the bad reference.
 
 Path handling for `~` home directory and `..` parent directory references is also fixed, so `@file(~/config.toml)` and `@file(../shared/prompt.md)` resolve correctly.
 
 ## More
+
+<Accordion title="CLI">
+- `verbose = true` in `cli.toml` defaults to verbose output without needing `-v` every time
+- `goal` is now optional in run config TOML — precedence is CLI `--goal` > TOML `goal` > DOT graph attribute
+</Accordion>
 
 <Accordion title="Workflows">
 - Compaction progress now visible in non-verbose `arc run` output
