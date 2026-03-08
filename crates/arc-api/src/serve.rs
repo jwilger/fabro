@@ -307,13 +307,10 @@ fn resolve_model_provider(
 /// Read the GitHub App private key from the environment, decoding base64 if needed.
 fn read_github_private_key() -> Option<String> {
     let raw = std::env::var("GITHUB_APP_PRIVATE_KEY").ok()?;
-    if raw.starts_with("-----") {
-        Some(raw)
-    } else {
-        let pem_bytes =
-            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &raw).ok()?;
-        String::from_utf8(pem_bytes).ok()
-    }
+    Some(crate::jwt_auth::decode_pem_env(
+        "GITHUB_APP_PRIVATE_KEY",
+        &raw,
+    ))
 }
 
 /// Derive client certificate verification mode from the resolved auth strategies.

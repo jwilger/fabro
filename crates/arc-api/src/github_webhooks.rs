@@ -43,26 +43,23 @@ async fn webhook_handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
+    let delivery_id = headers
+        .get("x-github-delivery")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+
     let signature = match headers
         .get("x-hub-signature-256")
         .and_then(|v| v.to_str().ok())
     {
         Some(s) => s,
         None => {
-            let delivery_id = headers
-                .get("x-github-delivery")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("unknown");
             warn!(delivery = %delivery_id, "Webhook signature verification failed");
             return StatusCode::UNAUTHORIZED;
         }
     };
 
     if !verify_signature(&state.secret, &body, signature) {
-        let delivery_id = headers
-            .get("x-github-delivery")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("unknown");
         warn!(delivery = %delivery_id, "Webhook signature verification failed");
         return StatusCode::UNAUTHORIZED;
     }
@@ -71,20 +68,23 @@ async fn webhook_handler(
         .get("x-github-event")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown");
-    let delivery_id = headers
-        .get("x-github-delivery")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown");
 
-    let (repo, action) = parse_event_metadata(&body);
-
-    debug!(
-        event = %event_type,
-        delivery = %delivery_id,
-        repo = %repo,
-        action = %action,
-        "Webhook received"
-    );
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        let (repo, action) = parse_event_metadata(&body);
+        debug!(
+            event = %event_type,
+            delivery = %delivery_id,
+            repo = %repo,
+            action = %action,
+            "Webhook received"
+        );
+    } else {
+        info!(
+            event = %event_type,
+            delivery = %delivery_id,
+            "Webhook received"
+        );
+    }
 
     StatusCode::OK
 }
@@ -151,7 +151,6 @@ pub async fn spawn_webhook_listener(secret: Vec<u8>) -> anyhow::Result<WebhookLi
 /// Manage the full webhook lifecycle: listener + tailscale funnel + GitHub API.
 pub struct WebhookManager {
     listener: WebhookListener,
-    funnel_port: u16,
 }
 
 impl WebhookManager {
@@ -188,15 +187,12 @@ impl WebhookManager {
 
         info!(url = %webhook_url, "GitHub App webhook URL updated");
 
-        Ok(Self {
-            listener,
-            funnel_port: port,
-        })
+        Ok(Self { listener })
     }
 
     /// Shut down: disable funnel, stop listener.
     pub async fn shutdown(self) {
-        disable_tailscale_funnel(self.funnel_port).await;
+        disable_tailscale_funnel(self.listener.port()).await;
         self.listener.shutdown();
     }
 }

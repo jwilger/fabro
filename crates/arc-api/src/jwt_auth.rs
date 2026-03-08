@@ -53,7 +53,7 @@ pub enum AuthMode {
 pub struct PeerCertificates(pub Option<Vec<CertificateDer<'static>>>);
 
 /// Decode a PEM env var that may be raw PEM or base64-encoded PEM.
-fn decode_pem_env(name: &str, value: &str) -> String {
+pub fn decode_pem_env(name: &str, value: &str) -> String {
     if value.starts_with("-----") {
         return value.to_string();
     }
