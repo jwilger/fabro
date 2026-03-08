@@ -10,11 +10,6 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
   source "$REPO_ROOT/.env"
 fi
 
-if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-  echo "Error: GEMINI_API_KEY not set" >&2
-  exit 1
-fi
-
 usage() {
   echo "Usage: imagegen <prompt> [output.png]" >&2
   echo "" >&2
@@ -23,8 +18,13 @@ usage() {
   exit 1
 }
 
-if [[ $# -lt 1 ]]; then
+if [[ $# -lt 1 ]] || [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
   usage
+fi
+
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+  echo "Error: GEMINI_API_KEY not set" >&2
+  exit 1
 fi
 
 PROMPT="$1"
