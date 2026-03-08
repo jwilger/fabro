@@ -3,7 +3,6 @@
 //! These tests require a `DAYTONA_API_KEY` environment variable and network access.
 //! Run with: `cargo test --package arc-workflows -- --ignored daytona`
 
-use base64::Engine as _;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
