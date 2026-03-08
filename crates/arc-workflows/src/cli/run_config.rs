@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize};
 
-use crate::daytona_sandbox::DaytonaConfig;
+use tracing::debug;
+
+use crate::daytona_sandbox::{DaytonaConfig, DockerfileSource};
 
 const SUPPORTED_VERSION: u32 = 1;
 
@@ -160,13 +162,38 @@ impl WorkflowRunConfig {
 /// Load and validate a run config from a TOML file.
 ///
 /// The `graph` path in the returned config is resolved relative to the
-/// TOML file's parent directory.
+/// TOML file's parent directory. Any `dockerfile = { path = "..." }` is
+/// resolved to inline content.
 pub fn load_run_config(path: &Path) -> anyhow::Result<WorkflowRunConfig> {
     let contents = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read {}", path.display()))?;
-    let config = parse_run_config(&contents)?;
+    let mut config = parse_run_config(&contents)?;
+
+    let config_dir = path.parent().unwrap_or(Path::new("."));
+    resolve_dockerfile(&mut config, config_dir)?;
 
     Ok(config)
+}
+
+/// If the config contains a `dockerfile = { path = "..." }`, read the file
+/// and replace it with `DockerfileSource::Inline(contents)`.
+fn resolve_dockerfile(config: &mut WorkflowRunConfig, config_dir: &Path) -> anyhow::Result<()> {
+    let source = config
+        .sandbox
+        .as_mut()
+        .and_then(|s| s.daytona.as_mut())
+        .and_then(|d| d.snapshot.as_mut())
+        .and_then(|snap| snap.dockerfile.as_mut());
+
+    if let Some(DockerfileSource::Path(ref rel)) = source {
+        let path = config_dir.join(rel);
+        let contents = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read dockerfile at {}", path.display()))?;
+        debug!(path = %path.display(), "Resolved dockerfile from path");
+        *source.unwrap() = DockerfileSource::Inline(contents);
+    }
+
+    Ok(())
 }
 
 /// Resolve the graph path relative to the TOML file's parent directory.
@@ -276,7 +303,7 @@ pub async fn run_setup(setup: &SetupConfig, directory: &Path) -> anyhow::Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::daytona_sandbox::DaytonaSnapshotConfig;
+    use crate::daytona_sandbox::{DaytonaSnapshotConfig, DockerfileSource};
 
     #[test]
     fn parse_toml_with_vars() {
@@ -413,8 +440,10 @@ dockerfile = "FROM rust:1.85-slim-bookworm\nRUN apt-get update"
         assert_eq!(snapshot.memory, Some(8));
         assert_eq!(snapshot.disk, Some(10));
         assert_eq!(
-            snapshot.dockerfile.as_deref(),
-            Some("FROM rust:1.85-slim-bookworm\nRUN apt-get update")
+            snapshot.dockerfile,
+            Some(DockerfileSource::Inline(
+                "FROM rust:1.85-slim-bookworm\nRUN apt-get update".into()
+            ))
         );
     }
 
@@ -523,6 +552,82 @@ version = 1
 goal = "x"
 "#;
         assert!(parse_run_config(no_graph).is_err());
+    }
+
+    #[test]
+    fn parse_toml_with_dockerfile_path() {
+        let toml = r#"
+version = 1
+goal = "Run tests"
+graph = "workflow.dot"
+
+[sandbox.daytona.snapshot]
+name = "my-snapshot"
+dockerfile = { path = "./Dockerfile" }
+"#;
+        let config = parse_run_config(toml).unwrap();
+        let snapshot = config.sandbox.unwrap().daytona.unwrap().snapshot.unwrap();
+        assert_eq!(
+            snapshot.dockerfile,
+            Some(DockerfileSource::Path("./Dockerfile".into()))
+        );
+    }
+
+    #[test]
+    fn load_run_config_resolves_dockerfile_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let dockerfile_path = dir.path().join("Dockerfile");
+        std::fs::write(&dockerfile_path, "FROM rust:1.85-slim-bookworm\nRUN apt-get update")
+            .unwrap();
+
+        let toml_path = dir.path().join("run.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+version = 1
+goal = "Run tests"
+graph = "workflow.dot"
+
+[sandbox.daytona.snapshot]
+name = "my-snapshot"
+dockerfile = { path = "Dockerfile" }
+"#,
+        )
+        .unwrap();
+
+        let config = load_run_config(&toml_path).unwrap();
+        let snapshot = config.sandbox.unwrap().daytona.unwrap().snapshot.unwrap();
+        assert_eq!(
+            snapshot.dockerfile,
+            Some(DockerfileSource::Inline(
+                "FROM rust:1.85-slim-bookworm\nRUN apt-get update".into()
+            ))
+        );
+    }
+
+    #[test]
+    fn load_run_config_dockerfile_path_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("run.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+version = 1
+goal = "Run tests"
+graph = "workflow.dot"
+
+[sandbox.daytona.snapshot]
+name = "my-snapshot"
+dockerfile = { path = "nonexistent" }
+"#,
+        )
+        .unwrap();
+
+        let err = load_run_config(&toml_path).unwrap_err();
+        assert!(
+            err.to_string().contains("Failed to read dockerfile"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -935,7 +1040,7 @@ cpu = 2
                         cpu: Some(8),
                         memory: Some(16),
                         disk: Some(100),
-                        dockerfile: Some("FROM ubuntu".into()),
+                        dockerfile: Some(DockerfileSource::Inline("FROM ubuntu".into())),
                     }),
                     ..DaytonaConfig::default()
                 }),

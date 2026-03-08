@@ -180,7 +180,7 @@ async fn daytona_snapshot_sandbox() {
             memory: Some(4),
             disk: Some(10),
             dockerfile: Some(
-                "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y ripgrep".to_string(),
+                arc_workflows::daytona_sandbox::DockerfileSource::Inline("FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y ripgrep".to_string()),
             ),
         }),
         ..DaytonaConfig::default()
