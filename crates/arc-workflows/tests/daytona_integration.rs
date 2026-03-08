@@ -12,7 +12,7 @@ use arc_llm::provider::Provider;
 use arc_workflows::artifact::sync_artifacts_to_env;
 use arc_workflows::checkpoint::Checkpoint;
 use arc_workflows::context::Context;
-use arc_workflows::daytona_sandbox::{DaytonaConfig, DaytonaSandbox};
+use arc_workflows::daytona_sandbox::{DaytonaConfig, DaytonaSandbox, DaytonaSnapshotConfig};
 use arc_workflows::engine::{RunConfig, WorkflowRunEngine};
 use arc_workflows::error::ArcError;
 use arc_workflows::event::EventEmitter;
@@ -907,7 +907,22 @@ use arc_workflows::handler::agent::{CodergenBackend, CodergenResult};
 ///
 /// Installs the CLI tool in the sandbox, then runs the AgentCliBackend against it.
 async fn run_daytona_cli_test(provider: Provider, model: &str, install_command: &str) {
-    let env = create_env().await;
+    let creds = load_github_app_credentials();
+    dotenvy::dotenv().ok();
+    let client = daytona_sdk::Client::new()
+        .await
+        .expect("Failed to create Daytona client — is DAYTONA_API_KEY set?");
+    let config = DaytonaConfig {
+        snapshot: Some(DaytonaSnapshotConfig {
+            name: "daytona-medium".into(),
+            cpu: None,
+            memory: None,
+            disk: None,
+            dockerfile: None,
+        }),
+        ..DaytonaConfig::default()
+    };
+    let env = DaytonaSandbox::new(client, config, Some(creds));
     env.initialize().await.unwrap();
     let env: Arc<dyn Sandbox> = Arc::new(env);
 
