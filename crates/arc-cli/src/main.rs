@@ -137,8 +137,17 @@ async fn main() -> Result<()> {
         Command::Setup => "setup",
     };
 
+    let config_log_level = if let Command::Serve(ref args) = cli.command {
+        let server_config =
+            arc_api::server_config::load_server_config(args.config.as_deref())?;
+        server_config.log.level
+    } else {
+        let cli_config = cli_config::load_cli_config(None)?;
+        cli_config.log.and_then(|l| l.level)
+    };
+
     let log_prefix = if command_name == "serve" { "serve" } else { "cli" };
-    if let Err(err) = logging::init_tracing(cli.debug, log_prefix) {
+    if let Err(err) = logging::init_tracing(cli.debug, config_log_level.as_deref(), log_prefix) {
         eprintln!("Warning: failed to initialize logging: {err:#}");
     }
 

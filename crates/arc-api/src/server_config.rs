@@ -110,6 +110,11 @@ pub struct FeatureFlags {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct LogConfig {
+    pub level: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct ServerConfig {
     pub data_dir: Option<PathBuf>,
     pub max_concurrent_runs: Option<usize>,
@@ -121,6 +126,8 @@ pub struct ServerConfig {
     pub git: GitConfig,
     #[serde(default)]
     pub feature_flags: FeatureFlags,
+    #[serde(default)]
+    pub log: LogConfig,
     #[serde(flatten)]
     pub run_defaults: RunDefaults,
     #[serde(flatten)]
@@ -501,5 +508,12 @@ exclude_globs = ["**/node_modules/**", "**/.cache/**"]
         let toml = "";
         let config: ServerConfig = toml::from_str(toml).unwrap();
         assert!(config.run_defaults.checkpoint.exclude_globs.is_empty());
+    }
+
+    #[test]
+    fn parse_log_config() {
+        let toml = "[log]\nlevel = \"trace\"";
+        let config: ServerConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.log.level.as_deref(), Some("trace"));
     }
 }

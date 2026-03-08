@@ -1,8 +1,12 @@
 use anyhow::{Context, Result};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub fn init_tracing(debug: bool, log_prefix: &str) -> Result<()> {
-    let default_level = if debug { "debug" } else { "info" };
+pub fn init_tracing(debug: bool, config_log_level: Option<&str>, log_prefix: &str) -> Result<()> {
+    let default_level = if debug {
+        "debug"
+    } else {
+        config_log_level.unwrap_or("info")
+    };
     let filter =
         EnvFilter::try_from_env("ARC_LOG").unwrap_or_else(|_| EnvFilter::new(default_level));
 

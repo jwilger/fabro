@@ -2640,6 +2640,7 @@ mod settings {
             feature_flags: FeatureFlags {
                 session_sandboxes: false,
             },
+            log: Default::default(),
             run_defaults: arc_workflows::cli::run_config::RunDefaults {
                 directory: None,
                 llm: Some(arc_workflows::cli::run_config::LlmConfig {
