@@ -3777,6 +3777,17 @@ components:
           description: Whether to preserve the sandbox after the run.
         daytona:
           $ref: "#/components/schemas/DaytonaConfiguration"
+        exe:
+          $ref: "#/components/schemas/ExeConfiguration"
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables injected into the sandbox.
+
+    ExeConfiguration:
+      description: exe.dev sandbox configuration.
+      type: object
 
     DaytonaConfiguration:
       description: Daytona-specific sandbox settings.
@@ -3928,6 +3939,8 @@ components:
           $ref: "#/components/schemas/GitConfiguration"
         feature_flags:
           $ref: "#/components/schemas/FeatureFlags"
+        log:
+          $ref: "#/components/schemas/LogConfiguration"
         directory:
           type: string
           description: Default working directory.
@@ -3942,10 +3955,30 @@ components:
           additionalProperties:
             type: string
           description: Default variable map.
+        checkpoint:
+          $ref: "#/components/schemas/CheckpointConfiguration"
         hooks:
           type: array
           items:
             $ref: "#/components/schemas/HookDefinition"
+
+    LogConfiguration:
+      description: Logging configuration.
+      type: object
+      properties:
+        level:
+          type: string
+          description: Log level (e.g. trace, debug, info).
+
+    CheckpointConfiguration:
+      description: Checkpoint configuration for file exclusion.
+      type: object
+      properties:
+        exclude_globs:
+          type: array
+          items:
+            type: string
+          description: Glob patterns to exclude from checkpoints.
 
     WebConfiguration:
       description: Web UI configuration.
@@ -4024,6 +4057,36 @@ components:
         client_id:
           type: string
           description: GitHub App Client ID.
+        slug:
+          type: string
+          description: GitHub App slug.
+        author:
+          $ref: "#/components/schemas/GitAuthorConfiguration"
+        webhooks:
+          $ref: "#/components/schemas/WebhookConfiguration"
+
+    GitAuthorConfiguration:
+      description: Git commit author configuration.
+      type: object
+      properties:
+        name:
+          type: string
+          description: Author name for commits.
+        email:
+          type: string
+          description: Author email for commits.
+
+    WebhookConfiguration:
+      description: Webhook delivery configuration.
+      type: object
+      required:
+        - strategy
+      properties:
+        strategy:
+          type: string
+          description: Webhook delivery strategy.
+          enum:
+            - tailscale_funnel
 
     FeatureFlags:
       description: Feature flags.

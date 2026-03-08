@@ -136,6 +136,7 @@ dependencies = [
  "anyhow",
  "arc-agent",
  "arc-db",
+ "arc-exe",
  "arc-llm",
  "arc-types",
  "arc-util",

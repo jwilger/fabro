@@ -55,3 +55,4 @@ http-body-util = "0.1"
 tempfile = "3"
 openapiv3 = "2"
 serde_yaml = "0.9"
+arc-exe = { path = "../arc-exe" }
