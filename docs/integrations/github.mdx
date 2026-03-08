@@ -12,6 +12,7 @@ Arc uses a [GitHub App](https://docs.github.com/en/apps/overview) to authenticat
 | **OAuth login** | Users sign in to the web UI with their GitHub account |
 | **Private repo cloning** | Daytona and Docker sandboxes clone private repositories using short-lived Installation Access Tokens |
 | **Checkpoint pushing** | After each workflow stage, Arc pushes the run branch and metadata branch back to origin from inside the sandbox |
+| **Auto-PR** | When `[pull_request] enabled = true` in the [run config](/execution/run-configuration#pull_request), Arc opens a PR from the agent's working branch after a successful run |
 
 ## Setup
 

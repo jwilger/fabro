@@ -76,6 +76,9 @@ exclude_globs = ["**/node_modules/**", "**/.cache/**"]
 repo_name = "arc"
 repo_url = "https://github.com/qltysh/arc"
 
+[pull_request]
+enabled = true
+
 [[hooks]]
 event = "stage_start"
 command = "./scripts/pre-check.sh"
@@ -233,6 +236,19 @@ digraph CI {
 ```
 
 If a `$variable` in the DOT file has no matching entry in `[vars]`, Arc raises an error immediately. A bare `$` not followed by an identifier (e.g. `costs $5`) is left as-is.
+
+### `[pull_request]`
+
+Automatically open a GitHub pull request when the workflow run completes successfully. Requires a [GitHub App](/integrations/github) to be configured.
+
+```toml title="run.toml"
+[pull_request]
+enabled = true
+```
+
+| Field | Description |
+|---|---|
+| `enabled` | When `true`, Arc creates a PR from the agent's working branch after a successful run. Default: `false`. |
 
 ### `[[hooks]]`
 

@@ -97,6 +97,9 @@ Each hook fires on a specific lifecycle event:
 | `sandbox_ready` | After the sandbox environment is created | No |
 | `sandbox_cleanup` | Before the sandbox is torn down | No |
 | `checkpoint_saved` | After a checkpoint is written to disk | No |
+| `pre_tool_use` | Before an agent tool call executes | Yes |
+| `post_tool_use` | After an agent tool call succeeds | No |
+| `post_tool_use_failure` | After an agent tool call fails | No |
 
 ## Configuration
 
@@ -128,7 +131,7 @@ sandbox = false
 
 Blocking hooks can affect workflow execution. Non-blocking hooks run for side effects only — their decisions are ignored.
 
-**Blocking by default:** `run_start`, `stage_start`, `edge_selected`. These events represent decision points where a hook can prevent or redirect execution.
+**Blocking by default:** `run_start`, `stage_start`, `edge_selected`, `pre_tool_use`. These events represent decision points where a hook can prevent or redirect execution.
 
 **Non-blocking by default:** All other events. Override with `blocking = true` if needed.
 
@@ -188,6 +191,7 @@ The `matcher` field is a regex pattern that filters which stages trigger a hook.
 - The **node ID** (e.g., `"implement"`, `"test"`)
 - The **handler type** (e.g., `"agent"`, `"command"`, `"prompt"`)
 - The **edge source** and **edge target** (for `edge_selected` events)
+- The **tool name** (for `pre_tool_use`, `post_tool_use`, `post_tool_use_failure` events)
 
 If any of these fields match the regex, the hook fires. If `matcher` is omitted, the hook fires for all stages of the specified event.
 
@@ -253,6 +257,29 @@ The full event context is available as a JSON payload. For command hooks, it is 
 </Accordion>
 
 Fields vary by event — `edge_from`/`edge_to`/`edge_label` are only set for `edge_selected`, `failure_reason` for failure events, `attempt`/`max_attempts` for `stage_retrying`, etc. Null fields are omitted from the serialized JSON.
+
+For tool-level events (`pre_tool_use`, `post_tool_use`, `post_tool_use_failure`), the context includes additional fields:
+
+| Field | Events | Description |
+|---|---|---|
+| `tool_name` | All tool events | Name of the tool being called (e.g., `shell`, `write_file`) |
+| `tool_input` | `pre_tool_use` | JSON object with the tool's input arguments |
+| `tool_call_id` | `post_tool_use`, `post_tool_use_failure` | Unique identifier for the tool call |
+| `tool_output` | `post_tool_use` | The tool's output string |
+| `error_message` | `post_tool_use_failure` | The error message from the failed tool call |
+
+<Accordion title="Example pre_tool_use context JSON">
+```json
+{
+  "event": "pre_tool_use",
+  "run_id": "run-abc123",
+  "workflow_name": "ci-pipeline",
+  "node_id": "implement",
+  "tool_name": "shell",
+  "tool_input": {"command": "rm -rf /tmp/build"}
+}
+```
+</Accordion>
 
 ## Timeouts
 
@@ -324,4 +351,13 @@ model = "sonnet"
 max_tool_rounds = 20
 blocking = true
 timeout_ms = 120000
+
+# Auto-format Rust files after writes
+[[hooks]]
+name = "cargo-fmt"
+event = "post_tool_use"
+command = "cargo fmt"
+matcher = "write_file"
+blocking = false
+sandbox = true
 ```

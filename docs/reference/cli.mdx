@@ -127,6 +127,8 @@ arc exec "Refactor the auth module" --permissions full --auto-approve
 | `--verbose` | Print full LLM request/response JSON to stderr | — |
 | `--skills-dir <DIR>` | Directory containing skill files (overrides default discovery) | — |
 | `--output-format <FORMAT>` | Output format: `text` (human-readable) or `json` (NDJSON event stream) | `text` |
+| `--mode <MODE>` | `standalone` (default) or `server` — in server mode, routes through the Arc API's `/completions` endpoint | `standalone` |
+| `--server-url <URL>` | Arc API server URL (overrides `server.base_url` from `cli.toml`) | — |
 
 Permission levels control which tools are auto-approved: `read-only` allows read tools (`read_file`, `grep`, `glob`, `list_dir`) and subagent tools; `read-write` adds write tools (`write_file`, `edit_file`, `apply_patch`); `full` allows all tools including shell commands. Tools outside the permission level are either interactively prompted (if a TTY is present) or denied (with `--auto-approve`). See [default models by provider](/core-concepts/models#default-models).
 
