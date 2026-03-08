@@ -59,10 +59,10 @@ pub fn parse_v4a_patch(text: &str) -> Result<Vec<PatchOperation>, String> {
     // Strip heredoc wrapper
     if let Some(first) = lines.first() {
         let trimmed = first.trim();
-        if trimmed == "<<EOF" || trimmed == "<<'EOF'" || trimmed == "<<\"EOF\"" {
-            if lines.last().map(|l| l.trim()) == Some("EOF") {
-                lines = lines[1..lines.len() - 1].to_vec();
-            }
+        if (trimmed == "<<EOF" || trimmed == "<<'EOF'" || trimmed == "<<\"EOF\"")
+            && lines.last().map(|l| l.trim()) == Some("EOF")
+        {
+            lines = lines[1..lines.len() - 1].to_vec();
         }
     }
 

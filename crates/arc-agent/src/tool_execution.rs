@@ -184,9 +184,7 @@ async fn execute_and_emit_one_tool_with_lookup(
     );
 
     let result = execute_one_tool(
-        &tc.id,
-        &tc.name,
-        &tc.arguments,
+        tc,
         registered_tool,
         env,
         tool_approval,
@@ -217,9 +215,7 @@ async fn execute_and_emit_one_tool_with_lookup(
 
 /// Execute a single tool call: argument validation and execution.
 async fn execute_one_tool(
-    tool_call_id: &str,
-    tool_name: &str,
-    arguments: &serde_json::Value,
+    tc: &arc_llm::types::ToolCall,
     registered_tool: Option<&crate::tool_registry::RegisteredTool>,
     env: Arc<dyn Sandbox>,
     tool_approval: Option<&ToolApprovalFn>,
@@ -227,17 +223,17 @@ async fn execute_one_tool(
     tool_env: Option<&HashMap<String, String>>,
 ) -> ToolResult {
     if let Some(approval_fn) = tool_approval {
-        if let Err(denial_message) = approval_fn(tool_name, arguments) {
-            return ToolResult::error(tool_call_id, denial_message);
+        if let Err(denial_message) = approval_fn(&tc.name, &tc.arguments) {
+            return ToolResult::error(&tc.id, denial_message);
         }
     }
 
     match registered_tool {
         Some(tool) => {
             if let Err(validation_error) =
-                validate_tool_args(&tool.definition.parameters, arguments)
+                validate_tool_args(&tool.definition.parameters, &tc.arguments)
             {
-                return ToolResult::error(tool_call_id, validation_error);
+                return ToolResult::error(&tc.id, validation_error);
             }
 
             let ctx = crate::tool_registry::ToolContext {
@@ -245,12 +241,12 @@ async fn execute_one_tool(
                 cancel: cancel_token,
                 tool_env: tool_env.cloned(),
             };
-            match (tool.executor)(arguments.clone(), ctx).await {
-                Ok(output) => ToolResult::success(tool_call_id, serde_json::json!(output)),
-                Err(err) => ToolResult::error(tool_call_id, err),
+            match (tool.executor)(tc.arguments.clone(), ctx).await {
+                Ok(output) => ToolResult::success(&tc.id, serde_json::json!(output)),
+                Err(err) => ToolResult::error(&tc.id, err),
             }
         }
-        None => ToolResult::error(tool_call_id, format!("Unknown tool: {tool_name}")),
+        None => ToolResult::error(&tc.id, format!("Unknown tool: {}", tc.name)),
     }
 }
 
