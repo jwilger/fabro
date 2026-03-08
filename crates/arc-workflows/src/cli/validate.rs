@@ -13,7 +13,12 @@ use super::{print_diagnostics, read_dot_file, ValidateArgs};
 /// Returns an error if the file cannot be read, parsed, or has validation errors.
 pub fn validate_command(args: &ValidateArgs, styles: &Styles) -> anyhow::Result<()> {
     let source = read_dot_file(&args.workflow)?;
-    let (graph, diagnostics) = WorkflowBuilder::new().prepare(&source)?;
+    let dot_dir = args.workflow.parent().unwrap_or(std::path::Path::new("."));
+    let mut builder = WorkflowBuilder::new();
+    builder.register_transform(Box::new(crate::transform::FileInliningTransform::new(
+        dot_dir.to_path_buf(),
+    )));
+    let (graph, diagnostics) = builder.prepare(&source)?;
 
     eprintln!(
         "{} ({} nodes, {} edges)",
@@ -77,6 +82,42 @@ mod tests {
         let styles = Styles::new(false);
         let result = validate_command(&args, &styles);
         assert!(result.is_err(), "expected Err for invalid syntax");
+    }
+
+    #[test]
+    fn validate_file_references_resolved() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Initialize a git repo so the workflow can be loaded
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        // Write a referenced prompt file
+        let prompts_dir = dir.path().join("prompts");
+        std::fs::create_dir_all(&prompts_dir).unwrap();
+        std::fs::write(prompts_dir.join("plan.md"), "Plan the work carefully.").unwrap();
+
+        // Write a .dot file that uses @prompts/plan.md
+        let dot_path = dir.path().join("workflow.dot");
+        std::fs::write(
+            &dot_path,
+            r#"digraph FileRef {
+    rankdir=LR
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+    plan  [label="Plan", prompt="@prompts/plan.md"]
+    start -> plan -> exit
+}"#,
+        )
+        .unwrap();
+
+        let args = ValidateArgs { workflow: dot_path };
+        let styles = Styles::new(false);
+        let result = validate_command(&args, &styles);
+        assert!(result.is_ok(), "expected Ok but got: {result:?}");
     }
 
     #[test]
