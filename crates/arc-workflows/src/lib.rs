@@ -46,6 +46,7 @@ pub mod manifest;
 pub mod outcome;
 pub mod parser;
 pub mod preamble;
+pub mod pull_request;
 pub mod retro;
 pub mod retro_agent;
 pub mod stylesheet;

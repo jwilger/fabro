@@ -298,6 +298,10 @@ pub async fn run_command(
     let preserve_sandbox =
         resolve_preserve_sandbox(args.preserve_sandbox, run_cfg.as_ref(), &run_defaults);
     let original_cwd = std::env::current_dir()?;
+    let (origin_url, detected_base_branch) =
+        crate::daytona_sandbox::detect_repo_info(&original_cwd)
+            .map(|(url, branch)| (Some(url), branch))
+            .unwrap_or((None, None));
     let git_clean = match sandbox_provider {
         SandboxProvider::Local | SandboxProvider::Docker => {
             crate::git::ensure_clean(&original_cwd).is_ok()
@@ -541,20 +545,20 @@ pub async fn run_command(
     });
 
     // Set up git inside Daytona sandbox (if applicable)
-    let (daytona_run_id, daytona_base_sha, daytona_branch) =
+    let (daytona_run_id, daytona_base_sha, daytona_branch, daytona_base_branch) =
         if sandbox_provider == SandboxProvider::Daytona {
             match setup_daytona_git(&*sandbox).await {
-                Ok((rid, base, branch)) => (Some(rid), Some(base), Some(branch)),
+                Ok((rid, base, branch, base_br)) => (Some(rid), Some(base), Some(branch), base_br),
                 Err(e) => {
                     eprintln!(
                         "{} Daytona git setup failed ({e}), running without git checkpoints.",
                         styles.yellow.apply_to("Warning:"),
                     );
-                    (None, None, None)
+                    (None, None, None, None)
                 }
             }
         } else {
-            (None, None, None)
+            (None, None, None, None)
         };
 
     // Create SSH access if requested
@@ -751,6 +755,11 @@ pub async fn run_command(
         checkpoint_exclude_globs,
         github_app: github_app.clone(),
         git_author,
+        base_branch: detected_base_branch.or(daytona_base_branch),
+        pull_request_enabled: run_cfg
+            .as_ref()
+            .and_then(|c| c.pull_request.as_ref())
+            .is_some_and(|p| p.enabled),
     };
 
     let run_start = Instant::now();
@@ -813,6 +822,55 @@ pub async fn run_command(
             styles,
         )
         .await;
+    }
+
+    // Auto-create PR on successful completion
+    if config.pull_request_enabled {
+        if let Ok(ref outcome) = engine_result {
+            if matches!(
+                outcome.status,
+                StageStatus::Success | StageStatus::PartialSuccess
+            ) {
+                let diff = tokio::fs::read_to_string(logs_dir.join("final.patch"))
+                    .await
+                    .unwrap_or_default();
+                if let (
+                    Some(ref base_branch),
+                    Some(ref run_branch),
+                    Some(ref creds),
+                    Some(ref origin),
+                ) = (
+                    &config.base_branch,
+                    &config.run_branch,
+                    &github_app,
+                    &origin_url,
+                ) {
+                    match crate::pull_request::maybe_open_pull_request(
+                        creds,
+                        origin,
+                        base_branch,
+                        run_branch,
+                        graph.goal(),
+                        &diff,
+                        &model,
+                    )
+                    .await
+                    {
+                        Ok(Some(url)) => {
+                            eprintln!("{} {url}", styles.bold.apply_to("Pull request:"));
+                        }
+                        Ok(None) => {} // empty diff, logged at DEBUG
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Pull request creation failed");
+                            eprintln!(
+                                "{} PR creation failed: {e}",
+                                styles.yellow.apply_to("Warning:")
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     let outcome = engine_result?;
@@ -937,10 +995,26 @@ fn setup_worktree(
 }
 
 /// Set up git inside a Daytona sandbox for checkpoint commits.
-/// Returns (run_id, base_sha, branch_name) on success.
+/// Returns (run_id, base_sha, branch_name, base_branch) on success.
 async fn setup_daytona_git(
     sandbox: &dyn arc_agent::Sandbox,
-) -> anyhow::Result<(String, String, String)> {
+) -> anyhow::Result<(String, String, String, Option<String>)> {
+    // Get current branch name before creating the run branch
+    let branch_result = sandbox
+        .exec_command("git rev-parse --abbrev-ref HEAD", 10_000, None, None, None)
+        .await
+        .map_err(|e| anyhow::anyhow!("git rev-parse --abbrev-ref HEAD failed: {e}"))?;
+    let base_branch = if branch_result.exit_code == 0 {
+        let name = branch_result.stdout.trim().to_string();
+        if name.is_empty() || name == "HEAD" {
+            None
+        } else {
+            Some(name)
+        }
+    } else {
+        None
+    };
+
     // Get current HEAD as base SHA
     let sha_result = sandbox
         .exec_command("git rev-parse HEAD", 10_000, None, None, None)
@@ -972,7 +1046,7 @@ async fn setup_daytona_git(
         );
     }
 
-    Ok((run_id, base_sha, branch_name))
+    Ok((run_id, base_sha, branch_name, base_branch))
 }
 
 /// Resume a workflow run from a git run branch.
@@ -1122,6 +1196,8 @@ async fn run_from_branch(
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author,
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let run_start = Instant::now();
@@ -1656,6 +1732,7 @@ mod tests {
             vars: None,
             hooks: Vec::new(),
             checkpoint: Default::default(),
+            pull_request: None,
         };
         let (model, provider) = resolve_model_provider(
             Some("gpt-5.2"),
@@ -1697,6 +1774,7 @@ mod tests {
             vars: None,
             hooks: Vec::new(),
             checkpoint: Default::default(),
+            pull_request: None,
         };
         let (model, provider) = resolve_model_provider(None, None, Some(&cfg), &defaults, &graph);
         assert_eq!(model, "toml-model");
@@ -1773,6 +1851,7 @@ mod tests {
             vars: None,
             hooks: Vec::new(),
             checkpoint: Default::default(),
+            pull_request: None,
         };
         let (model, provider) = resolve_model_provider(None, None, Some(&cfg), &defaults, &graph);
         assert_eq!(model, "toml-model");
@@ -1798,6 +1877,7 @@ mod tests {
             vars: None,
             hooks: Vec::new(),
             checkpoint: Default::default(),
+            pull_request: None,
         };
         let defaults = RunDefaults::default();
         assert!(resolve_preserve_sandbox(true, Some(&cfg), &defaults));
@@ -1822,6 +1902,7 @@ mod tests {
             vars: None,
             hooks: Vec::new(),
             checkpoint: Default::default(),
+            pull_request: None,
         };
         let defaults = RunDefaults {
             sandbox: Some(run_config::SandboxConfig {

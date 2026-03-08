@@ -305,6 +305,7 @@ fn fully_populated_server_config() -> ServerConfig {
             checkpoint: CheckpointConfig {
                 exclude_globs: vec![],
             },
+            pull_request: Some(PullRequestConfig { enabled: true }),
         },
         hook_config: HookConfig {
             // One hook per HookType variant so the key union covers all fields.

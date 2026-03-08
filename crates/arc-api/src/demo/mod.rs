@@ -1292,6 +1292,7 @@ mod runs {
             ])),
             hooks: vec![],
             checkpoint: Default::default(),
+            pull_request: None,
         })
         .unwrap()
     }
@@ -1441,6 +1442,7 @@ mod workflows {
                     ])),
                     hooks: vec![],
                     checkpoint: Default::default(),
+                    pull_request: None,
                 }),
                 graph: r#"digraph fix_build {
     graph [
@@ -1507,6 +1509,7 @@ mod workflows {
                     ])),
                     hooks: vec![],
                     checkpoint: Default::default(),
+                    pull_request: None,
                 }),
                 graph: r#"digraph implement {
     graph [
@@ -1585,6 +1588,7 @@ mod workflows {
                     ])),
                     hooks: vec![],
                     checkpoint: Default::default(),
+                    pull_request: None,
                 }),
                 graph: r#"digraph sync {
     graph [
@@ -1652,6 +1656,7 @@ mod workflows {
                     ])),
                     hooks: vec![],
                     checkpoint: Default::default(),
+                    pull_request: None,
                 }),
                 graph: r#"digraph expand {
     graph [
@@ -3091,6 +3096,7 @@ mod settings {
                 }),
                 vars: None,
                 checkpoint: Default::default(),
+                pull_request: None,
             },
             hook_config: arc_workflows::hook::HookConfig { hooks: vec![] },
         })

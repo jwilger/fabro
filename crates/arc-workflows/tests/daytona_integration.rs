@@ -396,6 +396,8 @@ async fn daytona_pipeline_artifact_offload_and_sync() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -590,6 +592,8 @@ async fn daytona_git_checkpoint_remote_emits_events() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -773,6 +777,8 @@ async fn daytona_parallel_git_branching_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1101,6 +1107,8 @@ async fn daytona_git_checkpoint_with_shadow_branch() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1241,6 +1249,8 @@ async fn daytona_asset_collection() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1473,6 +1483,8 @@ async fn daytona_git_push_run_branch_to_origin() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine

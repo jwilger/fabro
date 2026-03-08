@@ -68,13 +68,14 @@ pub fn sign_app_jwt(app_id: &str, private_key_pem: &str) -> Result<String, Strin
 /// Request a scoped Installation Access Token for a specific repository.
 ///
 /// Uses the App JWT to find the installation for `owner/repo`, then requests
-/// a token scoped to `contents: read` on that single repository.
-pub async fn create_installation_access_token(
+/// a token scoped to the given `permissions` on that single repository.
+async fn create_installation_access_token_with_permissions(
     client: &reqwest::Client,
     jwt: &str,
     owner: &str,
     repo: &str,
     base_url: &str,
+    permissions: serde_json::Value,
 ) -> Result<String, String> {
     #[derive(Deserialize)]
     struct Installation {
@@ -135,7 +136,7 @@ pub async fn create_installation_access_token(
     );
     let body = serde_json::json!({
         "repositories": [repo],
-        "permissions": { "contents": "write" }
+        "permissions": permissions,
     });
 
     let token_resp = client
@@ -175,6 +176,122 @@ pub async fn create_installation_access_token(
         .map_err(|e| format!("Failed to parse access token response: {e}"))?;
 
     Ok(access_token.token)
+}
+
+/// Request a scoped Installation Access Token with `contents: write`.
+pub async fn create_installation_access_token(
+    client: &reqwest::Client,
+    jwt: &str,
+    owner: &str,
+    repo: &str,
+    base_url: &str,
+) -> Result<String, String> {
+    create_installation_access_token_with_permissions(
+        client,
+        jwt,
+        owner,
+        repo,
+        base_url,
+        serde_json::json!({ "contents": "write" }),
+    )
+    .await
+}
+
+/// Request a scoped Installation Access Token with `contents: write`
+/// and `pull_requests: write`. Used for creating pull requests.
+pub async fn create_installation_access_token_for_pr(
+    client: &reqwest::Client,
+    jwt: &str,
+    owner: &str,
+    repo: &str,
+    base_url: &str,
+) -> Result<String, String> {
+    create_installation_access_token_with_permissions(
+        client,
+        jwt,
+        owner,
+        repo,
+        base_url,
+        serde_json::json!({ "contents": "write", "pull_requests": "write" }),
+    )
+    .await
+}
+
+/// Create a pull request on GitHub.
+///
+/// Signs a JWT, obtains a PR-scoped installation token, and POSTs to the
+/// GitHub pulls API. Returns `(html_url, pr_number)` on success.
+pub async fn create_pull_request(
+    creds: &GitHubAppCredentials,
+    owner: &str,
+    repo: &str,
+    base: &str,
+    head: &str,
+    title: &str,
+    body: &str,
+) -> Result<(String, u64), String> {
+    let jwt = sign_app_jwt(&creds.app_id, &creds.private_key_pem)?;
+    let client = reqwest::Client::new();
+
+    let token =
+        create_installation_access_token_for_pr(&client, &jwt, owner, repo, GITHUB_API_BASE_URL)
+            .await?;
+
+    tracing::debug!(title = %title, head = %head, base = %base, "Creating pull request");
+
+    let pr_body = serde_json::json!({
+        "title": title,
+        "head": head,
+        "base": base,
+        "body": body,
+    });
+
+    let url = format!("{GITHUB_API_BASE_URL}/repos/{owner}/{repo}/pulls");
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "arc")
+        .json(&pr_body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create pull request: {e}"))?;
+
+    let status = resp.status();
+    match status.as_u16() {
+        201 => {}
+        422 => {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "Pull request could not be created (422): {body_text}"
+            ));
+        }
+        401 | 403 => {
+            return Err(format!(
+                "Authentication failed creating pull request ({})",
+                status
+            ));
+        }
+        _ => {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "Unexpected status {status} creating pull request: {body_text}"
+            ));
+        }
+    }
+
+    #[derive(Deserialize)]
+    struct PullRequestResponse {
+        html_url: String,
+        number: u64,
+    }
+
+    let pr: PullRequestResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse pull request response: {e}"))?;
+
+    Ok((pr.html_url, pr.number))
 }
 
 /// Convert a Git SSH URL to HTTPS format for token-based authentication.
@@ -473,5 +590,47 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("authentication failed"), "got: {err}");
+    }
+
+    // -----------------------------------------------------------------------
+    // create_installation_access_token_for_pr
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn create_iat_for_pr_requests_pr_permissions() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .match_header("Authorization", "Bearer test-jwt")
+            .with_status(200)
+            .with_body(r#"{"id": 456}"#)
+            .create_async()
+            .await;
+
+        let token_mock = server
+            .mock("POST", "/app/installations/456/access_tokens")
+            .match_header("Authorization", "Bearer test-jwt")
+            .match_body(mockito::Matcher::JsonString(
+                r#"{"repositories":["repo"],"permissions":{"contents":"write","pull_requests":"write"}}"#.to_string(),
+            ))
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_pr_token"}"#)
+            .create_async()
+            .await;
+
+        let client = reqwest::Client::new();
+        let token = create_installation_access_token_for_pr(
+            &client,
+            "test-jwt",
+            "owner",
+            "repo",
+            &server.url(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(token, "ghs_pr_token");
+
+        token_mock.assert_async().await;
     }
 }

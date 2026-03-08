@@ -202,6 +202,8 @@ async fn end_to_end_linear_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -342,6 +344,8 @@ async fn end_to_end_branching_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -464,6 +468,8 @@ async fn end_to_end_human_gate_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -576,6 +582,8 @@ async fn goal_gate_routes_to_retry_target_on_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -698,6 +706,8 @@ async fn goal_gate_routes_to_retry_target_when_present() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1007,6 +1017,8 @@ async fn retry_on_failure_then_succeed() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1083,6 +1095,8 @@ async fn pipeline_with_many_nodes() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1407,6 +1421,8 @@ async fn smoke_test_with_mock_codergen_backend() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1509,6 +1525,8 @@ async fn end_to_end_parallel_fan_out_fan_in() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1622,6 +1640,8 @@ async fn resume_from_checkpoint_completes_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -1721,6 +1741,8 @@ async fn resume_from_checkpoint_preserves_goal_gate_outcomes() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     // This should succeed because goal gate for gated_work is satisfied
@@ -1765,6 +1787,8 @@ async fn graph_goal_in_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -1801,6 +1825,8 @@ async fn event_streaming_lifecycle() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -1881,6 +1907,8 @@ async fn context_flow_between_stages() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -1934,6 +1962,8 @@ async fn tool_handler_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2004,6 +2034,8 @@ async fn auto_approve_interviewer_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2041,6 +2073,8 @@ async fn codergen_without_backend_simulated() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -2146,6 +2180,8 @@ async fn branching_loop_back_on_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2231,6 +2267,8 @@ async fn human_gate_loops_back() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2289,6 +2327,8 @@ async fn scenario_ship_a_feature() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2375,6 +2415,8 @@ async fn scenario_parallel_expert_review() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2455,6 +2497,8 @@ async fn scenario_node_retries_on_retry_status() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2517,6 +2561,8 @@ async fn scenario_loop_restart_resets_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2585,6 +2631,8 @@ async fn scenario_bug_triage_router() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -2643,6 +2691,8 @@ async fn scenario_crash_recovery() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine
         .run_from_checkpoint(&graph, &config, &checkpoint)
@@ -2752,6 +2802,8 @@ async fn manager_loop_stop_condition_satisfied_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
 
@@ -2829,6 +2881,8 @@ async fn manager_loop_max_cycles_exceeded_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
 
@@ -2965,6 +3019,8 @@ async fn conditional_branching_success_fail_paths() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -3018,6 +3074,8 @@ async fn edge_selection_condition_match_wins_over_weight() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3065,6 +3123,8 @@ async fn edge_selection_weight_breaks_ties() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3104,6 +3164,8 @@ async fn edge_selection_lexical_tiebreak() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3162,6 +3224,8 @@ async fn context_updates_visible_across_nodes() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3206,6 +3270,8 @@ async fn stylesheet_applies_model_override() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -3262,6 +3328,8 @@ async fn custom_handler_registration_and_execution() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3333,6 +3401,8 @@ async fn integration_smoke_plan_implement_review_done() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);
@@ -3437,6 +3507,8 @@ async fn manager_loop_runs_child_engine_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -3572,6 +3644,8 @@ async fn manager_loop_context_flows_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine.run(&graph, &config).await.expect("run");
@@ -3646,6 +3720,8 @@ async fn manager_loop_child_dotfile_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine.run(&graph, &config).await.expect("run");
@@ -3760,6 +3836,8 @@ async fn graph_merge_e2e_through_engine() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -3911,6 +3989,8 @@ async fn fidelity_default_is_compact() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -3968,6 +4048,8 @@ async fn fidelity_graph_default_applied() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4021,6 +4103,8 @@ async fn fidelity_node_overrides_graph_default() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4080,6 +4164,8 @@ async fn fidelity_edge_overrides_node_and_graph() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4129,6 +4215,8 @@ async fn fidelity_full_produces_empty_preamble() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4188,6 +4276,8 @@ async fn fidelity_truncate_preamble_minimal() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4260,6 +4350,8 @@ async fn fidelity_summary_low_mode() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4327,6 +4419,8 @@ async fn fidelity_summary_medium_mode() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4394,6 +4488,8 @@ async fn fidelity_summary_high_mode() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4454,6 +4550,8 @@ async fn fidelity_full_sets_thread_id_in_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4525,6 +4623,8 @@ async fn fidelity_full_nodes_share_thread_id() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4605,6 +4705,8 @@ async fn fidelity_resume_degrades_full_to_summary_high() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine
         .run_from_checkpoint(&graph, &config, &checkpoint)
@@ -4701,6 +4803,8 @@ async fn fidelity_resume_degrade_only_affects_first_hop() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine
         .run_from_checkpoint(&graph, &config, &checkpoint)
@@ -4784,6 +4888,8 @@ async fn fidelity_resume_no_degrade_when_not_full() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine
         .run_from_checkpoint(&graph, &config, &checkpoint)
@@ -4826,6 +4932,8 @@ async fn fidelity_stored_in_checkpoint_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4912,6 +5020,8 @@ async fn fidelity_precedence_multi_node_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -4980,6 +5090,8 @@ async fn fidelity_compact_preamble_includes_completed_stages_and_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5056,6 +5168,8 @@ async fn fidelity_summary_low_excludes_context_values_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine_low
         .run(&graph_low, &config_low)
@@ -5124,6 +5238,8 @@ async fn fidelity_summary_low_excludes_context_values_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine_med
         .run(&graph_med, &config_med)
@@ -5195,6 +5311,8 @@ async fn fidelity_thread_id_fallback_to_previous_node_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5249,6 +5367,8 @@ async fn fidelity_thread_id_from_node_class_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5306,6 +5426,8 @@ async fn fidelity_edge_thread_id_override_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5364,6 +5486,8 @@ async fn fidelity_full_without_explicit_thread_id_uses_previous_node() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5432,6 +5556,8 @@ async fn fidelity_from_parsed_dot_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5480,6 +5606,8 @@ async fn fidelity_checkpoint_roundtrip_preserves_fidelity() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5550,6 +5678,8 @@ async fn fidelity_node_thread_id_overrides_edge_thread_id_in_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine.run(&graph, &config).await.expect("run");
 
@@ -5636,6 +5766,8 @@ async fn fidelity_resume_preserves_context_values_across_checkpoint() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     engine
         .run_from_checkpoint(&graph, &config, &checkpoint)
@@ -5830,6 +5962,8 @@ mod real_llm {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: arc_workflows::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         let outcome = tokio::time::timeout(
@@ -5945,6 +6079,8 @@ mod real_llm {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: arc_workflows::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         let outcome = tokio::time::timeout(
@@ -6085,6 +6221,8 @@ mod real_llm {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: arc_workflows::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         let outcome = tokio::time::timeout(
@@ -6193,6 +6331,8 @@ mod real_llm {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: arc_workflows::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         let outcome = tokio::time::timeout(
@@ -6290,6 +6430,8 @@ async fn human_gate_freeform_only_routes_text() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -6422,6 +6564,8 @@ async fn human_gate_freeform_with_fixed_choice_match() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -6538,6 +6682,8 @@ async fn human_gate_freeform_fallback_on_unmatched_text() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -6668,6 +6814,8 @@ async fn human_gate_freeform_sets_allow_freeform_on_question() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -6778,6 +6926,8 @@ async fn human_gate_without_freeform_sets_allow_freeform_false() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -7039,6 +7189,8 @@ fn make_run_config(dir: &std::path::Path) -> RunConfig {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     }
 }
 
@@ -8176,6 +8328,8 @@ async fn arc_e2e_with_real_llm() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -8305,6 +8459,8 @@ async fn run_fidelity_prompt_pipeline(fidelity: &str) -> String {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     engine
@@ -8505,6 +8661,8 @@ async fn large_context_values_are_offloaded_to_artifact_store() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -8718,6 +8876,8 @@ async fn artifact_pointers_rewritten_for_remote_sandbox() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -8849,6 +9009,8 @@ async fn node_dir_uses_visit_count_on_revisit() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -9768,6 +9930,8 @@ async fn full_pipeline_with_cli_backend_node() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -9898,6 +10062,8 @@ async fn stylesheet_backend_property_routes_to_cli() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -10180,6 +10346,8 @@ async fn git_checkpoint_host_emits_events_and_diff_patch() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     // 5. Run pipeline
@@ -10370,6 +10538,8 @@ async fn git_checkpoint_host_writes_shadow_branch() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     // 5. Run pipeline
@@ -10565,6 +10735,8 @@ async fn parallel_git_branching_host_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     // 5. Run pipeline
@@ -10828,6 +11000,8 @@ async fn git_checkpoint_host_skips_empty_diff_patch() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -11211,6 +11385,8 @@ async fn e2e_circuit_breaker_deterministic_self_loop() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11259,6 +11435,8 @@ async fn e2e_circuit_breaker_custom_limit() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11300,6 +11478,8 @@ async fn e2e_circuit_breaker_ignores_transient_failures() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11348,6 +11528,8 @@ async fn e2e_circuit_breaker_different_reasons_separate_counters() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11389,6 +11571,8 @@ async fn e2e_circuit_breaker_loop_restart() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11452,6 +11636,8 @@ async fn e2e_failure_signature_persisted_in_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine.run(&graph, &config).await.unwrap();
@@ -11517,6 +11703,8 @@ async fn e2e_failure_signature_hint_overrides_reason_in_context() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let _outcome = engine.run(&graph, &config).await.unwrap();
@@ -11574,6 +11762,8 @@ async fn e2e_signature_maps_persist_in_checkpoint() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine.run(&graph, &config).await.unwrap();
@@ -11701,6 +11891,8 @@ async fn e2e_circuit_breaker_emits_events_before_abort() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11769,6 +11961,8 @@ async fn e2e_circuit_breaker_does_not_fire_below_limit() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine.run(&graph, &config).await.unwrap();
@@ -11866,6 +12060,8 @@ async fn e2e_circuit_breaker_multi_stage_impl_verify_cycle() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -11963,6 +12159,8 @@ async fn e2e_loop_restart_blocked_for_deterministic_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12004,6 +12202,8 @@ async fn e2e_loop_restart_blocked_for_structural_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12045,6 +12245,8 @@ async fn e2e_loop_restart_blocked_for_budget_exhausted_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12086,6 +12288,8 @@ async fn e2e_loop_restart_blocked_for_canceled_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12124,6 +12328,8 @@ async fn e2e_loop_restart_blocked_for_compilation_loop_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12166,6 +12372,8 @@ async fn e2e_loop_restart_allowed_for_transient_infra() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12271,6 +12479,8 @@ async fn e2e_stall_watchdog_triggers_from_dot_parsed_pipeline() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = engine.run(&graph, &config).await;
@@ -12328,6 +12538,8 @@ async fn e2e_stall_watchdog_kept_alive_by_handler_events() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -12375,6 +12587,8 @@ async fn e2e_stall_watchdog_disabled_with_zero_timeout() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -12441,6 +12655,8 @@ async fn e2e_stall_watchdog_with_explicit_timeout_override() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let start = std::time::Instant::now();
@@ -12572,6 +12788,8 @@ async fn asset_collection_local_sandbox_success() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -12681,6 +12899,8 @@ async fn asset_collection_local_sandbox_on_failure() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -12773,6 +12993,8 @@ async fn asset_collection_docker_sandbox() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let outcome = engine
@@ -12843,6 +13065,8 @@ async fn wait_timer_e2e() {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: arc_workflows::git::GitAuthor::default(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
     let outcome = engine.run(&graph, &config).await.expect("run");
     assert_eq!(outcome.status, StageStatus::Success);

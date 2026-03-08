@@ -842,6 +842,10 @@ pub struct RunConfig {
     pub github_app: Option<crate::github_app::GitHubAppCredentials>,
     /// Git author identity for checkpoint commits.
     pub git_author: crate::git::GitAuthor,
+    /// Name of the branch the run was started from (for PR base).
+    pub base_branch: Option<String>,
+    /// Whether to auto-create a PR on successful completion.
+    pub pull_request_enabled: bool,
 }
 
 /// The workflow run execution engine.
@@ -2841,6 +2845,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -2865,6 +2871,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
         let checkpoint_path = dir.path().join("checkpoint.json");
@@ -2897,6 +2905,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -2925,6 +2935,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -2949,6 +2961,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -2986,6 +3000,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -3047,6 +3063,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3135,6 +3153,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3166,6 +3186,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3192,6 +3214,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3218,6 +3242,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3248,6 +3274,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3406,6 +3434,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3447,6 +3477,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 
@@ -3506,6 +3538,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
 
@@ -3568,6 +3602,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
 
@@ -3634,6 +3670,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_ok());
@@ -3689,6 +3727,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -3745,6 +3785,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
 
@@ -3776,6 +3818,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -3803,6 +3847,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -3829,6 +3875,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -3868,6 +3916,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         // Set cancel after a short delay (while the slow handler is running)
@@ -3944,6 +3994,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -3973,6 +4025,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4004,6 +4058,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4040,6 +4096,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4074,6 +4132,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4105,6 +4165,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4197,6 +4259,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         // The engine returns Err because the Fail outcome has no outgoing fail edge,
@@ -4404,6 +4468,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4438,6 +4504,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4479,6 +4547,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4560,6 +4630,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4652,6 +4724,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let result = engine.run(&g, &config).await;
         assert!(result.is_err());
@@ -4721,6 +4795,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -4777,6 +4853,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let outcome = engine.run(&g, &config).await.unwrap();
         assert_eq!(outcome.status, StageStatus::Success);
@@ -4834,6 +4912,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         let _outcome = engine.run(&g, &config).await.unwrap();
 
@@ -4918,6 +4998,8 @@ mod tests {
             checkpoint_exclude_globs: Vec::new(),
             github_app: None,
             git_author: crate::git::GitAuthor::default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
         engine.run(&g, &config).await.unwrap();
 

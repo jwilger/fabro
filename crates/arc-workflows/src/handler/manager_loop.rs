@@ -151,6 +151,8 @@ impl Handler for SubWorkflowHandler {
                 .as_ref()
                 .map(|gs| gs.git_author.clone())
                 .unwrap_or_default(),
+            base_branch: None,
+            pull_request_enabled: false,
         };
 
         // Clone parent context for child; inject parent preamble

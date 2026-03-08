@@ -604,6 +604,8 @@ async fn execute_run(state: Arc<AppState>, run_id: String) {
         checkpoint_exclude_globs: Vec::new(),
         github_app: None,
         git_author: state.git_author.clone(),
+        base_branch: None,
+        pull_request_enabled: false,
     };
 
     let result = tokio::select! {

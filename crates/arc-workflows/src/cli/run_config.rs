@@ -16,6 +16,12 @@ pub struct CheckpointConfig {
     pub exclude_globs: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct PullRequestConfig {
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkflowRunConfig {
@@ -31,6 +37,7 @@ pub struct WorkflowRunConfig {
     pub hooks: Vec<crate::hook::HookDefinition>,
     #[serde(default)]
     pub checkpoint: CheckpointConfig,
+    pub pull_request: Option<PullRequestConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -68,6 +75,7 @@ pub struct RunDefaults {
     pub vars: Option<HashMap<String, String>>,
     #[serde(default)]
     pub checkpoint: CheckpointConfig,
+    pub pull_request: Option<PullRequestConfig>,
 }
 
 impl WorkflowRunConfig {
@@ -163,6 +171,10 @@ impl WorkflowRunConfig {
             merged.sort();
             merged.dedup();
             self.checkpoint.exclude_globs = merged;
+        }
+
+        if self.pull_request.is_none() {
+            self.pull_request = defaults.pull_request.clone();
         }
     }
 }
@@ -1702,5 +1714,80 @@ MISSING = "${env.ARC_TEST_DEFINITELY_NOT_SET_67890}"
                 .contains("ARC_TEST_DEFINITELY_NOT_SET_67890"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn parse_toml_with_pull_request() {
+        let toml = r#"
+version = 1
+goal = "test"
+graph = "w.dot"
+
+[pull_request]
+enabled = true
+"#;
+        let config = parse_run_config(toml).unwrap();
+        let pr = config.pull_request.unwrap();
+        assert!(pr.enabled);
+    }
+
+    #[test]
+    fn parse_toml_without_pull_request_defaults_none() {
+        let toml = r#"
+version = 1
+goal = "test"
+graph = "w.dot"
+"#;
+        let config = parse_run_config(toml).unwrap();
+        assert!(config.pull_request.is_none());
+    }
+
+    #[test]
+    fn apply_defaults_pull_request_task_wins() {
+        let mut cfg = parse_run_config(
+            r#"
+version = 1
+goal = "test"
+graph = "w.dot"
+
+[pull_request]
+enabled = true
+"#,
+        )
+        .unwrap();
+        let defaults = RunDefaults {
+            pull_request: Some(PullRequestConfig { enabled: false }),
+            ..RunDefaults::default()
+        };
+        cfg.apply_defaults(&defaults);
+        assert!(cfg.pull_request.unwrap().enabled);
+    }
+
+    #[test]
+    fn apply_defaults_pull_request_inherited() {
+        let mut cfg = parse_run_config(
+            r#"
+version = 1
+goal = "test"
+graph = "w.dot"
+"#,
+        )
+        .unwrap();
+        let defaults = RunDefaults {
+            pull_request: Some(PullRequestConfig { enabled: true }),
+            ..RunDefaults::default()
+        };
+        cfg.apply_defaults(&defaults);
+        assert!(cfg.pull_request.unwrap().enabled);
+    }
+
+    #[test]
+    fn parse_run_defaults_with_pull_request() {
+        let toml = r#"
+[pull_request]
+enabled = true
+"#;
+        let defaults: RunDefaults = toml::from_str(toml).unwrap();
+        assert!(defaults.pull_request.unwrap().enabled);
     }
 }
