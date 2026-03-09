@@ -1031,6 +1031,8 @@ pub async fn run_command(
     }
 
     // Auto-create PR on successful completion
+    let mut pushed_branch: Option<String> = None;
+    let mut pr_url: Option<String> = None;
     if config.pull_request_enabled {
         if let Ok(ref outcome) = engine_result {
             if matches!(
@@ -1068,10 +1070,7 @@ pub async fn run_command(
                                 match result {
                                     Ok(()) => {
                                         tracing::info!(run_branch, "Pushed run branch to origin");
-                                        eprintln!(
-                                            "{} {run_branch}",
-                                            styles.bold.apply_to("Pushed branch:")
-                                        );
+                                        pushed_branch = Some(run_branch.clone());
                                     }
                                     Err(e) => {
                                         tracing::warn!(error = %e, "Failed to push run branch");
@@ -1111,11 +1110,7 @@ pub async fn run_command(
                                 pr_number: record.number,
                                 draft: config.pull_request_draft,
                             });
-                            eprintln!(
-                                "{} {}",
-                                styles.bold.apply_to("Pull request:"),
-                                record.html_url
-                            );
+                            pr_url = Some(record.html_url.clone());
                             if let Err(e) = record.save(&logs_dir.join("pull_request.json")) {
                                 tracing::warn!(error = %e, "Failed to save pull_request.json");
                             }
@@ -1205,6 +1200,16 @@ pub async fn run_command(
 
     if let Some(failure) = outcome.failure_reason() {
         eprintln!("Failure:   {}", styles.red.apply_to(failure));
+    }
+
+    if pushed_branch.is_some() || pr_url.is_some() {
+        eprintln!();
+        if let Some(ref branch) = pushed_branch {
+            eprintln!("{} {branch}", styles.bold.apply_to("Pushed branch:"));
+        }
+        if let Some(ref url) = pr_url {
+            eprintln!("{} {url}", styles.bold.apply_to("Pull request:"));
+        }
     }
 
     print_final_output(&logs_dir, styles);
