@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use openssh::{KnownHosts, Session};
 
-use crate::{SshOutput, SshRunner};
+use crate::{shell_quote, SshOutput, SshRunner};
 
 /// Real SSH implementation using the `openssh` crate (multiplexed connections).
 pub struct OpensshRunner {
@@ -88,11 +88,7 @@ impl SshRunner for OpensshRunner {
     async fn upload_file(&self, path: &str, content: &[u8]) -> Result<(), String> {
         use base64::Engine;
         let encoded = base64::engine::general_purpose::STANDARD.encode(content);
-        let cmd = format!(
-            "echo '{}' | base64 -d > '{}'",
-            encoded,
-            path.replace('\'', "'\\''"),
-        );
+        let cmd = format!("echo '{}' | base64 -d > {}", encoded, shell_quote(path),);
         let output = self
             .build_command(&cmd)
             .output()
@@ -107,7 +103,7 @@ impl SshRunner for OpensshRunner {
     }
 
     async fn download_file(&self, path: &str) -> Result<Vec<u8>, String> {
-        let cmd = format!("cat '{}'", path.replace('\'', "'\\''"));
+        let cmd = format!("cat {}", shell_quote(path));
         let output = self
             .build_command(&cmd)
             .output()

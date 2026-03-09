@@ -574,8 +574,8 @@ impl Sandbox for DaytonaSandbox {
                                     1,
                                 );
                                 let cmd = format!(
-                                    "git -c maintenance.auto=0 remote set-url origin '{}'",
-                                    auth_url.replace('\'', "'\\''"),
+                                    "git -c maintenance.auto=0 remote set-url origin {}",
+                                    shell_quote(&auth_url),
                                 );
                                 let opts = daytona_sdk::ExecuteCommandOptions {
                                     cwd: Some(WORKING_DIRECTORY.to_string()),
@@ -729,8 +729,8 @@ impl Sandbox for DaytonaSandbox {
             let auth_url =
                 origin_url.replacen("https://", &format!("https://x-access-token:{token}@"), 1);
             let cmd = format!(
-                "git -c maintenance.auto=0 remote set-url origin '{}'",
-                auth_url.replace('\'', "'\\''"),
+                "git -c maintenance.auto=0 remote set-url origin {}",
+                shell_quote(&auth_url),
             );
             self.exec_command(&cmd, 10_000, None, None, None)
                 .await
@@ -906,10 +906,7 @@ impl Sandbox for DaytonaSandbox {
             if !vars.is_empty() {
                 let exports: Vec<String> = vars
                     .iter()
-                    .map(|(k, v)| {
-                        let escaped = v.replace('\'', "'\\''");
-                        format!("export {k}='{escaped}'")
-                    })
+                    .map(|(k, v)| format!("export {}={}", shell_quote(k), shell_quote(v)))
                     .collect();
                 format!("{}\n{}", exports.join("\n"), command)
             } else {
@@ -989,15 +986,15 @@ impl Sandbox for DaytonaSandbox {
                 cmd.push_str(" -i");
             }
             if let Some(ref glob_filter) = options.glob_filter {
-                cmd.push_str(&format!(" --glob '{glob_filter}'"));
+                cmd.push_str(&format!(" --glob {}", shell_quote(glob_filter)));
             }
             if let Some(max) = options.max_results {
                 cmd.push_str(&format!(" --max-count {max}"));
             }
             cmd.push_str(&format!(
-                " -- '{}' '{}'",
-                pattern.replace('\'', "'\\''"),
-                resolved
+                " -- {} {}",
+                shell_quote(pattern),
+                shell_quote(&resolved)
             ));
             cmd
         } else {
@@ -1006,15 +1003,15 @@ impl Sandbox for DaytonaSandbox {
                 cmd.push_str(" -i");
             }
             if let Some(ref glob_filter) = options.glob_filter {
-                cmd.push_str(&format!(" --include '{glob_filter}'"));
+                cmd.push_str(&format!(" --include {}", shell_quote(glob_filter)));
             }
             if let Some(max) = options.max_results {
                 cmd.push_str(&format!(" -m {max}"));
             }
             cmd.push_str(&format!(
-                " -- '{}' '{}'",
-                pattern.replace('\'', "'\\''"),
-                resolved
+                " -- {} {}",
+                shell_quote(pattern),
+                shell_quote(&resolved)
             ));
             cmd
         };
@@ -1041,9 +1038,9 @@ impl Sandbox for DaytonaSandbox {
             .unwrap_or_else(|| WORKING_DIRECTORY.to_string());
 
         let cmd = format!(
-            "find '{}' -name '{}' -type f | sort",
-            base.replace('\'', "'\\''"),
-            pattern.replace('\'', "'\\''"),
+            "find {} -name {} -type f | sort",
+            shell_quote(&base),
+            shell_quote(pattern),
         );
 
         let result = self.exec_command(&cmd, 30_000, None, None, None).await?;
@@ -1071,6 +1068,13 @@ impl Sandbox for DaytonaSandbox {
 ///
 /// Uses base64 encoding (matching the TypeScript/Python/Ruby Daytona SDKs)
 /// to avoid shell escaping issues with quotes and special characters.
+fn shell_quote(s: &str) -> String {
+    shlex::try_quote(s).map_or_else(
+        |_| format!("'{}'", s.replace('\'', "'\\''")),
+        |q| q.to_string(),
+    )
+}
+
 fn wrap_bash_command(command: &str) -> String {
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(command);

@@ -18,6 +18,13 @@ pub use openssh_runner::OpensshRunner;
 const WORKING_DIRECTORY: &str = "/home/exedev";
 const PROVIDER: &str = "exe";
 
+pub(crate) fn shell_quote(s: &str) -> String {
+    shlex::try_quote(s).map_or_else(
+        |_| format!("'{}'", s.replace('\'', "'\\''")),
+        |q| q.to_string(),
+    )
+}
+
 /// Factory function type for creating data-plane SSH runners.
 type DataSshFactory = Box<
     dyn Fn(
@@ -169,12 +176,12 @@ impl ExeSandbox {
         let branch_flag = params
             .branch
             .as_deref()
-            .map(|b| format!(" --branch {b}"))
+            .map(|b| format!(" --branch {}", shell_quote(b)))
             .unwrap_or_default();
 
         let clone_script = format!(
             "git clone{branch_flag} {} {WORKING_DIRECTORY}",
-            params.clone_url
+            shell_quote(&params.clone_url)
         );
         let clone_cmd = Self::wrap_bash_command(&clone_script);
         let clone_timeout = std::time::Duration::from_secs(300);
@@ -199,8 +206,9 @@ impl ExeSandbox {
             {
                 let branch = params.branch.as_deref().unwrap_or("main");
                 let fallback_script = format!(
-                    "cd {WORKING_DIRECTORY} && git init && git remote add origin {} && git fetch origin && git checkout {branch}",
-                    params.clone_url,
+                    "cd {WORKING_DIRECTORY} && git init && git remote add origin {} && git fetch origin && git checkout {}",
+                    shell_quote(&params.clone_url),
+                    shell_quote(branch),
                 );
                 let fallback_cmd = Self::wrap_bash_command(&fallback_script);
                 let fallback_output = ssh
@@ -243,7 +251,7 @@ impl ExeSandbox {
         // Set remote URL with auth credentials
         let set_url_script = format!(
             "cd {WORKING_DIRECTORY} && git remote set-url origin {}",
-            params.clone_url,
+            shell_quote(&params.clone_url),
         );
         let set_url_cmd = Self::wrap_bash_command(&set_url_script);
         let _ = ssh
@@ -283,7 +291,7 @@ impl Sandbox for ExeSandbox {
         // Create a new VM via the management plane
         let mut cmd = "new --json".to_string();
         if let Some(ref image) = self.config.image {
-            cmd.push_str(&format!(" --image {image}"));
+            cmd.push_str(&format!(" --image {}", shell_quote(image)));
         }
         let output = self.mgmt_ssh.run_command(&cmd).await.map_err(|e| {
             let err = format!("Failed to create exe.dev VM: {e}");
@@ -415,7 +423,11 @@ impl Sandbox for ExeSandbox {
 
         if let Some(vars) = env_vars {
             for (key, value) in vars {
-                script.push_str(&format!("export {key}={value}\n"));
+                script.push_str(&format!(
+                    "export {}={}\n",
+                    shell_quote(key),
+                    shell_quote(value)
+                ));
             }
         }
 
@@ -423,7 +435,7 @@ impl Sandbox for ExeSandbox {
             Some(dir) => self.resolve_path(dir),
             None => WORKING_DIRECTORY.to_string(),
         };
-        script.push_str(&format!("cd {dir} && {command}"));
+        script.push_str(&format!("cd {} && {command}", shell_quote(&dir)));
 
         let full_cmd = Self::wrap_bash_command(&script);
 
@@ -474,7 +486,7 @@ impl Sandbox for ExeSandbox {
         let resolved = self.resolve_path(path);
 
         let output = ssh
-            .run_command(&format!("cat '{}'", resolved.replace('\'', "'\\''")))
+            .run_command(&format!("cat {}", shell_quote(&resolved)))
             .await?;
 
         if output.exit_code != 0 {
@@ -496,7 +508,7 @@ impl Sandbox for ExeSandbox {
         if let Some(parent) = Path::new(&resolved).parent() {
             let parent_str = parent.to_string_lossy();
             if parent_str != "/" {
-                ssh.run_command(&format!("mkdir -p '{}'", parent_str.replace('\'', "'\\''")))
+                ssh.run_command(&format!("mkdir -p {}", shell_quote(&parent_str)))
                     .await?;
             }
         }
@@ -509,7 +521,7 @@ impl Sandbox for ExeSandbox {
         let resolved = self.resolve_path(path);
 
         let output = ssh
-            .run_command(&format!("rm -f '{}'", resolved.replace('\'', "'\\''")))
+            .run_command(&format!("rm -f {}", shell_quote(&resolved)))
             .await?;
 
         if output.exit_code != 0 {
@@ -524,7 +536,7 @@ impl Sandbox for ExeSandbox {
         let resolved = self.resolve_path(path);
 
         let output = ssh
-            .run_command(&format!("test -e '{}'", resolved.replace('\'', "'\\''")))
+            .run_command(&format!("test -e {}", shell_quote(&resolved)))
             .await?;
 
         Ok(output.exit_code == 0)
@@ -539,8 +551,8 @@ impl Sandbox for ExeSandbox {
         let max_depth = depth.unwrap_or(1);
 
         let cmd = format!(
-            "find '{}' -mindepth 1 -maxdepth {} -printf '%y\\t%s\\t%P\\n'",
-            resolved.replace('\'', "'\\''"),
+            "find {} -mindepth 1 -maxdepth {} -printf '%y\\t%s\\t%P\\n'",
+            shell_quote(&resolved),
             max_depth,
         );
 
@@ -603,15 +615,15 @@ impl Sandbox for ExeSandbox {
                 cmd.push_str(" -i");
             }
             if let Some(ref glob_filter) = options.glob_filter {
-                cmd.push_str(&format!(" --glob '{glob_filter}'"));
+                cmd.push_str(&format!(" --glob {}", shell_quote(glob_filter)));
             }
             if let Some(max) = options.max_results {
                 cmd.push_str(&format!(" --max-count {max}"));
             }
             cmd.push_str(&format!(
-                " -- '{}' '{}'",
-                pattern.replace('\'', "'\\''"),
-                resolved
+                " -- {} {}",
+                shell_quote(pattern),
+                shell_quote(&resolved)
             ));
             cmd
         } else {
@@ -620,15 +632,15 @@ impl Sandbox for ExeSandbox {
                 cmd.push_str(" -i");
             }
             if let Some(ref glob_filter) = options.glob_filter {
-                cmd.push_str(&format!(" --include '{glob_filter}'"));
+                cmd.push_str(&format!(" --include {}", shell_quote(glob_filter)));
             }
             if let Some(max) = options.max_results {
                 cmd.push_str(&format!(" -m {max}"));
             }
             cmd.push_str(&format!(
-                " -- '{}' '{}'",
-                pattern.replace('\'', "'\\''"),
-                resolved
+                " -- {} {}",
+                shell_quote(pattern),
+                shell_quote(&resolved)
             ));
             cmd
         };
@@ -654,9 +666,9 @@ impl Sandbox for ExeSandbox {
             .unwrap_or_else(|| WORKING_DIRECTORY.to_string());
 
         let cmd = format!(
-            "find '{}' -name '{}' -type f | sort",
-            base.replace('\'', "'\\''"),
-            pattern.replace('\'', "'\\''"),
+            "find {} -name {} -type f | sort",
+            shell_quote(&base),
+            shell_quote(pattern),
         );
 
         let result = self.exec_command(&cmd, 30_000, None, None, None).await?;
@@ -1527,6 +1539,163 @@ mod tests {
         assert!(
             captured.iter().any(|e| e.contains("GitCloneFailed")),
             "expected GitCloneFailed event, got: {captured:?}",
+        );
+    }
+
+    // ---- shell_quote injection tests ----
+
+    #[tokio::test]
+    async fn clone_quotes_branch_with_shell_metacharacters() {
+        let data = MockSshRunner::new();
+        let data_commands = data.commands.clone();
+        // Response for git clone
+        data.queue_response("", "", 0);
+        // Response for git remote set-url
+        data.queue_response("", "", 0);
+
+        let clone_params = GitCloneParams {
+            clone_url: "https://github.com/org/repo.git".to_string(),
+            display_url: "https://github.com/org/repo.git".to_string(),
+            branch: Some("feat;id".to_string()),
+        };
+        let sandbox = sandbox_with_mock_data(data);
+        sandbox.clone_repo(&clone_params).await.unwrap();
+
+        let recorded = data_commands.lock().unwrap();
+        let clone_inner = decode_bash_payload(&recorded[0].command);
+        assert!(
+            clone_inner.contains("--branch 'feat;id'"),
+            "expected quoted branch, got: {clone_inner}",
+        );
+    }
+
+    #[tokio::test]
+    async fn clone_quotes_url_with_spaces() {
+        let data = MockSshRunner::new();
+        let data_commands = data.commands.clone();
+        data.queue_response("", "", 0);
+        data.queue_response("", "", 0);
+
+        let clone_params = GitCloneParams {
+            clone_url: "https://example.com/has space/repo.git".to_string(),
+            display_url: "https://example.com/has space/repo.git".to_string(),
+            branch: None,
+        };
+        let sandbox = sandbox_with_mock_data(data);
+        sandbox.clone_repo(&clone_params).await.unwrap();
+
+        let recorded = data_commands.lock().unwrap();
+        let clone_inner = decode_bash_payload(&recorded[0].command);
+        assert!(
+            clone_inner.contains("'https://example.com/has space/repo.git'"),
+            "expected quoted URL, got: {clone_inner}",
+        );
+    }
+
+    #[tokio::test]
+    async fn initialize_quotes_image_in_mgmt_command() {
+        let mgmt = MockSshRunner::new();
+        let mgmt_commands = mgmt.commands.clone();
+        mgmt.queue_response(
+            r#"{"vm_name": "img-vm", "ssh_dest": "img-vm.exe.xyz"}"#,
+            "",
+            0,
+        );
+
+        let data = MockSshRunner::new();
+        let data_box: Arc<Mutex<Option<Box<dyn SshRunner>>>> =
+            Arc::new(Mutex::new(Some(Box::new(data))));
+
+        let config = ExeConfig {
+            image: Some("ubuntu;evil".to_string()),
+        };
+        let mut sandbox = ExeSandbox::new(Box::new(mgmt), config, None, None);
+        sandbox.data_ssh_factory = Box::new(move |_host: &str| {
+            let data_box = Arc::clone(&data_box);
+            Box::pin(async move {
+                data_box
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .ok_or_else(|| "mock data SSH already taken".to_string())
+            })
+        });
+
+        sandbox.initialize().await.unwrap();
+
+        let recorded = mgmt_commands.lock().unwrap();
+        assert!(
+            recorded[0].command.contains("--image 'ubuntu;evil'"),
+            "expected quoted image, got: {}",
+            recorded[0].command,
+        );
+    }
+
+    #[tokio::test]
+    async fn exec_command_quotes_env_values_with_metacharacters() {
+        let data = MockSshRunner::new();
+        let commands = data.commands.clone();
+        data.queue_response("", "", 0);
+        let sandbox = sandbox_with_mock_data(data);
+
+        let mut env = HashMap::new();
+        env.insert("KEY".to_string(), "val;rm -rf /".to_string());
+
+        sandbox
+            .exec_command("echo $KEY", 5000, None, Some(&env), None)
+            .await
+            .unwrap();
+
+        let recorded = commands.lock().unwrap();
+        let inner = decode_bash_payload(&recorded[0].command);
+        assert!(
+            inner.contains("export KEY='val;rm -rf /'"),
+            "expected quoted env value, got: {inner}",
+        );
+    }
+
+    #[tokio::test]
+    async fn exec_command_quotes_working_dir_with_spaces() {
+        let data = MockSshRunner::new();
+        let commands = data.commands.clone();
+        data.queue_response("", "", 0);
+        let sandbox = sandbox_with_mock_data(data);
+
+        sandbox
+            .exec_command("ls", 5000, Some("/tmp/my dir"), None, None)
+            .await
+            .unwrap();
+
+        let recorded = commands.lock().unwrap();
+        let inner = decode_bash_payload(&recorded[0].command);
+        assert!(
+            inner.contains("cd '/tmp/my dir'"),
+            "expected quoted working dir, got: {inner}",
+        );
+    }
+
+    #[tokio::test]
+    async fn grep_quotes_glob_filter() {
+        let data = MockSshRunner::new();
+        let commands = data.commands.clone();
+        // rg --version
+        data.queue_response("ripgrep 14.0.0", "", 0);
+        // grep result
+        data.queue_response("", "", 1);
+        let sandbox = sandbox_with_mock_data(data);
+
+        let options = GrepOptions {
+            glob_filter: Some("*.rs'".to_string()),
+            ..GrepOptions::default()
+        };
+        sandbox.grep("pattern", ".", &options).await.unwrap();
+
+        let recorded = commands.lock().unwrap();
+        // The grep command goes through exec_command, so decode second command
+        let inner = decode_bash_payload(&recorded[1].command);
+        assert!(
+            !inner.contains("--glob '*.rs''"),
+            "glob filter should be properly escaped, got: {inner}",
         );
     }
 }
