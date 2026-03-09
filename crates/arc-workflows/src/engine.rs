@@ -698,28 +698,13 @@ async fn git_push_meta_host(
 
     let https_url = arc_github::ssh_url_to_https(&origin_url);
     let push_url = match &github_app {
-        Some(creds) => {
-            let (owner, repo) = match arc_github::parse_github_owner_repo(&https_url) {
-                Ok(pair) => pair,
-                Err(e) => {
-                    tracing::warn!(error = %e, "Cannot parse GitHub URL for metadata push");
-                    return;
-                }
-            };
-            match arc_github::resolve_clone_credentials(creds, &owner, &repo).await {
-                Ok((_, Some(token))) => {
-                    https_url.replacen("https://", &format!("https://x-access-token:{token}@"), 1)
-                }
-                Ok(_) => {
-                    tracing::warn!("No token returned for metadata push");
-                    return;
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "Failed to get token for metadata push");
-                    return;
-                }
+        Some(creds) => match arc_github::resolve_authenticated_url(creds, &https_url).await {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to get token for metadata push");
+                return;
             }
-        }
+        },
         None => {
             tracing::warn!("No GitHub App credentials for metadata push");
             return;

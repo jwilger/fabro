@@ -784,24 +784,17 @@ impl Sandbox for DaytonaSandbox {
             None => return Ok(()),
         };
 
-        let (owner, repo) = arc_github::parse_github_owner_repo(origin_url)
-            .map_err(|e| format!("Failed to parse origin URL for credential refresh: {e}"))?;
-
-        let (_username, password) = arc_github::resolve_clone_credentials(creds, &owner, &repo)
+        let auth_url = arc_github::resolve_authenticated_url(creds, origin_url)
             .await
             .map_err(|e| format!("Failed to refresh GitHub App token: {e}"))?;
 
-        if let Some(token) = password {
-            let auth_url =
-                origin_url.replacen("https://", &format!("https://x-access-token:{token}@"), 1);
-            let cmd = format!(
-                "git -c maintenance.auto=0 remote set-url origin {}",
-                shell_quote(&auth_url),
-            );
-            self.exec_command(&cmd, 10_000, None, None, None)
-                .await
-                .map_err(|e| format!("Failed to set refreshed push credentials: {e}"))?;
-        }
+        let cmd = format!(
+            "git -c maintenance.auto=0 remote set-url origin {}",
+            shell_quote(&auth_url),
+        );
+        self.exec_command(&cmd, 10_000, None, None, None)
+            .await
+            .map_err(|e| format!("Failed to set refreshed push credentials: {e}"))?;
 
         Ok(())
     }

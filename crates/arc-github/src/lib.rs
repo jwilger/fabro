@@ -331,6 +331,31 @@ pub async fn resolve_clone_credentials(
     Ok((Some("x-access-token".to_string()), Some(token)))
 }
 
+/// Embed a token into an HTTPS URL for authenticated git operations.
+///
+/// Converts `https://github.com/owner/repo` to
+/// `https://x-access-token:<token>@github.com/owner/repo`.
+pub fn embed_token_in_url(url: &str, token: &str) -> String {
+    url.replacen("https://", &format!("https://x-access-token:{token}@"), 1)
+}
+
+/// Resolve an authenticated HTTPS URL for a GitHub repository.
+///
+/// Parses owner/repo from the URL, obtains a fresh installation access token,
+/// and returns the URL with embedded credentials. Returns the original URL
+/// unchanged if it's not a GitHub URL.
+pub async fn resolve_authenticated_url(
+    creds: &GitHubAppCredentials,
+    url: &str,
+) -> Result<String, String> {
+    let (owner, repo) = parse_github_owner_repo(url)?;
+    let (_username, password) = resolve_clone_credentials(creds, &owner, &repo).await?;
+    match password {
+        Some(token) => Ok(embed_token_in_url(url, &token)),
+        None => Ok(url.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
