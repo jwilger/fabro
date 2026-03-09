@@ -89,7 +89,7 @@ async fn pr_create_from(
         .model
         .unwrap_or_else(|| arc_llm::catalog::default_model().id.to_string());
 
-    let url = crate::pull_request::maybe_open_pull_request(
+    let record = crate::pull_request::maybe_open_pull_request(
         &creds,
         &origin_url,
         base_branch,
@@ -101,10 +101,13 @@ async fn pr_create_from(
     .await
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    match url {
-        Some(url) => {
-            info!(pr_url = %url, "Pull request created");
-            println!("{url}");
+    match record {
+        Some(record) => {
+            info!(pr_url = %record.html_url, "Pull request created");
+            if let Err(e) = record.save(&run_dir.join("pull_request.json")) {
+                tracing::warn!(error = %e, "Failed to save pull_request.json");
+            }
+            println!("{}", record.html_url);
         }
         None => {
             println!("No pull request created (empty diff).");

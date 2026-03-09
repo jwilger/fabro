@@ -1080,8 +1080,15 @@ pub async fn run_command(
                     )
                     .await
                     {
-                        Ok(Some(url)) => {
-                            eprintln!("{} {url}", styles.bold.apply_to("Pull request:"));
+                        Ok(Some(record)) => {
+                            eprintln!(
+                                "{} {}",
+                                styles.bold.apply_to("Pull request:"),
+                                record.html_url
+                            );
+                            if let Err(e) = record.save(&logs_dir.join("pull_request.json")) {
+                                tracing::warn!(error = %e, "Failed to save pull_request.json");
+                            }
                         }
                         Ok(None) => {} // empty diff, logged at DEBUG
                         Err(e) => {
