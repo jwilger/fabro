@@ -1137,14 +1137,6 @@ fn convert_llm_message(msg: &arc_llm::types::Message) -> arc_types::CompletionMe
     }
 }
 
-fn finish_reason_to_stop_reason(reason: &arc_llm::types::FinishReason) -> &'static str {
-    match reason {
-        arc_llm::types::FinishReason::Stop => "end_turn",
-        arc_llm::types::FinishReason::Length => "max_tokens",
-        _ => "end_turn",
-    }
-}
-
 async fn create_completion(
     _auth: AuthenticatedService,
     State(state): State<Arc<AppState>>,
@@ -1229,22 +1221,24 @@ async fn create_completion(
     if state.dry_run {
         let msg_id = ulid::Ulid::new().to_string();
         if use_stream {
+            let finish_event = arc_llm::types::StreamEvent::finish(
+                arc_llm::types::FinishReason::Stop,
+                arc_llm::types::Usage::default(),
+                arc_llm::types::Response {
+                    id: msg_id.clone(),
+                    model: model_id.clone(),
+                    provider: String::new(),
+                    message: arc_llm::types::Message::assistant(""),
+                    finish_reason: arc_llm::types::FinishReason::Stop,
+                    usage: arc_llm::types::Usage::default(),
+                    raw: None,
+                    warnings: vec![],
+                    rate_limit: None,
+                },
+            );
+            let json = serde_json::to_string(&finish_event).unwrap_or_default();
             let sse_stream = futures_util::stream::iter(vec![Ok::<_, std::convert::Infallible>(
-                Event::default().event("message_start").data(
-                    serde_json::json!({
-                        "type": "message_start",
-                        "message": {
-                            "id": msg_id,
-                            "type": "message",
-                            "role": "assistant",
-                            "content": [],
-                            "model": model_id,
-                            "stop_reason": null,
-                            "usage": {"input_tokens": 0}
-                        }
-                    })
-                    .to_string(),
-                ),
+                Event::default().event("stream_event").data(json),
             )]);
             return Sse::new(sse_stream).into_response();
         }
@@ -1294,98 +1288,29 @@ async fn create_completion(
             }
         };
 
-        let msg_id = ulid::Ulid::new().to_string();
-        let model_for_stream = model_id.clone();
-
-        let sse_stream = futures_util::stream::once(futures_util::future::ready(Ok::<
-            _,
-            std::convert::Infallible,
-        >(
-            Event::default().event("message_start").data(
-                serde_json::json!({
-                    "type": "message_start",
-                    "message": {
-                        "id": msg_id,
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [],
-                        "model": model_for_stream,
-                        "stop_reason": null,
-                        "usage": {"input_tokens": 0}
-                    }
-                })
-                .to_string(),
-            ),
-        )))
-        .chain(futures_util::stream::once(futures_util::future::ready(Ok(
-            Event::default().event("content_block_start").data(
-                serde_json::json!({
-                    "type": "content_block_start",
-                    "index": 0,
-                    "content_block": {"type": "text", "text": ""}
-                })
-                .to_string(),
-            ),
-        ))))
-        .chain(futures_util::stream::once(futures_util::future::ready(Ok(
-            Event::default()
-                .event("ping")
-                .data(serde_json::json!({"type": "ping"}).to_string()),
-        ))))
-        .chain(tokio_stream::StreamExt::map(stream_result, |event| {
-            match event {
-                Ok(arc_llm::types::StreamEvent::TextDelta { delta, .. }) => {
-                    Ok(Event::default().event("content_block_delta").data(
-                        serde_json::json!({
-                            "type": "content_block_delta",
-                            "index": 0,
-                            "delta": {"type": "text_delta", "text": delta}
-                        })
-                        .to_string(),
-                    ))
-                }
-                Ok(arc_llm::types::StreamEvent::TextEnd { .. }) => {
-                    Ok(Event::default().event("content_block_stop").data(
-                        serde_json::json!({"type": "content_block_stop", "index": 0}).to_string(),
-                    ))
-                }
-                Ok(arc_llm::types::StreamEvent::Finish {
-                    finish_reason,
-                    usage,
-                    ..
-                }) => Ok(Event::default().event("message_delta").data(
-                    serde_json::json!({
-                        "type": "message_delta",
-                        "delta": {"stop_reason": finish_reason_to_stop_reason(&finish_reason)},
-                        "usage": {"output_tokens": usage.output_tokens}
-                    })
-                    .to_string(),
+        let sse_stream = tokio_stream::StreamExt::filter_map(stream_result, |event| match event {
+            Ok(ref evt) => match serde_json::to_string(evt) {
+                Ok(json) => Some(Ok::<_, std::convert::Infallible>(
+                    Event::default().event("stream_event").data(json),
                 )),
-                Ok(arc_llm::types::StreamEvent::Error { error, .. }) => {
-                    Ok(Event::default().event("error").data(
-                        serde_json::json!({
-                            "type": "error",
-                            "error": {"type": "server_error", "message": error.to_string()}
-                        })
-                        .to_string(),
-                    ))
-                }
-                Err(e) => Ok(Event::default().event("error").data(
+                Err(e) => Some(Ok(Event::default().event("stream_event").data(
                     serde_json::json!({
                         "type": "error",
-                        "error": {"type": "server_error", "message": e.to_string()}
+                        "error": {"Stream": {"message": format!("failed to serialize event: {e}")}},
+                        "raw": null
                     })
                     .to_string(),
-                )),
-                // Skip events we don't map (StreamStart, TextStart, reasoning, tool calls, etc.)
-                _ => Ok(Event::default().comment("ignored")),
-            }
-        }))
-        .chain(futures_util::stream::once(futures_util::future::ready(Ok(
-            Event::default()
-                .event("message_stop")
-                .data(serde_json::json!({"type": "message_stop"}).to_string()),
-        ))));
+                ))),
+            },
+            Err(e) => Some(Ok(Event::default().event("stream_event").data(
+                serde_json::json!({
+                    "type": "error",
+                    "error": {"Stream": {"message": e.to_string()}},
+                    "raw": null
+                })
+                .to_string(),
+            ))),
+        });
 
         Sse::new(sse_stream)
             .keep_alive(
