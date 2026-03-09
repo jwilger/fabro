@@ -34,7 +34,7 @@ async fn create_env_with_github_app(
     let client = daytona_sdk::Client::new()
         .await
         .expect("Failed to create Daytona client — is DAYTONA_API_KEY set?");
-    DaytonaSandbox::new(client, DaytonaConfig::default(), github_app)
+    DaytonaSandbox::new(client, DaytonaConfig::default(), github_app, None)
 }
 
 fn load_github_app_credentials() -> arc_workflows::github_app::GitHubAppCredentials {
@@ -250,7 +250,7 @@ async fn daytona_snapshot_sandbox() {
     };
 
     let creds = load_github_app_credentials();
-    let env = DaytonaSandbox::new(client, config, Some(creds));
+    let env = DaytonaSandbox::new(client, config, Some(creds), None);
     env.initialize().await.unwrap();
 
     // Verify rg is available (installed by snapshot)
@@ -922,7 +922,7 @@ async fn run_daytona_cli_test(provider: Provider, model: &str, install_command: 
         }),
         ..DaytonaConfig::default()
     };
-    let env = DaytonaSandbox::new(client, config, Some(creds));
+    let env = DaytonaSandbox::new(client, config, Some(creds), None);
     env.initialize().await.unwrap();
     let env: Arc<dyn Sandbox> = Arc::new(env);
 

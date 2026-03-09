@@ -507,6 +507,7 @@ pub async fn run_command(
                 daytona_client,
                 config,
                 github_app.clone(),
+                Some(run_id.clone()),
             );
             let emitter_cb = Arc::clone(&emitter);
             env.set_event_callback(Arc::new(move |event| {
@@ -1373,8 +1374,12 @@ async fn run_preflight(
         SandboxProvider::Daytona => match daytona_sdk::Client::new().await {
             Ok(daytona_client) => {
                 let config = daytona_config.unwrap_or_default();
-                let env =
-                    crate::daytona_sandbox::DaytonaSandbox::new(daytona_client, config, github_app);
+                let env = crate::daytona_sandbox::DaytonaSandbox::new(
+                    daytona_client,
+                    config,
+                    github_app,
+                    None,
+                );
                 Ok(Arc::new(env) as Arc<dyn Sandbox>)
             }
             Err(e) => Err(format!("Daytona client creation failed: {e}")),

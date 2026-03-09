@@ -159,6 +159,7 @@ pub struct DaytonaSandbox {
     event_callback: Option<SandboxEventCallback>,
     /// HTTPS origin URL stored after clone so we can refresh push credentials later.
     origin_url: tokio::sync::OnceCell<String>,
+    run_id: Option<String>,
 }
 
 impl DaytonaSandbox {
@@ -167,6 +168,7 @@ impl DaytonaSandbox {
         client: daytona_sdk::Client,
         config: DaytonaConfig,
         github_app: Option<GitHubAppCredentials>,
+        run_id: Option<String>,
     ) -> Self {
         Self {
             config,
@@ -176,6 +178,7 @@ impl DaytonaSandbox {
             rg_available: tokio::sync::OnceCell::const_new(),
             event_callback: None,
             origin_url: tokio::sync::OnceCell::new(),
+            run_id,
         }
     }
 
@@ -218,11 +221,15 @@ impl DaytonaSandbox {
 
     /// Build `SandboxBaseParams` from config, generating a unique sandbox name.
     fn base_params(&self) -> daytona_sdk::SandboxBaseParams {
-        let name = format!(
-            "arc-{}-{:04x}",
-            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
-            rand::thread_rng().gen_range(0..0x10000u32),
-        );
+        let name = if let Some(ref id) = self.run_id {
+            format!("arc-{id}")
+        } else {
+            format!(
+                "arc-{}-{:04x}",
+                chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+                rand::thread_rng().gen_range(0..0x10000u32),
+            )
+        };
         let (network_block_all, network_allow_list) = match &self.config.network {
             Some(DaytonaNetwork::Block) => (Some(true), None),
             Some(DaytonaNetwork::AllowAll) => (Some(false), None),
