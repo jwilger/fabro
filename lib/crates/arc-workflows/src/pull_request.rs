@@ -2,6 +2,30 @@ use tracing::{debug, info};
 
 use arc_github::{self as github_app, ssh_url_to_https, GitHubAppCredentials};
 
+/// Derive a PR title from the workflow goal.
+///
+/// Uses the first line, truncated to 120 characters for readability.
+fn pr_title_from_goal(goal: &str) -> String {
+    let first_line = goal.lines().next().unwrap_or(goal);
+    if first_line.chars().count() > 120 {
+        let truncated: String = first_line.chars().take(119).collect();
+        format!("{truncated}…")
+    } else {
+        first_line.to_string()
+    }
+}
+
+/// Truncate a PR body to fit GitHub's 65,536 character limit.
+fn truncate_pr_body(body: &str) -> String {
+    const MAX_BODY: usize = 65_536;
+    const SUFFIX: &str = "\n\n_(truncated)_";
+    if body.len() <= MAX_BODY {
+        return body.to_string();
+    }
+    let cutoff = MAX_BODY - SUFFIX.len();
+    format!("{}{SUFFIX}", &body[..cutoff])
+}
+
 /// Generate a PR body from the diff and goal using an LLM.
 pub async fn generate_pr_body(diff: &str, goal: &str, model: &str) -> Result<String, String> {
     let system = "Write a concise PR description summarizing the changes.".to_string();
@@ -49,6 +73,9 @@ pub async fn maybe_open_pull_request(
     let (owner, repo) = github_app::parse_github_owner_repo(&https_url)?;
 
     let body = generate_pr_body(diff, goal, model).await?;
+    let body = truncate_pr_body(&body);
+
+    let title = pr_title_from_goal(goal);
 
     let (url, pr_number) = github_app::create_pull_request(
         creds,
@@ -56,7 +83,7 @@ pub async fn maybe_open_pull_request(
         &repo,
         base_branch,
         head_branch,
-        goal,
+        &title,
         &body,
     )
     .await?;
@@ -69,6 +96,39 @@ pub async fn maybe_open_pull_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pr_title_uses_first_line() {
+        let goal = "# Add Draft PR Mode\n\nMore details here...";
+        assert_eq!(pr_title_from_goal(goal), "# Add Draft PR Mode");
+    }
+
+    #[test]
+    fn pr_title_truncates_long_line() {
+        let long = "x".repeat(300);
+        let title = pr_title_from_goal(&long);
+        assert_eq!(title.chars().count(), 120);
+        assert!(title.ends_with('…'));
+    }
+
+    #[test]
+    fn pr_body_truncates_long_body() {
+        let long = "x".repeat(70_000);
+        let body = truncate_pr_body(&long);
+        assert!(body.len() <= 65_536);
+        assert!(body.ends_with("\n\n_(truncated)_"));
+    }
+
+    #[test]
+    fn pr_body_short_body_unchanged() {
+        let short = "Some PR description";
+        assert_eq!(truncate_pr_body(short), short);
+    }
+
+    #[test]
+    fn pr_title_short_goal_unchanged() {
+        assert_eq!(pr_title_from_goal("Fix bug"), "Fix bug");
+    }
 
     #[tokio::test]
     async fn empty_diff_returns_none() {
