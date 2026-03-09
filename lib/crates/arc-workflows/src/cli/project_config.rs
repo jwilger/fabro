@@ -79,17 +79,17 @@ pub fn discover_project_config(start: &Path) -> anyhow::Result<Option<(PathBuf, 
 ///
 /// - If the arg has a file extension (`.toml`, `.dot`, etc.), return it as-is.
 /// - If no extension, attempt project-based resolution: find `arc.toml`, resolve
-///   `{arc_root}/workflows/{name}/workflow.toml`. Falls back to literal arg if
-///   no project config or no matching workflow file.
-pub fn resolve_workflow_arg(arg: &Path) -> PathBuf {
+///   `{arc_root}/workflows/{name}/workflow.toml`. Returns an error with suggestions
+///   if an `arc.toml` exists but the workflow wasn't found.
+pub fn resolve_workflow_arg(arg: &Path) -> anyhow::Result<PathBuf> {
     let start = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     resolve_workflow_arg_from(arg, &start)
 }
 
-fn resolve_workflow_arg_from(arg: &Path, start_dir: &Path) -> PathBuf {
+fn resolve_workflow_arg_from(arg: &Path, start_dir: &Path) -> anyhow::Result<PathBuf> {
     if arg.extension().is_some() {
         tracing::debug!(arg = %arg.display(), "Workflow arg has extension, returning as-is");
-        return arg.to_path_buf();
+        return Ok(arg.to_path_buf());
     }
 
     let name = arg.to_string_lossy();
@@ -102,21 +102,65 @@ fn resolve_workflow_arg_from(arg: &Path, start_dir: &Path) -> PathBuf {
                 .join("workflow.toml");
             if candidate.is_file() {
                 tracing::debug!(arg = %arg.display(), resolved = %candidate.display(), "Resolved workflow name via project config");
-                candidate
+                Ok(candidate)
             } else {
-                tracing::debug!(arg = %arg.display(), candidate = %candidate.display(), "Workflow file not found, falling back to literal");
-                arg.to_path_buf()
+                let available = list_available_workflows(&arc_root);
+                if available.is_empty() {
+                    bail!(
+                        "Unknown workflow '{name}'\n\nNo workflows found in {}",
+                        arc_root.join("workflows").display()
+                    );
+                }
+                let mut msg = format!(
+                    "Unknown workflow '{name}'\n\nAvailable workflows: {}",
+                    available.join(", ")
+                );
+                if let Some(suggestion) = find_closest_match(&name, &available) {
+                    msg.push_str(&format!("\n\nDid you mean '{suggestion}'?"));
+                }
+                bail!("{msg}");
             }
         }
         Ok(None) => {
             tracing::debug!(arg = %arg.display(), "No project config found, returning literal");
-            arg.to_path_buf()
+            Ok(arg.to_path_buf())
         }
         Err(err) => {
             tracing::debug!(arg = %arg.display(), error = %err, "Error discovering project config, returning literal");
-            arg.to_path_buf()
+            Ok(arg.to_path_buf())
         }
     }
+}
+
+/// List workflow names by scanning `{arc_root}/workflows/` for dirs containing `workflow.toml`.
+fn list_available_workflows(arc_root: &Path) -> Vec<String> {
+    let workflows_dir = arc_root.join("workflows");
+    let Ok(entries) = std::fs::read_dir(&workflows_dir) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.is_dir() && path.join("workflow.toml").is_file() {
+                entry.file_name().to_str().map(String::from)
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// Find the closest match using normalized Levenshtein distance (threshold: 0.5).
+fn find_closest_match(input: &str, candidates: &[String]) -> Option<String> {
+    candidates
+        .iter()
+        .map(|c| (c, strsim::normalized_levenshtein(input, c)))
+        .filter(|(_, score)| *score >= 0.5)
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(name, _)| name.clone())
 }
 
 /// Check whether retros are enabled in the project config.
@@ -248,21 +292,21 @@ mod tests {
     #[test]
     fn resolve_workflow_arg_toml_extension_returned_as_is() {
         let tmp = TempDir::new().unwrap();
-        let result = resolve_workflow_arg_from(Path::new("my-workflow.toml"), tmp.path());
+        let result = resolve_workflow_arg_from(Path::new("my-workflow.toml"), tmp.path()).unwrap();
         assert_eq!(result, Path::new("my-workflow.toml"));
     }
 
     #[test]
     fn resolve_workflow_arg_dot_extension_returned_as_is() {
         let tmp = TempDir::new().unwrap();
-        let result = resolve_workflow_arg_from(Path::new("my-workflow.dot"), tmp.path());
+        let result = resolve_workflow_arg_from(Path::new("my-workflow.dot"), tmp.path()).unwrap();
         assert_eq!(result, Path::new("my-workflow.dot"));
     }
 
     #[test]
     fn resolve_workflow_arg_no_extension_no_config_returns_literal() {
         let tmp = TempDir::new().unwrap();
-        let result = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path());
+        let result = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path()).unwrap();
         assert_eq!(result, Path::new("my-workflow"));
     }
 
@@ -278,17 +322,55 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path());
+        let result = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path()).unwrap();
         assert_eq!(result, wf_dir.join("workflow.toml"));
     }
 
     #[test]
-    fn resolve_workflow_arg_no_extension_config_but_no_workflow_dir() {
+    fn resolve_workflow_arg_typo_suggests_similar_name() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("arc.toml"), "version = 1\n").unwrap();
+        let wf_dir = tmp.path().join("workflows").join("implement");
+        fs::create_dir_all(&wf_dir).unwrap();
+        fs::write(
+            wf_dir.join("workflow.toml"),
+            "version = 1\ngraph = \"w.dot\"\n",
+        )
+        .unwrap();
+
+        let err = resolve_workflow_arg_from(Path::new("implemet"), tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Unknown workflow 'implemet'"), "got: {msg}");
+        assert!(msg.contains("Did you mean 'implement'?"), "got: {msg}");
+    }
+
+    #[test]
+    fn resolve_workflow_arg_unknown_lists_available() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("arc.toml"), "version = 1\n").unwrap();
+        let wf_dir = tmp.path().join("workflows").join("hello");
+        fs::create_dir_all(&wf_dir).unwrap();
+        fs::write(
+            wf_dir.join("workflow.toml"),
+            "version = 1\ngraph = \"w.dot\"\n",
+        )
+        .unwrap();
+
+        let err = resolve_workflow_arg_from(Path::new("zzzzz"), tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Unknown workflow 'zzzzz'"), "got: {msg}");
+        assert!(msg.contains("Available workflows: hello"), "got: {msg}");
+        assert!(!msg.contains("Did you mean"), "got: {msg}");
+    }
+
+    #[test]
+    fn resolve_workflow_arg_no_workflows_dir() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("arc.toml"), "version = 1\n").unwrap();
 
-        let result = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path());
-        assert_eq!(result, Path::new("my-workflow"));
+        let err = resolve_workflow_arg_from(Path::new("my-workflow"), tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("No workflows found"), "got: {msg}");
     }
 
     #[test]
@@ -307,7 +389,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_workflow_arg_from(Path::new("factory"), tmp.path());
+        let result = resolve_workflow_arg_from(Path::new("factory"), tmp.path()).unwrap();
         assert_eq!(result, wf_dir.join("workflow.toml"));
     }
 }

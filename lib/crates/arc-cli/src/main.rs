@@ -131,7 +131,30 @@ fn build_github_app_credentials(
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(err) = main_inner().await {
+        let style = console::Style::new().red().bold();
+        for (i, cause) in err.chain().enumerate() {
+            let text = cause.to_string();
+            if i == 0 {
+                for (j, line) in text.lines().enumerate() {
+                    if j == 0 {
+                        eprintln!("{} {line}", style.apply_to("error:"));
+                    } else {
+                        eprintln!("  {line}");
+                    }
+                }
+            } else {
+                for line in text.lines() {
+                    eprintln!("  > {line}");
+                }
+            }
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn main_inner() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let cli = Cli::parse();
