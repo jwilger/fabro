@@ -11,6 +11,5 @@ provider = "local"
 # [sandbox.daytona.snapshot]
 # name = "daytona-large"
 
-
 [sandbox.local]
-worktree = true
+worktree_mode = "always"
