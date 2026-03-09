@@ -695,6 +695,24 @@ impl ProgressUI {
         }
     }
 
+    pub fn show_base_info(&mut self, branch: Option<&str>, sha: &str) {
+        let short_sha = &sha[..sha.len().min(12)];
+        let text = match branch {
+            Some(b) => format!("Base: {b} ({short_sha})"),
+            None => format!("Base: {short_sha}"),
+        };
+        match &self.renderer {
+            ProgressRenderer::Tty(tty) => {
+                let bar = tty.multi.add(ProgressBar::new_spinner());
+                bar.set_style(style_static_dim());
+                bar.finish_with_message(text);
+            }
+            ProgressRenderer::Plain => {
+                eprintln!("    {text}");
+            }
+        }
+    }
+
     // ── Stages ──────────────────────────────────────────────────────────
 
     fn on_stage_started(&mut self, node_id: &str, name: &str, script: Option<&str>) {

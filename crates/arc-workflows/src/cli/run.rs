@@ -550,6 +550,13 @@ pub async fn run_command(
             .show_worktree(wt);
     }
 
+    if let Some(ref sha) = worktree_base_sha {
+        progress_ui
+            .lock()
+            .expect("progress lock poisoned")
+            .show_base_info(detected_base_branch.as_deref(), sha);
+    }
+
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let daytona_config = resolve_daytona_config(run_cfg.as_ref(), &run_defaults);
     let exe_config = resolve_exe_config(run_cfg.as_ref(), &run_defaults);
@@ -714,6 +721,18 @@ pub async fn run_command(
     } else {
         (None, None, None)
     };
+
+    if worktree_base_sha.is_none() {
+        if let Some(ref sha) = remote_base_sha {
+            let branch = detected_base_branch
+                .as_deref()
+                .or(remote_base_branch.as_deref());
+            progress_ui
+                .lock()
+                .expect("progress lock poisoned")
+                .show_base_info(branch, sha);
+        }
+    }
 
     // Create SSH access if requested
     if args.ssh {
