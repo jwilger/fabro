@@ -79,6 +79,11 @@ repo_url = "https://github.com/qltysh/arc"
 [assets]
 include = ["test-results/**", "playwright-report/**"]
 
+[mcp_servers.playwright]
+type = "sandbox"
+command = ["npx", "@playwright/mcp@latest", "--port", "3100", "--headless"]
+port = 3100
+
 [pull_request]
 enabled = true
 draft = false
@@ -284,6 +289,32 @@ include = ["test-results/**", "playwright-report/**", "*.trace.zip"]
 | `include` | Glob patterns for files to collect as assets. Matched against the working directory after each stage completes. |
 
 Asset collection is opt-in — when no `[assets]` section is present, no file scanning occurs. This avoids the overhead of scanning large working directories when assets aren't needed.
+
+### `[mcp_servers]`
+
+Configure [MCP servers](/agents/mcp) available to agent stages during the workflow run. Each server is a named TOML table. All three transport types are supported: `stdio`, `http`, and `sandbox`.
+
+```toml title="run.toml"
+[mcp_servers.playwright]
+type = "sandbox"
+command = ["npx", "@playwright/mcp@latest", "--port", "3100", "--headless", "--browser", "chromium"]
+port = 3100
+startup_timeout_secs = 60
+tool_timeout_secs = 120
+```
+
+| Field | Description | Default |
+|---|---|---|
+| `type` | Transport type: `"stdio"`, `"http"`, or `"sandbox"`. | — |
+| `command` | (stdio, sandbox) Array: executable + arguments. | — |
+| `port` | (sandbox) Port the server listens on inside the sandbox. | — |
+| `url` | (http) The MCP server endpoint URL. | — |
+| `env` | (stdio, sandbox) Additional environment variables. | `{}` |
+| `headers` | (http) Optional HTTP headers for authentication. | `{}` |
+| `startup_timeout_secs` | Max seconds for server startup + MCP handshake. | `10` |
+| `tool_timeout_secs` | Max seconds for a single tool call. | `60` |
+
+The `sandbox` transport runs the MCP server inside the workflow's sandbox. This is useful for tools that need access to the sandbox environment, such as browser automation with Playwright. See [MCP](/agents/mcp#sandbox) for details.
 
 ### `[pull_request]`
 

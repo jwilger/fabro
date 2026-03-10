@@ -200,7 +200,7 @@ Precedence: `run.toml` > `cli.toml` > `server.toml` > built-in default (`false`)
 
 ## `[mcp_servers]` section
 
-Configure [MCP servers](/agents/mcp) to connect to during `arc exec` sessions. Each server is a named TOML table under `[mcp_servers]`.
+Configure [MCP servers](/agents/mcp) to connect to during `arc exec` sessions. Each server is a named TOML table under `[mcp_servers]`. MCP servers can also be configured per-workflow in [run config TOML](/execution/run-configuration#mcp_servers).
 
 ### Stdio transport
 
@@ -245,3 +245,27 @@ Authorization = "Bearer sk-xxx"
 | `headers` | Optional HTTP headers (e.g., for authentication) | `{}` |
 | `startup_timeout_secs` | Max seconds for the MCP handshake | `10` |
 | `tool_timeout_secs` | Max seconds for a single tool call | `60` |
+
+### Sandbox transport
+
+Run an MCP server inside the workflow's sandbox and connect via preview URL. Only available with remote sandbox providers ([Daytona](/integrations/daytona)) that support port previews. Typically configured in [run config TOML](/execution/run-configuration#mcp_servers) rather than `cli.toml`.
+
+```toml title="run.toml"
+[mcp_servers.playwright]
+type = "sandbox"
+command = ["npx", "@playwright/mcp@latest", "--port", "3100", "--headless"]
+port = 3100
+startup_timeout_secs = 60
+tool_timeout_secs = 120
+```
+
+| Key | Description | Default |
+|---|---|---|
+| `type` | Must be `"sandbox"` | — |
+| `command` | Array: the command to run inside the sandbox | — |
+| `port` | Port the server listens on inside the sandbox | — |
+| `env` | Additional environment variables for the server process | `{}` |
+| `startup_timeout_secs` | Max seconds for startup + MCP handshake | `10` |
+| `tool_timeout_secs` | Max seconds for a single tool call | `60` |
+
+See [MCP — Sandbox transport](/agents/mcp#sandbox) for how Arc launches and connects to sandbox MCP servers.

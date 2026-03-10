@@ -3,17 +3,13 @@ title: "MCP"
 description: "Extend agents with Model Context Protocol servers"
 ---
 
-<Warning>
-MCP support is under active development and not yet available. This page describes the planned design and configuration. We'll update this page when MCP support ships.
-</Warning>
-
 MCP ([Model Context Protocol](https://modelcontextprotocol.io/)) lets you connect external tool servers to Arc agents. An MCP server exposes tools over a standardized protocol — databases, APIs, file systems, custom services — and Arc discovers and registers them automatically. Agents call MCP tools the same way they call built-in tools.
 
 ## How it works
 
 When an agent session starts with MCP servers configured, Arc:
 
-1. **Connects** to each server using the configured transport (stdio or HTTP)
+1. **Connects** to each server using the configured transport (stdio, HTTP, or sandbox)
 2. **Performs the MCP handshake** — exchanging protocol versions and capabilities
 3. **Discovers tools** — calls `tools/list` to get every tool the server exposes
 4. **Registers tools** — each MCP tool is added to the agent's tool registry with a qualified name
@@ -32,13 +28,20 @@ For example, a server named `filesystem` exposing a `read_file` tool becomes `mc
 
 ## Configuration
 
-MCP servers are configured in `~/.arc/cli.toml` under the `[mcp_servers]` section, or programmatically via `SessionConfig`. Each server entry specifies a transport and optional timeouts.
+MCP servers can be configured in two places:
 
-### TOML configuration
+- **`~/.arc/cli.toml`** — applies to `arc exec` sessions. See [CLI Configuration](/reference/cli-configuration#mcp_servers-section).
+- **Run config TOML** — applies to workflow runs (`arc run`). See [Run Configuration](/execution/run-configuration#mcp_servers).
 
-The recommended way to configure MCP servers. Each server is a named table:
+Each server entry specifies a transport type and optional timeouts. The server name is the TOML table key and is used in qualified tool names.
 
-```toml title="~/.arc/cli.toml"
+## Transports
+
+### Stdio
+
+The most common transport. Arc spawns a child process on the host and communicates over stdin/stdout:
+
+```toml
 [mcp_servers.filesystem]
 type = "stdio"
 command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
@@ -47,7 +50,21 @@ tool_timeout_secs = 90
 
 [mcp_servers.filesystem.env]
 NODE_ENV = "production"
+```
 
+| Field | Description | Default |
+|---|---|---|
+| `type` | Must be `"stdio"`. | — |
+| `command` | Array: the executable followed by its arguments. | — |
+| `env` | Additional environment variables for the child process. | `{}` |
+| `startup_timeout_secs` | Max seconds to wait for the MCP handshake. | `10` |
+| `tool_timeout_secs` | Max seconds to wait for a single tool call. | `60` |
+
+### HTTP
+
+For remote MCP servers accessible over Streamable HTTP:
+
+```toml
 [mcp_servers.sentry]
 type = "http"
 url = "https://mcp.sentry.dev/mcp"
@@ -56,60 +73,42 @@ url = "https://mcp.sentry.dev/mcp"
 Authorization = "Bearer sk-xxx"
 ```
 
-The server name (e.g., `filesystem`, `sentry`) is the TOML table key and is used in qualified tool names. See [CLI Configuration](/reference/cli-configuration#mcp_servers-section) for the full reference.
+| Field | Description | Default |
+|---|---|---|
+| `type` | Must be `"http"`. | — |
+| `url` | The MCP server endpoint URL. | — |
+| `headers` | Optional HTTP headers (e.g., for authentication). | `{}` |
+| `startup_timeout_secs` | Max seconds to wait for the MCP handshake. | `10` |
+| `tool_timeout_secs` | Max seconds to wait for a single tool call. | `60` |
 
-### JSON format
+### Sandbox
 
-### Stdio transport
+Runs the MCP server inside the workflow's sandbox (e.g., a [Daytona](/integrations/daytona) cloud VM). Arc starts the server as a background process, waits for it to listen on the specified port, obtains an authenticated preview URL, and connects via HTTP. This is the right transport for MCP servers that need access to the sandbox environment — for example, [Playwright](https://github.com/microsoft/playwright-mcp) for browser automation.
 
-The most common transport. Arc spawns a child process and communicates over stdin/stdout:
-
-```json
-{
-  "name": "filesystem",
-  "transport": {
-    "type": "stdio",
-    "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-    "env": {}
-  },
-  "startup_timeout_secs": 10,
-  "tool_timeout_secs": 60
-}
+```toml
+[mcp_servers.playwright]
+type = "sandbox"
+command = ["npx", "@playwright/mcp@latest", "--port", "3100", "--headless", "--browser", "chromium"]
+port = 3100
+startup_timeout_secs = 60
+tool_timeout_secs = 120
 ```
 
-| Field | Description |
-|---|---|
-| `name` | Unique identifier for this server. Used in qualified tool names. |
-| `transport.type` | Must be `"stdio"`. |
-| `transport.command` | Array: the executable followed by its arguments. |
-| `transport.env` | Additional environment variables for the child process. |
-| `startup_timeout_secs` | Max seconds to wait for the MCP handshake. Default: `10`. |
-| `tool_timeout_secs` | Max seconds to wait for a single tool call. Default: `60`. |
+| Field | Description | Default |
+|---|---|---|
+| `type` | Must be `"sandbox"`. | — |
+| `command` | Array: the command to run inside the sandbox. Must include a flag that makes the server listen on `port`. | — |
+| `port` | The port the MCP server listens on inside the sandbox. | — |
+| `env` | Additional environment variables for the server process. | `{}` |
+| `startup_timeout_secs` | Max seconds to wait for the server to start listening and complete the MCP handshake. | `10` |
+| `tool_timeout_secs` | Max seconds to wait for a single tool call. | `60` |
 
-### HTTP transport
+The sandbox transport requires a remote sandbox provider (Daytona) that supports preview URLs. During session initialization, Arc:
 
-For remote MCP servers accessible over Streamable HTTP:
-
-```json
-{
-  "name": "remote-api",
-  "transport": {
-    "type": "http",
-    "url": "https://mcp.example.com",
-    "headers": {
-      "Authorization": "Bearer token"
-    }
-  },
-  "startup_timeout_secs": 30,
-  "tool_timeout_secs": 60
-}
-```
-
-| Field | Description |
-|---|---|
-| `transport.type` | Must be `"http"`. |
-| `transport.url` | The MCP server endpoint URL. |
-| `transport.headers` | Optional HTTP headers (e.g., for authentication). |
+1. Launches the server inside the sandbox using `setsid` to fully detach the process
+2. Polls until the server is listening on the configured port (up to 30 seconds)
+3. Obtains an authenticated preview URL from the sandbox provider
+4. Connects to the server over HTTP using the preview URL
 
 ## Lifecycle
 
@@ -117,7 +116,7 @@ For remote MCP servers accessible over Streamable HTTP:
 
 Each MCP server is started sequentially during session initialization. The startup sequence for each server is:
 
-1. **Spawn / connect** — For stdio, spawn the child process. For HTTP, create the HTTP client.
+1. **Spawn / connect** — For stdio, spawn the child process. For HTTP, create the HTTP client. For sandbox, start the server inside the sandbox and connect via preview URL.
 2. **Handshake** — Perform the MCP protocol handshake within the `startup_timeout_secs` window.
 3. **Tool discovery** — Call `tools/list` to enumerate available tools.
 4. **Registration** — Add each tool to the agent's registry with its qualified name.
@@ -148,27 +147,45 @@ MCP tool results can contain multiple content blocks. Arc converts them to text:
 
 If the server marks the result as an error (`is_error: true`), the tool result is returned to the LLM as an error.
 
-## Example: filesystem server
+## Example: Playwright browser automation
 
-A complete example connecting an agent to the MCP filesystem server:
+A workflow that uses Playwright MCP to automate a browser inside a Daytona sandbox:
 
-```toml title="~/.arc/cli.toml"
-[mcp_servers.fs]
-type = "stdio"
-command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
-startup_timeout_secs = 15
-tool_timeout_secs = 90
+```toml title="run.toml"
+version = 1
+goal = "Test the login page"
+graph = "workflow.dot"
 
-[mcp_servers.fs.env]
-NODE_ENV = "production"
+[sandbox]
+provider = "daytona"
+
+[sandbox.daytona.snapshot]
+name = "daytona-medium"
+
+[assets]
+include = ["screenshots/**"]
+
+[mcp_servers.playwright]
+type = "sandbox"
+command = ["npx", "@playwright/mcp@latest", "--port", "3100", "--headless", "--browser", "chromium"]
+port = 3100
+startup_timeout_secs = 60
+tool_timeout_secs = 120
 ```
 
-After startup, the agent would see tools like:
-- `mcp__fs__read_file`
-- `mcp__fs__write_file`
-- `mcp__fs__list_directory`
+After startup, the agent sees 22 Playwright tools including:
+- `mcp__playwright__browser_navigate`
+- `mcp__playwright__browser_click`
+- `mcp__playwright__browser_snapshot`
+- `mcp__playwright__browser_take_screenshot`
+- `mcp__playwright__browser_type`
+- `mcp__playwright__browser_fill_form`
 
-The agent can call these alongside built-in tools like `shell`, `grep`, and `glob`.
+The agent uses `browser_snapshot` (accessibility tree) for structured page understanding and `browser_take_screenshot` to save visual captures. Screenshots saved to `screenshots/` are automatically collected as [assets](/execution/run-configuration#assets).
+
+<Note>
+When using Playwright MCP with the sandbox transport, call the `browser_install` tool first to ensure the Playwright browser binaries are available inside the sandbox.
+</Note>
 
 <Note>
 MCP servers that fail to start do not block the agent session. The agent proceeds with its built-in tools plus any MCP tools from servers that started successfully.
