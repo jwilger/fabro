@@ -5,14 +5,15 @@ description: "Sandbox providers for workflow execution"
 
 When an agent runs a shell command, edits a file, or searches code, it does so inside a **sandbox**. The sandbox is the execution environment for all tool operations — it controls where commands run, which files are visible, and how much isolation exists between the agent and the host.
 
-Arc supports four sandbox providers. Each one implements the same interface (file I/O, command execution, grep, glob), so workflows run identically regardless of which provider you choose. The difference is in where and how the tools execute.
+Arc supports five sandbox providers. Each one implements the same interface (file I/O, command execution, grep, glob), so workflows run identically regardless of which provider you choose. The difference is in where and how the tools execute.
 
-| Provider | Runs on | Isolation | Use case |
+| Provider | Runs on | Use case | Status |
 |---|---|---|---|
-| `local` | Host machine | None | Development, trusted workflows |
-| `docker` | Docker container | Container-level | Reproducible environments, untrusted code |
-| `daytona` | Cloud VM | Full machine | CI/CD, team-shared runs, SSH debugging |
-| `exe` | Cloud VM ([exe.dev](https://exe.dev)) | Full machine | Fast ephemeral VMs, lightweight cloud sandboxing |
+| `local` | Host machine | Development, trusted workflows | Available |
+| `docker` | Docker container | Reproducible environments, untrusted code | Available |
+| `daytona` | Cloud VM | CI/CD, team-shared runs, SSH debugging | Available |
+| `exe` | Cloud VM ([exe.dev](https://exe.dev)) | Fast ephemeral VMs, lightweight cloud sandboxing | Experimental |
+| `sprites` | Cloud VM | Managed cloud sandboxes | In Development |
 
 ## Choosing a provider
 
