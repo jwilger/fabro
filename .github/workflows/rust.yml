@@ -36,6 +36,8 @@ jobs:
     name: Format
     runs-on: self-hosted
     steps:
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
@@ -49,6 +51,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_DIR: /home/bhelmkamp/.cache/sccache
     steps:
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
@@ -65,6 +69,8 @@ jobs:
       SCCACHE_DIR: /home/bhelmkamp/.cache/sccache
       CARGO_INCREMENTAL: "1"
     steps:
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
