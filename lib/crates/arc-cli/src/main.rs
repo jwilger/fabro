@@ -108,6 +108,14 @@ enum Command {
 enum PrCommand {
     /// Create a pull request from a completed run
     Create(arc_workflows::cli::pr::PrCreateArgs),
+    /// List pull requests from workflow runs
+    List(arc_workflows::cli::pr::PrListArgs),
+    /// View pull request details
+    View(arc_workflows::cli::pr::PrViewArgs),
+    /// Merge a pull request
+    Merge(arc_workflows::cli::pr::PrMergeArgs),
+    /// Close a pull request
+    Close(arc_workflows::cli::pr::PrCloseArgs),
 }
 
 #[derive(Subcommand)]
@@ -438,13 +446,27 @@ async fn main_inner() -> Result<()> {
         Command::Ps(args) => {
             arc_workflows::cli::runs::list_command(&args)?;
         }
-        Command::Pr { command } => match command {
-            PrCommand::Create(args) => {
-                let cli_config = cli_config::load_cli_config(None)?;
-                let github_app = build_github_app_credentials(cli_config.app_id());
-                arc_workflows::cli::pr::pr_create_command(args, github_app).await?;
+        Command::Pr { command } => {
+            let cli_config = cli_config::load_cli_config(None)?;
+            let github_app = build_github_app_credentials(cli_config.app_id());
+            match command {
+                PrCommand::Create(args) => {
+                    arc_workflows::cli::pr::pr_create_command(args, github_app).await?;
+                }
+                PrCommand::List(args) => {
+                    arc_workflows::cli::pr::pr_list_command(args, github_app).await?;
+                }
+                PrCommand::View(args) => {
+                    arc_workflows::cli::pr::pr_view_command(args, github_app).await?;
+                }
+                PrCommand::Merge(args) => {
+                    arc_workflows::cli::pr::pr_merge_command(args, github_app).await?;
+                }
+                PrCommand::Close(args) => {
+                    arc_workflows::cli::pr::pr_close_command(args, github_app).await?;
+                }
             }
-        },
+        }
         Command::System { command } => match command {
             SystemCommand::Prune(args) => {
                 arc_workflows::cli::runs::prune_command(&args)?;

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
 use arc_github::{self as github_app, ssh_url_to_https, GitHubAppCredentials};
@@ -9,7 +9,7 @@ use crate::conclusion::Conclusion;
 use crate::retro::Retro;
 
 /// Record of a pull request created for a workflow run.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequestRecord {
     pub html_url: String,
     pub number: u64,

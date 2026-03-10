@@ -2,6 +2,40 @@ use serde::Deserialize;
 
 const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 
+/// Detailed information about a pull request from the GitHub API.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullRequestDetail {
+    pub number: u64,
+    pub title: String,
+    pub body: Option<String>,
+    pub state: String,
+    pub draft: bool,
+    pub mergeable: Option<bool>,
+    pub additions: u64,
+    pub deletions: u64,
+    pub changed_files: u64,
+    pub html_url: String,
+    #[serde(rename = "user")]
+    pub user_wrapper: PullRequestUser,
+    #[serde(rename = "head")]
+    pub head_wrapper: PullRequestRef,
+    #[serde(rename = "base")]
+    pub base_wrapper: PullRequestRef,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullRequestUser {
+    pub login: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullRequestRef {
+    #[serde(rename = "ref")]
+    pub ref_name: String,
+}
+
 /// Credentials for authenticating as a GitHub App.
 #[derive(Clone, Debug)]
 pub struct GitHubAppCredentials {
@@ -427,6 +461,154 @@ pub async fn resolve_authenticated_url(
     match password {
         Some(token) => Ok(embed_token_in_url(url, &token)),
         None => Ok(url.to_string()),
+    }
+}
+
+/// Fetch detailed information about a pull request.
+pub async fn get_pull_request(
+    creds: &GitHubAppCredentials,
+    owner: &str,
+    repo: &str,
+    number: u64,
+    base_url: &str,
+) -> Result<PullRequestDetail, String> {
+    tracing::debug!(owner, repo, number, "Fetching pull request");
+
+    let jwt = sign_app_jwt(&creds.app_id, &creds.private_key_pem)?;
+    let client = reqwest::Client::new();
+    let token =
+        create_installation_access_token_for_pr(&client, &jwt, owner, repo, base_url).await?;
+
+    let url = format!("{base_url}/repos/{owner}/{repo}/pulls/{number}");
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "arc")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch pull request: {e}"))?;
+
+    match resp.status().as_u16() {
+        200 => {}
+        404 => {
+            return Err(format!(
+                "Pull request #{number} not found in {owner}/{repo}"
+            ))
+        }
+        401 | 403 => {
+            return Err(format!(
+                "Authentication failed fetching pull request ({})",
+                resp.status()
+            ))
+        }
+        status => {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "Unexpected status {status} fetching pull request: {body}"
+            ));
+        }
+    }
+
+    resp.json::<PullRequestDetail>()
+        .await
+        .map_err(|e| format!("Failed to parse pull request response: {e}"))
+}
+
+/// Merge a pull request.
+pub async fn merge_pull_request(
+    creds: &GitHubAppCredentials,
+    owner: &str,
+    repo: &str,
+    number: u64,
+    method: &str,
+    base_url: &str,
+) -> Result<(), String> {
+    tracing::debug!(owner, repo, number, method, "Merging pull request");
+
+    let jwt = sign_app_jwt(&creds.app_id, &creds.private_key_pem)?;
+    let client = reqwest::Client::new();
+    let token =
+        create_installation_access_token_for_pr(&client, &jwt, owner, repo, base_url).await?;
+
+    let url = format!("{base_url}/repos/{owner}/{repo}/pulls/{number}/merge");
+    let body = serde_json::json!({ "merge_method": method });
+
+    let resp = client
+        .put(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "arc")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to merge pull request: {e}"))?;
+
+    match resp.status().as_u16() {
+        200 => Ok(()),
+        405 => Err(format!(
+            "Pull request #{number} is not mergeable (method may not be allowed)"
+        )),
+        409 => Err(format!("Pull request #{number} has a merge conflict")),
+        404 => Err(format!(
+            "Pull request #{number} not found in {owner}/{repo}"
+        )),
+        401 | 403 => Err(format!(
+            "Authentication failed merging pull request ({})",
+            resp.status()
+        )),
+        status => {
+            let body_text = resp.text().await.unwrap_or_default();
+            Err(format!(
+                "Unexpected status {status} merging pull request: {body_text}"
+            ))
+        }
+    }
+}
+
+/// Close a pull request.
+pub async fn close_pull_request(
+    creds: &GitHubAppCredentials,
+    owner: &str,
+    repo: &str,
+    number: u64,
+    base_url: &str,
+) -> Result<(), String> {
+    tracing::debug!(owner, repo, number, "Closing pull request");
+
+    let jwt = sign_app_jwt(&creds.app_id, &creds.private_key_pem)?;
+    let client = reqwest::Client::new();
+    let token =
+        create_installation_access_token_for_pr(&client, &jwt, owner, repo, base_url).await?;
+
+    let url = format!("{base_url}/repos/{owner}/{repo}/pulls/{number}");
+    let body = serde_json::json!({ "state": "closed" });
+
+    let resp = client
+        .patch(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "arc")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to close pull request: {e}"))?;
+
+    match resp.status().as_u16() {
+        200 => Ok(()),
+        404 => Err(format!(
+            "Pull request #{number} not found in {owner}/{repo}"
+        )),
+        401 | 403 => Err(format!(
+            "Authentication failed closing pull request ({})",
+            resp.status()
+        )),
+        status => {
+            let body_text = resp.text().await.unwrap_or_default();
+            Err(format!(
+                "Unexpected status {status} closing pull request: {body_text}"
+            ))
+        }
     }
 }
 
@@ -884,5 +1066,281 @@ mod tests {
             result.unwrap_err().contains("authentication failed"),
             "expected auth error"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // get_pull_request
+    // -----------------------------------------------------------------------
+
+    fn mock_pr_json() -> String {
+        r#"{
+            "number": 42,
+            "title": "Fix the bug",
+            "body": "Detailed description",
+            "state": "open",
+            "draft": false,
+            "mergeable": true,
+            "additions": 10,
+            "deletions": 3,
+            "changed_files": 2,
+            "html_url": "https://github.com/owner/repo/pull/42",
+            "user": {"login": "testuser"},
+            "head": {"ref": "feature-branch"},
+            "base": {"ref": "main"},
+            "created_at": "2026-01-01T12:00:00Z",
+            "updated_at": "2026-01-02T12:00:00Z"
+        }"#
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn get_pr_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("GET", "/repos/owner/repo/pulls/42")
+            .with_status(200)
+            .with_body(mock_pr_json())
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        let detail = get_pull_request(&creds, "owner", "repo", 42, &server.url())
+            .await
+            .unwrap();
+
+        assert_eq!(detail.number, 42);
+        assert_eq!(detail.title, "Fix the bug");
+        assert_eq!(detail.state, "open");
+        assert_eq!(detail.additions, 10);
+        assert_eq!(detail.deletions, 3);
+        assert_eq!(detail.changed_files, 2);
+        assert_eq!(detail.user_wrapper.login, "testuser");
+        assert_eq!(detail.head_wrapper.ref_name, "feature-branch");
+        assert_eq!(detail.base_wrapper.ref_name, "main");
+    }
+
+    #[tokio::test]
+    async fn get_pr_not_found() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("GET", "/repos/owner/repo/pulls/999")
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        let err = get_pull_request(&creds, "owner", "repo", 999, &server.url())
+            .await
+            .unwrap_err();
+        assert!(err.contains("not found"), "got: {err}");
+        assert!(err.contains("#999"), "got: {err}");
+    }
+
+    // -----------------------------------------------------------------------
+    // merge_pull_request
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn merge_pr_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", "/repos/owner/repo/pulls/42/merge")
+            .with_status(200)
+            .with_body(r#"{"merged": true}"#)
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        merge_pull_request(&creds, "owner", "repo", 42, "squash", &server.url())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn merge_pr_not_mergeable() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", "/repos/owner/repo/pulls/42/merge")
+            .with_status(405)
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        let err = merge_pull_request(&creds, "owner", "repo", 42, "squash", &server.url())
+            .await
+            .unwrap_err();
+        assert!(err.contains("not mergeable"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn merge_pr_conflict() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", "/repos/owner/repo/pulls/42/merge")
+            .with_status(409)
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        let err = merge_pull_request(&creds, "owner", "repo", 42, "squash", &server.url())
+            .await
+            .unwrap_err();
+        assert!(err.contains("merge conflict"), "got: {err}");
+    }
+
+    // -----------------------------------------------------------------------
+    // close_pull_request
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn close_pr_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("PATCH", "/repos/owner/repo/pulls/42")
+            .with_status(200)
+            .with_body(mock_pr_json())
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        close_pull_request(&creds, "owner", "repo", 42, &server.url())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn close_pr_not_found() {
+        let mut server = mockito::Server::new_async().await;
+
+        server
+            .mock("GET", "/repos/owner/repo/installation")
+            .with_status(200)
+            .with_body(r#"{"id": 1}"#)
+            .create_async()
+            .await;
+        server
+            .mock("POST", "/app/installations/1/access_tokens")
+            .with_status(201)
+            .with_body(r#"{"token": "ghs_test"}"#)
+            .create_async()
+            .await;
+        server
+            .mock("PATCH", "/repos/owner/repo/pulls/999")
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let pem = test_rsa_key();
+        let creds = GitHubAppCredentials {
+            app_id: "test".to_string(),
+            private_key_pem: pem,
+        };
+        let err = close_pull_request(&creds, "owner", "repo", 999, &server.url())
+            .await
+            .unwrap_err();
+        assert!(err.contains("not found"), "got: {err}");
+        assert!(err.contains("#999"), "got: {err}");
     }
 }
