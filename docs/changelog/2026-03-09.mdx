@@ -1,5 +1,5 @@
 ---
-title: "Project config, arc cp, and exe.dev maturation"
+title: "Project config, arc cp, arc pr create, and exe.dev maturation"
 date: "2026-03-09"
 ---
 
@@ -38,12 +38,34 @@ image = "my-custom-image:latest"
 arc run --ssh my-workflow.dot
 ```
 
+## `arc cp` — copy files to and from sandboxes
+
+After a workflow run completes, you often need to retrieve files from the sandbox — build artifacts, generated reports, or logs. Previously, there was no easy way to get files out of a completed run's sandbox. Now, `arc cp` lets you copy files in either direction using the run ID.
+
+```bash
+arc cp <run-id>:/path/in/sandbox ./local-dir   # download
+arc cp ./local-file <run-id>:/path/in/sandbox   # upload
+```
+
+## `arc pr create` — create PRs from completed runs
+
+Sometimes you want to review a run's changes before opening a PR, or a run finishes without auto-PR configured. `arc pr create` lets you create a pull request after the fact for any completed workflow run, using the persisted manifest, conclusion, and diff from the run's log directory. PRs are created as drafts by default.
+
+```bash
+arc pr create <run-id>
+```
+
+## `arc system df` — disk usage reporting
+
+Run logs and worktrees accumulate over time. `arc system df` shows a breakdown of disk usage across your run logs directory and any preserved worktrees, so you know when it's time to run `arc system prune`.
+
+```bash
+arc system df
+```
+
 ## More
 
 <Accordion title="CLI">
-- Added `arc cp` command for copying files to/from run sandboxes
-- Added `arc pr create` command to create PRs from completed workflow runs
-- Added `arc system df` command to show disk usage of run logs and worktrees
 - PRs are now created as drafts by default; opt out with `draft = false` in `[pull_request]` config
 - Added `[sandbox.local] worktree_mode` config (`always`/`clean`/`dirty`/`never`) for controlling when git worktrees are created
 - Added `[pull_request]` config section in `cli.toml` so auto-PR works with `.dot` files
