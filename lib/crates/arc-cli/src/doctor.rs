@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+#[cfg(feature = "server")]
 use std::process::Command;
+#[cfg(feature = "server")]
 use std::sync::LazyLock;
 
 #[cfg(feature = "server")]
@@ -7,13 +9,16 @@ use arc_config::server::{ApiAuthStrategy, AuthProvider};
 use arc_llm::provider::Provider;
 pub use arc_util::check_report::{CheckDetail, CheckReport, CheckResult, CheckStatus};
 use arc_util::terminal::Styles;
+#[cfg(feature = "server")]
 use regex::Regex;
+#[cfg(feature = "server")]
 use semver::Version;
 
 // ---------------------------------------------------------------------------
-// System dependency types and parsers
+// System dependency types and parsers (server mode only)
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "server")]
 pub struct DepSpec {
     pub name: &'static str,
     command: &'static [&'static str],
@@ -22,6 +27,7 @@ pub struct DepSpec {
     pattern: &'static LazyLock<Regex>,
 }
 
+#[cfg(feature = "server")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProbeOutcome {
     NotFound,
@@ -29,12 +35,16 @@ pub enum ProbeOutcome {
     Ok { version: Option<Version> },
 }
 
+#[cfg(feature = "server")]
 static OPENSSL_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:OpenSSL|LibreSSL)\s+(\d+)\.(\d+)\.(\d+)").unwrap());
+#[cfg(feature = "server")]
 static NODE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"v(\d+)\.(\d+)\.(\d+)").unwrap());
+#[cfg(feature = "server")]
 static DOT_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"graphviz version (\d+)\.(\d+)\.(\d+)").unwrap());
 
+#[cfg(feature = "server")]
 fn parse_version(re: &Regex, output: &str) -> Option<Version> {
     let caps = re.captures(output)?;
     Some(Version::new(
@@ -44,6 +54,7 @@ fn parse_version(re: &Regex, output: &str) -> Option<Version> {
     ))
 }
 
+#[cfg(feature = "server")]
 pub const DEP_SPECS: &[DepSpec] = &[
     DepSpec {
         name: "openssl",
@@ -68,6 +79,7 @@ pub const DEP_SPECS: &[DepSpec] = &[
     },
 ];
 
+#[cfg(feature = "server")]
 pub fn probe_system_deps() -> Vec<ProbeOutcome> {
     DEP_SPECS
         .iter()
@@ -92,6 +104,7 @@ pub fn probe_system_deps() -> Vec<ProbeOutcome> {
         .collect()
 }
 
+#[cfg(feature = "server")]
 fn dep_issue(name: &str, issue: &str, required: bool) -> (CheckStatus, String) {
     let severity = if required { "required" } else { "optional" };
     let status = if required {
@@ -102,6 +115,7 @@ fn dep_issue(name: &str, issue: &str, required: bool) -> (CheckStatus, String) {
     (status, format!("{name}: {issue} ({severity})"))
 }
 
+#[cfg(feature = "server")]
 pub fn check_system_deps(specs: &[DepSpec], outcomes: &[ProbeOutcome]) -> CheckResult {
     let mut details = Vec::new();
     let mut worst_status = CheckStatus::Pass;
@@ -1081,6 +1095,7 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
         }
     };
 
+    #[cfg(feature = "server")]
     let dep_results = probe_system_deps();
 
     // Live probes (only when --live is set)
@@ -1169,7 +1184,6 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
     #[allow(unused_mut)]
     let mut checks = vec![
         check_config(if config_exists { config_path } else { None }),
-        check_system_deps(DEP_SPECS, &dep_results),
         check_llm_providers(&llm_statuses, llm_live_results.as_deref()),
         check_brave_search(brave_key_set, brave_live_result.as_ref()),
         check_sandbox(&sandbox_status),
@@ -1178,6 +1192,7 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
 
     #[cfg(feature = "server")]
     {
+        checks.push(check_system_deps(DEP_SPECS, &dep_results));
         checks.push(check_api(&api_status, api_live_result.as_ref()));
         checks.push(check_web(&web_status, web_live_result.as_ref()));
         checks.push(check_crypto(&crypto_input));
@@ -1609,9 +1624,10 @@ mod tests {
         }
     } // mod server_tests (check_github_app, check_api, check_web)
 
-    // -- parse_version --
+    // -- parse_version (server only) --
 
     #[test]
+    #[cfg(feature = "server")]
     fn parse_version_openssl() {
         assert_eq!(
             parse_version(
@@ -1623,6 +1639,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn parse_version_libressl() {
         assert_eq!(
             parse_version(&OPENSSL_RE, "LibreSSL 3.3.6"),
@@ -1631,6 +1648,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn parse_version_node() {
         assert_eq!(
             parse_version(&NODE_RE, "v22.14.0"),
@@ -1639,6 +1657,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn parse_version_dot() {
         assert_eq!(
             parse_version(&DOT_RE, "dot - graphviz version 12.2.1 (20241206.2024)"),
@@ -1647,16 +1666,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn parse_version_garbage_returns_none() {
         assert_eq!(parse_version(&OPENSSL_RE, "not a version"), None);
         assert_eq!(parse_version(&NODE_RE, "node not found"), None);
         assert_eq!(parse_version(&DOT_RE, "no version here"), None);
     }
 
-    // -- check_system_deps --
+    // -- check_system_deps (server only) --
 
+    #[cfg(feature = "server")]
     static TEST_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"unused").unwrap());
 
+    #[cfg(feature = "server")]
     fn spec(name: &'static str, required: bool, min_version: Version) -> DepSpec {
         DepSpec {
             name,
@@ -1668,6 +1690,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_all_present() {
         let specs = [
             spec("openssl", true, Version::new(3, 0, 0)),
@@ -1695,6 +1718,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_required_missing_is_error() {
         let specs = [spec("openssl", true, Version::new(3, 0, 0))];
         let outcomes = [ProbeOutcome::NotFound];
@@ -1704,6 +1728,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_optional_missing_is_warning() {
         let specs = [spec("gh", false, Version::new(2, 0, 0))];
         let outcomes = [ProbeOutcome::NotFound];
@@ -1713,6 +1738,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_outdated_is_warning() {
         let specs = [spec("openssl", true, Version::new(3, 0, 0))];
         let outcomes = [ProbeOutcome::Ok {
@@ -1725,6 +1751,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_unparseable_success_is_pass() {
         let specs = [spec("openssl", true, Version::new(3, 0, 0))];
         let outcomes = [ProbeOutcome::Ok { version: None }];
@@ -1734,6 +1761,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_required_command_failed_is_error() {
         let specs = [spec("node", true, Version::new(20, 0, 0))];
         let outcomes = [ProbeOutcome::Failed];
@@ -1743,6 +1771,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_optional_command_failed_is_warning() {
         let specs = [spec("gh", false, Version::new(2, 0, 0))];
         let outcomes = [ProbeOutcome::Failed];
@@ -1752,6 +1781,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
     fn check_system_deps_error_beats_warning() {
         let specs = [
             spec("openssl", true, Version::new(3, 0, 0)),
