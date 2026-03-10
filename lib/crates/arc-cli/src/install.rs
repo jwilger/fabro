@@ -584,15 +584,15 @@ fn write_env_file(arc_dir: &Path, env_pairs: &[(String, String)], s: &Styles) ->
 
 pub async fn run_install() -> Result<()> {
     let s = Styles::detect_stderr();
-    let emoji = console::Emoji("⚡ ", "");
+    let emoji = console::Emoji("⚒️  ", "");
 
     eprintln!();
-    eprintln!("  {}{}", emoji, s.bold.apply_to("Arc Install"));
+    eprintln!("  {}{}", emoji, s.bold.apply_to("Fabro Install"));
     eprintln!();
     eprintln!(
         "  {}",
         s.dim
-            .apply_to("Let's get Arc set up. This will configure your")
+            .apply_to("Let's get Fabro set up. This will configure your")
     );
     eprintln!("  {}", s.dim.apply_to("LLM providers and GitHub App."));
     eprintln!();
