@@ -10,7 +10,7 @@ use arc_llm::provider::Provider;
 use axum::extract::Query;
 use axum::response::Html;
 use axum::routing::get;
-use dialoguer::{Confirm, Input, MultiSelect, Select};
+use dialoguer::{Confirm, MultiSelect, Password, Select};
 use rand::Rng;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -277,9 +277,18 @@ fn prompt_confirm(prompt: &str, default: bool) -> Result<bool> {
     )
 }
 
+#[cfg(feature = "server")]
 fn prompt_input(prompt: &str) -> Result<String> {
     Ok(
-        Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
+        dialoguer::Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
+            .with_prompt(prompt)
+            .interact_on(&dialoguer::console::Term::stderr())?,
+    )
+}
+
+fn prompt_password(prompt: &str) -> Result<String> {
+    Ok(
+        Password::with_theme(&dialoguer::theme::ColorfulTheme::default())
             .with_prompt(prompt)
             .interact_on(&dialoguer::console::Term::stderr())?,
     )
@@ -593,7 +602,7 @@ pub async fn run_install() -> Result<()> {
         eprintln!("  Get your API key at: {url}");
 
         let prompt = env_var.to_string();
-        let key: String = tokio::task::spawn_blocking(move || prompt_input(&prompt)).await??;
+        let key: String = tokio::task::spawn_blocking(move || prompt_password(&prompt)).await??;
         env_pairs.push((env_var.to_string(), key));
         configured_providers.push(first_provider);
     }
@@ -631,7 +640,8 @@ pub async fn run_install() -> Result<()> {
             eprintln!("  Get your API key at: {url}");
 
             let prompt = env_var.to_string();
-            let key: String = tokio::task::spawn_blocking(move || prompt_input(&prompt)).await??;
+            let key: String =
+                tokio::task::spawn_blocking(move || prompt_password(&prompt)).await??;
             env_pairs.push((env_var.to_string(), key));
         }
     }
