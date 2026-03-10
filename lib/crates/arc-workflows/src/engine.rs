@@ -526,6 +526,14 @@ pub struct GitState {
 
 pub const GIT_REMOTE: &str = "git -c maintenance.auto=0 -c gc.auto=0";
 
+/// Shell-escape a string using `shlex::try_quote` (POSIX-safe).
+fn shell_quote(s: &str) -> String {
+    shlex::try_quote(s).map_or_else(
+        |_| format!("'{}'", s.replace('\'', "'\\''")),
+        |q| q.to_string(),
+    )
+}
+
 /// Run a git checkpoint commit via the sandbox.
 #[allow(clippy::too_many_arguments)]
 pub async fn git_checkpoint(
@@ -584,16 +592,17 @@ pub async fn git_checkpoint(
     }
     let message = trailerlink::format_message(&subject, "", &trailers);
 
-    // Write message to temp file in sandbox to avoid shell escaping issues
-    if let Err(e) = sandbox.write_file("/tmp/arc-commit-msg", &message).await {
+    // Write message to a unique temp file to avoid races between concurrent local runs
+    let msg_path = format!("/tmp/arc-commit-msg-{run_id}-{node_id}");
+    if let Err(e) = sandbox.write_file(&msg_path, &message).await {
         return Err(format!("failed to write commit message file: {e}"));
     }
 
     // Commit with configured identity using the message file
     let commit_cmd = format!(
-        "{GIT_REMOTE} -c user.name={name} -c user.email={email} commit --allow-empty -F /tmp/arc-commit-msg",
-        name = author.name,
-        email = author.email,
+        "{GIT_REMOTE} -c user.name={name} -c user.email={email} commit --allow-empty -F {msg_path}",
+        name = shell_quote(&author.name),
+        email = shell_quote(&author.email),
     );
     let commit_result = sandbox
         .exec_command(&commit_cmd, 30_000, None, None, None)
@@ -624,67 +633,20 @@ pub async fn git_checkpoint(
     }
 }
 
-/// Push the metadata branch from the host repo to origin (best-effort).
+/// Push a refspec from the host repo to origin (best-effort).
 ///
 /// Authenticates via a GitHub App installation token so we don't depend
 /// on the host's ambient git credentials.
-async fn git_push_meta_host(
-    repo_path: PathBuf,
-    meta_branch: String,
-    github_app: Option<arc_github::GitHubAppCredentials>,
-) {
-    let (origin_url, _) = match crate::daytona_sandbox::detect_repo_info(&repo_path) {
-        Ok(info) => info,
-        Err(e) => {
-            tracing::warn!(error = %e, "Cannot detect origin for metadata push");
-            return;
-        }
-    };
-
-    let https_url = arc_github::ssh_url_to_https(&origin_url);
-    let push_url = match &github_app {
-        Some(creds) => match arc_github::resolve_authenticated_url(creds, &https_url).await {
-            Ok(url) => url,
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to get token for metadata push");
-                return;
-            }
-        },
-        None => {
-            tracing::warn!("No GitHub App credentials for metadata push");
-            return;
-        }
-    };
-
-    // The metadata branch is stored locally as a custom ref (e.g. refs/arc/{run_id}).
-    // Push it to a normal branch on the remote (refs/heads/arc/meta/{run_id})
-    // since GitHub rejects branch names starting with "refs/".
-    let local_ref = meta_branch.clone();
-    let run_id_part = local_ref.strip_prefix("refs/arc/").unwrap_or(&local_ref);
-    let refname = format!("{local_ref}:refs/heads/arc/meta/{run_id_part}");
-    let rp = repo_path.clone();
-    let result = crate::git::blocking_push_with_timeout(60, move || {
-        crate::git::push_ref(&rp, &push_url, &refname)
-    })
-    .await;
-    match result {
-        Ok(()) => tracing::info!(meta_branch, "Pushed metadata branch to origin"),
-        Err(e) => tracing::warn!(error = %e, "Failed to push metadata branch"),
-    }
-}
-
-/// Push the run branch from the host repo to origin (best-effort).
-///
-/// Authenticates via a GitHub App installation token.
-async fn git_push_run_host(
+async fn git_push_host(
     repo_path: &Path,
-    branch: &str,
+    refspec: &str,
     github_app: &Option<arc_github::GitHubAppCredentials>,
+    label: &str,
 ) {
     let (origin_url, _) = match crate::daytona_sandbox::detect_repo_info(repo_path) {
         Ok(info) => info,
         Err(e) => {
-            tracing::warn!(error = %e, "Cannot detect origin for run branch push");
+            tracing::warn!(error = %e, label, "Cannot detect origin for push");
             return;
         }
     };
@@ -694,25 +656,25 @@ async fn git_push_run_host(
         Some(creds) => match arc_github::resolve_authenticated_url(creds, &https_url).await {
             Ok(url) => url,
             Err(e) => {
-                tracing::warn!(error = %e, "Failed to get token for run branch push");
+                tracing::warn!(error = %e, label, "Failed to get token for push");
                 return;
             }
         },
         None => {
-            tracing::warn!("No GitHub App credentials for run branch push");
+            tracing::warn!(label, "No GitHub App credentials for push");
             return;
         }
     };
 
-    let refspec = format!("refs/heads/{branch}");
     let rp = repo_path.to_path_buf();
+    let refspec_owned = refspec.to_string();
     let result = crate::git::blocking_push_with_timeout(60, move || {
-        crate::git::push_ref(&rp, &push_url, &refspec)
+        crate::git::push_ref(&rp, &push_url, &refspec_owned)
     })
     .await;
     match result {
-        Ok(()) => tracing::info!(branch, "Pushed run branch to origin"),
-        Err(e) => tracing::warn!(error = %e, "Failed to push run branch"),
+        Ok(()) => tracing::info!(label, "Pushed to origin"),
+        Err(e) => tracing::warn!(error = %e, label, "Failed to push"),
     }
 }
 
@@ -780,15 +742,6 @@ pub async fn git_merge_ff_only(sandbox: &dyn Sandbox, sha: &str) -> bool {
         sandbox.exec_command(&cmd, 30_000, None, None, None).await,
         Ok(r) if r.exit_code == 0
     )
-}
-
-/// Get the current HEAD SHA via the sandbox.
-pub async fn git_head_sha_remote(sandbox: &dyn Sandbox) -> Option<String> {
-    let cmd = format!("{GIT_REMOTE} rev-parse HEAD");
-    match sandbox.exec_command(&cmd, 10_000, None, None, None).await {
-        Ok(r) if r.exit_code == 0 => Some(r.stdout.trim().to_string()),
-        _ => None,
-    }
 }
 
 /// Remove any stale worktree at `path` (best-effort), then add a fresh one.
@@ -1214,6 +1167,10 @@ impl WorkflowRunEngine {
         };
         self.services.set_git_state(git_state);
 
+        // Local git checkpoint: sandbox is local and checkpointing is enabled
+        let local_git_checkpoint =
+            config.git_checkpoint_enabled && !self.services.sandbox.is_remote();
+
         self.services
             .emitter
             .emit(&WorkflowRunEvent::WorkflowRunStarted {
@@ -1221,8 +1178,7 @@ impl WorkflowRunEngine {
                 run_id: run_id.clone(),
                 base_sha: config.base_sha.clone(),
                 run_branch: config.run_branch.clone(),
-                worktree_dir: if !self.services.sandbox.is_remote() && config.git_checkpoint_enabled
-                {
+                worktree_dir: if local_git_checkpoint {
                     Some(self.services.sandbox.working_directory().to_string())
                 } else {
                     None
@@ -1230,12 +1186,11 @@ impl WorkflowRunEngine {
             });
 
         // Resolve work_dir from config for hooks
-        let hook_work_dir: Option<PathBuf> =
-            if !self.services.sandbox.is_remote() && config.git_checkpoint_enabled {
-                Some(PathBuf::from(self.services.sandbox.working_directory()))
-            } else {
-                None
-            };
+        let hook_work_dir: Option<PathBuf> = if local_git_checkpoint {
+            Some(PathBuf::from(self.services.sandbox.working_directory()))
+        } else {
+            None
+        };
 
         // RunStart hook (blocking — can prevent run)
         {
@@ -1345,7 +1300,7 @@ impl WorkflowRunEngine {
 
         // Store run_id and work_dir in context for handlers
         context.set(context::keys::INTERNAL_RUN_ID, serde_json::json!(run_id));
-        if config.git_checkpoint_enabled && !self.services.sandbox.is_remote() {
+        if local_git_checkpoint {
             context.set(
                 context::keys::INTERNAL_WORK_DIR,
                 serde_json::json!(self.services.sandbox.working_directory()),
@@ -1952,17 +1907,33 @@ impl WorkflowRunEngine {
                             if self.services.sandbox.is_remote() {
                                 git_push_remote(&*self.services.sandbox, branch).await;
                             } else if let Some(ref repo_path) = config.host_repo_path {
-                                git_push_run_host(repo_path, branch, &config.github_app).await;
+                                let refspec = format!("refs/heads/{branch}");
+                                git_push_host(
+                                    repo_path,
+                                    &refspec,
+                                    &config.github_app,
+                                    "run branch",
+                                )
+                                .await;
                             }
                         }
                         // Push metadata branch (always from host)
                         if let (Some(ref meta_branch), Some(ref repo_path)) =
                             (&config.meta_branch, &config.host_repo_path)
                         {
-                            git_push_meta_host(
-                                repo_path.clone(),
-                                meta_branch.clone(),
-                                config.github_app.clone(),
+                            // The metadata branch is stored locally as a custom ref
+                            // (e.g. refs/arc/{run_id}). Push it to a normal branch on
+                            // the remote since GitHub rejects branch names starting
+                            // with "refs/".
+                            let run_id_part =
+                                meta_branch.strip_prefix("refs/arc/").unwrap_or(meta_branch);
+                            let refspec =
+                                format!("{meta_branch}:refs/heads/arc/meta/{run_id_part}");
+                            git_push_host(
+                                repo_path,
+                                &refspec,
+                                &config.github_app,
+                                "metadata branch",
                             )
                             .await;
                         }
