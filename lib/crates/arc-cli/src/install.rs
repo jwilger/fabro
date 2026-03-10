@@ -10,7 +10,7 @@ use arc_llm::provider::Provider;
 use axum::extract::Query;
 use axum::response::Html;
 use axum::routing::get;
-use dialoguer::{Confirm, Input, MultiSelect};
+use dialoguer::{Confirm, Input, MultiSelect, Select};
 use rand::Rng;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -281,6 +281,15 @@ fn prompt_input(prompt: &str) -> Result<String> {
     Ok(
         Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
             .with_prompt(prompt)
+            .interact_on(&dialoguer::console::Term::stderr())?,
+    )
+}
+
+fn prompt_select(prompt: &str, items: &[String]) -> Result<usize> {
+    Ok(
+        Select::with_theme(&dialoguer::theme::ColorfulTheme::default())
+            .with_prompt(prompt)
+            .items(items)
             .interact_on(&dialoguer::console::Term::stderr())?,
     )
 }
@@ -561,31 +570,70 @@ pub async fn run_install() -> Result<()> {
 
     // Step 1: LLM providers
     eprintln!("[Step 1/4] LLM providers");
-    let provider_labels: Vec<String> = Provider::ALL
+    let mut env_pairs: Vec<(String, String)> = Vec::new();
+    let mut configured_providers: Vec<Provider> = Vec::new();
+
+    // First provider — single choice from the top 3
+    let primary_providers = [Provider::Anthropic, Provider::OpenAi, Provider::Gemini];
+    let primary_labels: Vec<String> = primary_providers
         .iter()
-        .map(|p| {
-            let env_vars = p.api_key_env_vars().join(" / ");
-            format!("{} ({})", provider_display_name(*p), env_vars)
-        })
+        .map(|p| provider_display_name(*p).to_string())
         .collect();
 
-    let selected_indices: Vec<usize> = tokio::task::spawn_blocking({
-        let labels = provider_labels.clone();
-        move || prompt_multiselect("Which LLM providers do you want to configure?", &labels)
+    let primary_idx: usize = tokio::task::spawn_blocking({
+        let labels = primary_labels.clone();
+        move || prompt_select("Choose your first LLM provider", &labels)
     })
     .await??;
 
-    let mut env_pairs: Vec<(String, String)> = Vec::new();
-    for idx in selected_indices {
-        let provider = Provider::ALL[idx];
-        let env_var = provider.api_key_env_vars()[0];
-        let url = provider_key_url(provider);
+    let first_provider = primary_providers[primary_idx];
+    {
+        let env_var = first_provider.api_key_env_vars()[0];
+        let url = provider_key_url(first_provider);
         eprintln!("  Get your API key at: {url}");
 
         let prompt = env_var.to_string();
         let key: String = tokio::task::spawn_blocking(move || prompt_input(&prompt)).await??;
-
         env_pairs.push((env_var.to_string(), key));
+        configured_providers.push(first_provider);
+    }
+
+    // Additional providers
+    let add_more =
+        tokio::task::spawn_blocking(|| prompt_confirm("Set up additional LLM providers?", false))
+            .await??;
+
+    if add_more {
+        let remaining_labels: Vec<String> = Provider::ALL
+            .iter()
+            .filter(|p| !configured_providers.contains(p))
+            .map(|p| {
+                let env_vars = p.api_key_env_vars().join(" / ");
+                format!("{} ({})", provider_display_name(*p), env_vars)
+            })
+            .collect();
+        let remaining_providers: Vec<Provider> = Provider::ALL
+            .iter()
+            .filter(|p| !configured_providers.contains(p))
+            .copied()
+            .collect();
+
+        let selected_indices: Vec<usize> = tokio::task::spawn_blocking({
+            let labels = remaining_labels.clone();
+            move || prompt_multiselect("Which additional LLM providers?", &labels)
+        })
+        .await??;
+
+        for idx in selected_indices {
+            let provider = remaining_providers[idx];
+            let env_var = provider.api_key_env_vars()[0];
+            let url = provider_key_url(provider);
+            eprintln!("  Get your API key at: {url}");
+
+            let prompt = env_var.to_string();
+            let key: String = tokio::task::spawn_blocking(move || prompt_input(&prompt)).await??;
+            env_pairs.push((env_var.to_string(), key));
+        }
     }
     eprintln!();
 
