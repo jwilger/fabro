@@ -1147,9 +1147,9 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
     let mut checks = vec![
         check_config(if config_exists { config_path } else { None }),
         check_llm_providers(&llm_statuses, llm_live_results.as_deref()),
-        check_brave_search(brave_key_set, brave_live_result.as_ref()),
-        check_sandbox(&sandbox_status),
         check_github_app(&github_status),
+        check_sandbox(&sandbox_status),
+        check_brave_search(brave_key_set, brave_live_result.as_ref()),
     ];
 
     #[cfg(feature = "server")]
