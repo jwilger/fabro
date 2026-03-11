@@ -43,6 +43,7 @@ cached_style!(
 );
 cached_style!(style_tool_done, "      {wide_msg} {prefix:.dim}");
 cached_style!(style_subagent_info, "        {wide_msg}");
+cached_style!(style_branch_done, "        {wide_msg} {prefix:.dim}");
 cached_style!(style_static_dim, "    {wide_msg:.dim}");
 cached_style!(style_sandbox_detail, "             {wide_msg:.dim}");
 cached_style!(style_empty, " ");
@@ -1119,9 +1120,9 @@ impl ProgressUI {
                 let bar = tty
                     .multi
                     .insert_after(stage.last_bar(), ProgressBar::new_spinner());
-                bar.set_style(style_tool_running());
-                bar.set_message(branch.to_string());
-                bar.enable_steady_tick(Duration::from_millis(100));
+                bar.set_style(style_subagent_info());
+                let dim = Style::new().dim();
+                bar.set_message(format!("{}", dim.apply_to(format!("\u{25b8} {branch}"))));
                 stage.tool_calls.push_back(ToolCallEntry {
                     display_name: branch.to_string(),
                     tool_call_id: branch.to_string(),
@@ -1161,7 +1162,7 @@ impl ProgressUI {
                             ToolCallStatus::Failed
                         };
                         let elapsed = format_duration_short(entry.bar.elapsed());
-                        entry.bar.set_style(style_tool_done());
+                        entry.bar.set_style(style_branch_done());
                         entry.bar.set_prefix(elapsed);
                         entry
                             .bar
@@ -1170,7 +1171,7 @@ impl ProgressUI {
                 }
             }
             ProgressRenderer::Plain => {
-                eprintln!("      {glyph} {branch}  {dur}");
+                eprintln!("        {glyph} {branch}  {dur}");
             }
         }
     }
@@ -1387,6 +1388,30 @@ mod tests {
             failure_count: 0,
         });
         assert!(ui.parallel_parent.is_none());
+    }
+
+    #[test]
+    fn parallel_branch_running_shows_triangle_glyph() {
+        let mut ui = ProgressUI::new(true, false);
+
+        ui.handle_event(&stage_started("fork1", "Fork"));
+        ui.handle_event(&WorkflowRunEvent::ParallelStarted {
+            branch_count: 1,
+            join_policy: "wait_all".into(),
+            error_policy: "continue".into(),
+        });
+        ui.handle_event(&WorkflowRunEvent::ParallelBranchStarted {
+            branch: "security".into(),
+            index: 0,
+        });
+
+        let stage = ui.active_stages.get("fork1").unwrap();
+        let bar = &stage.tool_calls[0].bar;
+        let msg = bar.message();
+        assert!(
+            msg.contains('\u{25b8}'),
+            "expected bar message to contain ▸, got: {msg:?}"
+        );
     }
 
     #[test]
