@@ -782,6 +782,11 @@ pub async fn run_command(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialize sandbox: {e}"))?;
 
+    progress_ui
+        .lock()
+        .expect("progress lock poisoned")
+        .set_working_directory(sandbox.working_directory().to_string());
+
     // Persist sandbox connection info for `arc cp`
     {
         let sandbox_info_opt = {

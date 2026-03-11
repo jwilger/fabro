@@ -119,43 +119,23 @@ fn last_line_truncated(s: &str, max: usize) -> String {
     }
 }
 
-fn shorten_path(path: &str) -> String {
+fn shorten_path(path: &str, working_directory: Option<&str>) -> String {
+    if let Some(wd) = working_directory {
+        let wd_prefix = if wd.ends_with('/') {
+            wd.to_string()
+        } else {
+            format!("{wd}/")
+        };
+        if let Some(rel) = path.strip_prefix(&wd_prefix) {
+            return rel.to_string();
+        }
+    }
     if let Ok(cwd) = std::env::current_dir() {
         if let Ok(rel) = std::path::Path::new(path).strip_prefix(&cwd) {
             return rel.display().to_string();
         }
     }
     path.to_string()
-}
-
-fn tool_display_name(tool_name: &str, arguments: &serde_json::Value) -> String {
-    let dim = Style::new().dim();
-    let arg = |key: &str| arguments.get(key).and_then(|v| v.as_str());
-    let path_arg = || {
-        arg("path")
-            .or_else(|| arg("file_path"))
-            .map(|p| truncate(&shorten_path(p), 60))
-    };
-
-    let detail = match tool_name {
-        "bash" | "shell" | "execute_command" => arg("command").map(|c| truncate(c, 60)),
-        "glob" => arg("pattern").map(String::from),
-        "grep" | "ripgrep" => arg("pattern").map(|p| truncate(p, 40)),
-        "read_file" | "read" => path_arg(),
-        "write_file" | "write" | "create_file" => path_arg(),
-        "edit_file" | "edit" => path_arg(),
-        "list_dir" => path_arg(),
-        "web_search" => arg("query").map(|q| truncate(q, 60)),
-        "web_fetch" => arg("url").map(|u| truncate(u, 60)),
-        "spawn_agent" => arg("task").map(|t| truncate(t, 60)),
-        "use_skill" => arg("skill_name").map(String::from),
-        _ => None,
-    };
-
-    match detail {
-        Some(d) => format!("{tool_name}{}", dim.apply_to(format!("({d})"))),
-        None => tool_name.to_string(),
-    }
 }
 
 // ── Tool call entry ─────────────────────────────────────────────────────
@@ -220,6 +200,7 @@ pub struct ProgressUI {
     cli_ensure_bar: Option<ProgressBar>,
     any_stage_started: bool,
     parallel_parent: Option<String>,
+    working_directory: Option<String>,
 }
 
 impl ProgressUI {
@@ -244,6 +225,42 @@ impl ProgressUI {
             cli_ensure_bar: None,
             any_stage_started: false,
             parallel_parent: None,
+            working_directory: None,
+        }
+    }
+
+    pub fn set_working_directory(&mut self, dir: String) {
+        self.working_directory = Some(dir);
+    }
+
+    fn tool_display_name(&self, tool_name: &str, arguments: &serde_json::Value) -> String {
+        let dim = Style::new().dim();
+        let arg = |key: &str| arguments.get(key).and_then(|v| v.as_str());
+        let wd = self.working_directory.as_deref();
+        let path_arg = || {
+            arg("path")
+                .or_else(|| arg("file_path"))
+                .map(|p| truncate(&shorten_path(p, wd), 60))
+        };
+
+        let detail = match tool_name {
+            "bash" | "shell" | "execute_command" => arg("command").map(|c| truncate(c, 60)),
+            "glob" => arg("pattern").map(String::from),
+            "grep" | "ripgrep" => arg("pattern").map(|p| truncate(p, 40)),
+            "read_file" | "read" => path_arg(),
+            "write_file" | "write" | "create_file" => path_arg(),
+            "edit_file" | "edit" => path_arg(),
+            "list_dir" => path_arg(),
+            "web_search" => arg("query").map(|q| truncate(q, 60)),
+            "web_fetch" => arg("url").map(|u| truncate(u, 60)),
+            "spawn_agent" => arg("task").map(|t| truncate(t, 60)),
+            "use_skill" => arg("skill_name").map(String::from),
+            _ => None,
+        };
+
+        match detail {
+            Some(d) => format!("{tool_name}{}", dim.apply_to(format!("({d})"))),
+            None => tool_name.to_string(),
         }
     }
 
@@ -1057,7 +1074,7 @@ impl ProgressUI {
         tool_call_id: &str,
         arguments: &serde_json::Value,
     ) {
-        let display_name = tool_display_name(tool_name, arguments);
+        let display_name = self.tool_display_name(tool_name, arguments);
 
         if let ProgressRenderer::Tty(tty) = &self.renderer {
             if let Some(stage) = self.active_stages.get_mut(stage_node_id) {
@@ -1423,6 +1440,48 @@ mod tests {
             },
         });
         assert!(ui.active_stages["s1"].compaction_bar.is_none());
+    }
+
+    #[test]
+    fn tool_display_name_shortens_path_relative_to_working_directory() {
+        let mut ui = ProgressUI::new(true, false);
+        ui.set_working_directory("/home/daytona/workspace".to_string());
+
+        let args = serde_json::json!({"file_path": "/home/daytona/workspace/output/js/physics.js"});
+        let display = ui.tool_display_name("write_file", &args);
+        assert!(
+            display.contains("output/js/physics.js"),
+            "expected relative path in: {display}"
+        );
+        assert!(
+            !display.contains("/home/daytona/workspace/"),
+            "should not contain absolute working dir in: {display}"
+        );
+    }
+
+    #[test]
+    fn tool_display_name_preserves_path_outside_working_directory() {
+        let mut ui = ProgressUI::new(true, false);
+        ui.set_working_directory("/home/daytona/workspace".to_string());
+
+        let args = serde_json::json!({"file_path": "/etc/config.json"});
+        let display = ui.tool_display_name("read_file", &args);
+        assert!(
+            display.contains("/etc/config.json"),
+            "expected absolute path preserved in: {display}"
+        );
+    }
+
+    #[test]
+    fn tool_display_name_without_working_directory_shows_full_path() {
+        let ui = ProgressUI::new(true, false);
+
+        let args = serde_json::json!({"file_path": "/home/daytona/workspace/output/js/physics.js"});
+        let display = ui.tool_display_name("write_file", &args);
+        assert!(
+            display.contains("/home/daytona/workspace/output/js/physics.js"),
+            "expected full path when no working dir set: {display}"
+        );
     }
 
     #[test]
