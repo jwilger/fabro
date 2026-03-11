@@ -83,11 +83,7 @@ async fn resolve_diff(run_dir: &Path, args: &DiffArgs) -> Result<String> {
     info!(provider = %record.provider, "Reconnecting to sandbox for live diff");
     let sandbox = crate::cli::cp::reconnect(&record).await?;
 
-    let stat_flag = if args.stat { " --stat" } else { "" };
-    let cmd = format!(
-        "git -c maintenance.auto=0 -c gc.auto=0 diff{stat_flag} {} HEAD",
-        shlex::try_quote(base_sha).unwrap_or_else(|_| base_sha.into())
-    );
+    let cmd = build_live_diff_cmd(base_sha, args.stat);
     debug!(cmd, "Running git diff in sandbox");
 
     let result = sandbox
@@ -101,6 +97,14 @@ async fn resolve_diff(run_dir: &Path, args: &DiffArgs) -> Result<String> {
     }
 
     Ok(result.stdout)
+}
+
+fn build_live_diff_cmd(base_sha: &str, stat: bool) -> String {
+    let stat_flag = if stat { " --stat" } else { "" };
+    format!(
+        "git -c maintenance.auto=0 -c gc.auto=0 diff{stat_flag} {}",
+        shlex::try_quote(base_sha).unwrap_or_else(|_| base_sha.into())
+    )
 }
 
 fn colorize_diff_line(line: &str) -> String {
@@ -274,5 +278,20 @@ mod tests {
     fn colorize_context_line_unchanged() {
         let result = colorize_diff_line(" context line");
         assert_eq!(result, " context line");
+    }
+
+    #[test]
+    fn build_live_diff_cmd_includes_working_tree() {
+        let cmd = build_live_diff_cmd("abc123", false);
+        assert_eq!(cmd, "git -c maintenance.auto=0 -c gc.auto=0 diff abc123");
+    }
+
+    #[test]
+    fn build_live_diff_cmd_stat() {
+        let cmd = build_live_diff_cmd("abc123", true);
+        assert_eq!(
+            cmd,
+            "git -c maintenance.auto=0 -c gc.auto=0 diff --stat abc123"
+        );
     }
 }
