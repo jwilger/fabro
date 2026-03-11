@@ -1,0 +1,6 @@
+bin.name = "arc"
+args = ["run", "--dry-run", "--auto-approve", "../../../test/parallel.dot"]
+
+[fs]
+sandbox = false
+cwd = "../../.."

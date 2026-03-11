@@ -1,0 +1,6 @@
+bin.name = "arc"
+args = ["run", "--dry-run", "--auto-approve", "../../../test/branching.dot"]
+
+[fs]
+sandbox = false
+cwd = "../../.."

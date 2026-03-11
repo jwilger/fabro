@@ -1,0 +1,4 @@
+bin.name = "arc"
+args = ["llm", "prompt", "-o", "bad_option", "hello"]
+status = "failed"
+stderr-to-stdout = true

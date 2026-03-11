@@ -1,7 +1,5 @@
----
-source: lib/crates/arc-cli/tests/cli.rs
-expression: stdout
----
+```console
+$ arc model
 MODEL                          PROVIDER     ALIASES                     CONTEXT     COST                SPEED
 claude-opus-4-6                anthropic    opus, claude-opus                1m    $15.0 / $75.0      25 tok/s
 claude-sonnet-4-5              anthropic                                   200k     $3.0 / $15.0      50 tok/s
@@ -21,3 +19,5 @@ kimi-k2.5                      kimi         kimi                           262k 
 glm-4.7                        zai          glm, glm4                      203k     $0.6 / $2.2      100 tok/s
 minimax-m2.5                   minimax      minimax                        197k     $0.3 / $1.2       45 tok/s
 mercury-2                      inception    mercury                        131k     $0.2 / $0.8     1000 tok/s
+
+```

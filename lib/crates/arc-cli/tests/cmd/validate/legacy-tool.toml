@@ -1,0 +1,6 @@
+bin.name = "arc"
+args = ["validate", "../../../test/legacy_tool.dot"]
+
+[fs]
+sandbox = false
+cwd = "../../.."

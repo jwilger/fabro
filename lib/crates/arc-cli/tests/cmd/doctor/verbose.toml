@@ -1,0 +1,5 @@
+bin.name = "arc"
+args = ["doctor", "-v"]
+
+[env]
+inherit = false

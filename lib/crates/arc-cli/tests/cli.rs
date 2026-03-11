@@ -6,79 +6,7 @@ fn arc() -> Command {
     Command::cargo_bin("arc").unwrap()
 }
 
-// == Models ===================================================================
-
-#[test]
-fn model_list_prints_all_models() {
-    let output = arc().args(["model", "list"]).output().expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
-fn model_list_filters_by_provider() {
-    let output = arc()
-        .args(["model", "list", "--provider", "anthropic"])
-        .output()
-        .expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
-fn model_list_filters_by_query() {
-    let output = arc()
-        .args(["model", "list", "--query", "opus"])
-        .output()
-        .expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
-fn model_list_query_is_case_insensitive() {
-    let output = arc()
-        .args(["model", "list", "--query", "OPUS"])
-        .output()
-        .expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
-fn model_list_query_matches_aliases() {
-    let output = arc()
-        .args(["model", "list", "--query", "codex"])
-        .output()
-        .expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
-fn model_bare_defaults_to_list() {
-    let output = arc().args(["model"]).output().expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
 // == LLM: prompt ==============================================================
-
-#[test]
-fn prompt_errors_without_prompt_text() {
-    arc()
-        .args(["llm", "prompt"])
-        .write_stdin("")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("no prompt provided"));
-}
 
 #[test]
 fn prompt_reads_from_stdin() {
@@ -108,15 +36,6 @@ fn prompt_concatenates_stdin_and_arg() {
         .failure();
 
     result.stderr(predicate::str::contains("no prompt provided").not());
-}
-
-#[test]
-fn prompt_rejects_bad_option_format() {
-    arc()
-        .args(["llm", "prompt", "-o", "bad_option", "hello"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("expected key=value"));
 }
 
 #[test]
@@ -168,24 +87,6 @@ fn prompt_usage_shows_tokens() {
         .assert()
         .success()
         .stderr(predicate::str::contains("Tokens:"));
-}
-
-#[test]
-fn prompt_schema_rejects_invalid_json() {
-    arc()
-        .args([
-            "llm",
-            "prompt",
-            "--no-stream",
-            "-m",
-            "test-model",
-            "--schema",
-            "not json",
-            "hello",
-        ])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("--schema must be valid JSON"));
 }
 
 #[test]
@@ -275,24 +176,6 @@ fn chat_multi_turn_with_system_prompt() {
 // == Exec =====================================================================
 
 #[test]
-fn exec_no_prompt_prints_usage() {
-    arc()
-        .args(["exec"])
-        .env_clear()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Usage:"));
-}
-
-#[test]
-fn exec_help_flag_prints_help() {
-    let output = arc().args(["exec", "--help"]).output().expect("runs");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    insta::assert_snapshot!(stdout);
-}
-
-#[test]
 fn exec_missing_api_key_exits_with_error() {
     let tmp = tempfile::tempdir().expect("tempdir");
     arc()
@@ -303,16 +186,6 @@ fn exec_missing_api_key_exits_with_error() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("API key not set"));
-}
-
-#[test]
-fn exec_invalid_permissions_value() {
-    arc()
-        .args(["exec", "--permissions", "bogus", "test prompt"])
-        .env_clear()
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("invalid value"));
 }
 
 #[test]
@@ -463,70 +336,6 @@ fn exec_read_and_edit() {
     );
 }
 
-// == Arc: validate ======================================================
-
-#[test]
-fn validate_simple() {
-    arc()
-        .args(["validate", "../../../test/simple.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_branching() {
-    arc()
-        .args(["validate", "../../../test/branching.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_conditions() {
-    arc()
-        .args(["validate", "../../../test/conditions.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_parallel() {
-    arc()
-        .args(["validate", "../../../test/parallel.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_styled() {
-    arc()
-        .args(["validate", "../../../test/styled.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_legacy_tool() {
-    arc()
-        .args(["validate", "../../../test/legacy_tool.dot"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Validation: OK"));
-}
-
-#[test]
-fn validate_invalid() {
-    arc()
-        .args(["validate", "../../../test/invalid.dot"])
-        .assert()
-        .failure();
-}
-
 // == Arc: serve =========================================================
 
 #[test]
@@ -538,116 +347,7 @@ fn serve_help() {
     insta::assert_snapshot!(stdout);
 }
 
-// == Arc: run --dry-run =================================================
-
-#[test]
-fn dry_run_simple() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/simple.dot",
-        ])
-        .assert()
-        .success();
-}
-
-#[test]
-fn dry_run_branching() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/branching.dot",
-        ])
-        .assert()
-        .success();
-}
-
-#[test]
-fn dry_run_conditions() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/conditions.dot",
-        ])
-        .assert()
-        .success();
-}
-
-#[test]
-fn dry_run_parallel() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/parallel.dot",
-        ])
-        .assert()
-        .success();
-}
-
-#[test]
-fn dry_run_styled() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/styled.dot",
-        ])
-        .assert()
-        .success();
-}
-
-#[test]
-fn dry_run_legacy_tool() {
-    arc()
-        .args([
-            "run",
-            "--dry-run",
-            "--auto-approve",
-            "../../../test/legacy_tool.dot",
-        ])
-        .assert()
-        .success();
-}
-
-// == Dotenv ===================================================================
-
-#[test]
-fn no_dotenv_flag_is_rejected() {
-    arc()
-        .args(["--no-dotenv", "doctor"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("unexpected argument"));
-}
-
 // == Doctor ===================================================================
-
-#[test]
-fn doctor_runs_and_prints_header() {
-    arc()
-        .args(["doctor"])
-        .env_clear()
-        .assert()
-        .stdout(predicate::str::contains("Arc Doctor"));
-}
-
-#[test]
-fn doctor_verbose_runs_and_prints_header() {
-    arc()
-        .args(["doctor", "-v"])
-        .env_clear()
-        .assert()
-        .stdout(predicate::str::contains("Arc Doctor"));
-}
 
 #[test]
 fn doctor_no_color_when_no_color_set() {
@@ -657,15 +357,6 @@ fn doctor_no_color_when_no_color_set() {
         .env("NO_COLOR", "1")
         .assert()
         .stdout(predicate::str::contains("\x1b[").not());
-}
-
-#[test]
-fn doctor_dry_run_flag_accepted() {
-    arc()
-        .args(["doctor", "--dry-run"])
-        .env_clear()
-        .assert()
-        .stdout(predicate::str::contains("Arc Doctor"));
 }
 
 // == JSONL logging ============================================================
