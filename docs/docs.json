@@ -108,7 +108,8 @@
               "reference/architecture",
               "administration/server-configuration",
               "administration/troubleshooting",
-              "administration/security"
+              "administration/security",
+              "reference/acknowledgements"
             ]
           }
         ]
