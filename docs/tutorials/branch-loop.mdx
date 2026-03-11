@@ -104,6 +104,30 @@ After 3 visits, Arc terminates the run rather than looping forever. You can also
 graph [max_node_visits="20"]
 ```
 
+## Fixed-count loops
+
+Sometimes you want a node to execute exactly N times before moving on — for example, running an improvement pass 5 times. Use `internal.node_visit_count` in an edge condition:
+
+```dot
+digraph FixedLoop {
+    graph [goal="Run an improvement loop 5 times"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    improve [label="Improve", prompt="Pick an area and improve it."]
+    gate    [shape=diamond, label="5 Done?"]
+
+    start -> improve -> gate
+    gate -> exit    [condition="context.internal.node_visit_count >= 5"]
+    gate -> improve
+}
+```
+
+The engine tracks how many times each node has been visited. When `gate` has been visited 5 times, the condition matches and execution advances to `exit`. The unconditional edge back to `improve` serves as the default fallback for earlier visits.
+
+
 ## Node type summary
 
 This workflow uses four node types:
@@ -121,6 +145,7 @@ This workflow uses four node types:
 - **Conditional nodes** (`shape=diamond`) route execution based on edge conditions
 - **Loops** are just edges that point backward — the agent receives prior context on each visit
 - **`max_visits`** prevents infinite loops
+- **`internal.node_visit_count`** in edge conditions enables fixed-count loops
 - Unconditional edges act as default fallbacks
 
 ## Next

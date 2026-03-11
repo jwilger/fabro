@@ -94,6 +94,13 @@ gate -> fix    [condition="outcome=fail"]
 
 The `context.` prefix is optional — `tests_passed=true` and `context.tests_passed=true` are equivalent.
 
+Engine-managed keys like `internal.node_visit_count` work in conditions too. This is useful for [fixed-count loops](/tutorials/branch-loop#fixed-count-loops):
+
+```dot
+gate -> exit    [condition="context.internal.node_visit_count >= 5"]
+gate -> improve
+```
+
 ## Fidelity: Controlling agent context
 
 When a new agent or prompt node starts, Arc assembles a **preamble** — a summary of what happened in prior stages. The **fidelity** setting controls how detailed this preamble is.
