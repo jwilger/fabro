@@ -34,19 +34,27 @@ pub struct CheckResult {
     pub remediation: Option<String>,
 }
 
-pub struct CheckReport {
+pub struct CheckSection {
     pub title: String,
     pub checks: Vec<CheckResult>,
 }
 
+pub struct CheckReport {
+    pub title: String,
+    pub sections: Vec<CheckSection>,
+}
+
 impl CheckReport {
+    fn all_checks(&self) -> impl Iterator<Item = &CheckResult> {
+        self.sections.iter().flat_map(|s| &s.checks)
+    }
+
     pub fn has_errors(&self) -> bool {
-        self.checks.iter().any(|c| c.status == CheckStatus::Error)
+        self.all_checks().any(|c| c.status == CheckStatus::Error)
     }
 
     pub fn issue_count(&self) -> usize {
-        self.checks
-            .iter()
+        self.all_checks()
             .filter(|c| matches!(c.status, CheckStatus::Warning | CheckStatus::Error))
             .count()
     }
@@ -63,39 +71,50 @@ impl CheckReport {
         // "      • " is 8 chars of prefix before detail text
         const DETAIL_PREFIX_LEN: usize = 8;
 
+        let show_section_headers = self.sections.len() > 1;
+
         writeln!(out, "{}", s.bold.apply_to(&self.title)).unwrap();
         writeln!(out).unwrap();
 
-        for check in &self.checks {
-            let (icon, color) = match check.status {
-                CheckStatus::Pass => ("[✓]", &s.green),
-                CheckStatus::Warning => ("[!]", &s.yellow),
-                CheckStatus::Error => ("[✗]", &s.red),
-            };
+        for (i, section) in self.sections.iter().enumerate() {
+            if show_section_headers {
+                if i > 0 {
+                    writeln!(out).unwrap();
+                }
+                writeln!(out, "  {}", s.dim.apply_to(&section.title)).unwrap();
+            }
 
-            writeln!(
-                out,
-                "  {} {} ({})",
-                color.apply_to(icon),
-                s.bold.apply_to(&check.name),
-                check.summary,
-            )
-            .unwrap();
+            for check in &section.checks {
+                let (icon, color) = match check.status {
+                    CheckStatus::Pass => ("[✓]", &s.green),
+                    CheckStatus::Warning => ("[!]", &s.yellow),
+                    CheckStatus::Error => ("[✗]", &s.red),
+                };
 
-            if verbose {
-                for detail in &check.details {
-                    let text = if width > DETAIL_PREFIX_LEN
-                        && detail.text.len() + DETAIL_PREFIX_LEN > width
-                    {
-                        let max_text = width - DETAIL_PREFIX_LEN - 1;
-                        format!("{}…", &detail.text[..max_text])
-                    } else {
-                        detail.text.clone()
-                    };
-                    if detail.warn {
-                        writeln!(out, "      • {}", s.red.apply_to(&text)).unwrap();
-                    } else {
-                        writeln!(out, "      • {text}").unwrap();
+                writeln!(
+                    out,
+                    "  {} {} ({})",
+                    color.apply_to(icon),
+                    s.bold.apply_to(&check.name),
+                    check.summary,
+                )
+                .unwrap();
+
+                if verbose {
+                    for detail in &check.details {
+                        let text = if width > DETAIL_PREFIX_LEN
+                            && detail.text.len() + DETAIL_PREFIX_LEN > width
+                        {
+                            let max_text = width - DETAIL_PREFIX_LEN - 1;
+                            format!("{}…", &detail.text[..max_text])
+                        } else {
+                            detail.text.clone()
+                        };
+                        if detail.warn {
+                            writeln!(out, "      • {}", s.red.apply_to(&text)).unwrap();
+                        } else {
+                            writeln!(out, "      • {text}").unwrap();
+                        }
                     }
                 }
             }
@@ -119,8 +138,7 @@ impl CheckReport {
             .unwrap();
 
             let errors: Vec<_> = self
-                .checks
-                .iter()
+                .all_checks()
                 .filter(|c| c.status == CheckStatus::Error)
                 .collect();
             if !errors.is_empty() {
@@ -136,8 +154,7 @@ impl CheckReport {
             }
 
             let warnings: Vec<_> = self
-                .checks
-                .iter()
+                .all_checks()
                 .filter(|c| c.status == CheckStatus::Warning)
                 .collect();
             if !warnings.is_empty() {
@@ -203,7 +220,10 @@ mod tests {
     fn report(checks: Vec<CheckResult>) -> CheckReport {
         CheckReport {
             title: "Test Report".into(),
-            checks,
+            sections: vec![CheckSection {
+                title: String::new(),
+                checks,
+            }],
         }
     }
 
@@ -385,7 +405,10 @@ mod tests {
     fn render_uses_custom_title() {
         let r = CheckReport {
             title: "My Custom Title".into(),
-            checks: vec![pass_check("Test")],
+            sections: vec![CheckSection {
+                title: String::new(),
+                checks: vec![pass_check("Test")],
+            }],
         };
         let out = r.render(&Styles::new(false), false, None, None);
         insta::assert_snapshot!(out, @r"

@@ -7,7 +7,9 @@ use std::sync::LazyLock;
 #[cfg(feature = "server")]
 use arc_config::server::{ApiAuthStrategy, AuthProvider};
 use arc_llm::provider::Provider;
-pub use arc_util::check_report::{CheckDetail, CheckReport, CheckResult, CheckStatus};
+pub use arc_util::check_report::{
+    CheckDetail, CheckReport, CheckResult, CheckSection, CheckStatus,
+};
 use arc_util::terminal::Styles;
 #[cfg(feature = "server")]
 use regex::Regex;
@@ -1116,25 +1118,38 @@ pub async fn run_doctor(verbose: bool, live: bool) -> i32 {
 
     // Run pure checks
     #[allow(unused_mut)]
-    let mut checks = vec![
-        check_config(if config_exists { config_path } else { None }),
-        check_llm_providers(&llm_statuses, llm_live_results.as_deref()),
-        check_github_app(&github_status),
-        check_sandbox(&sandbox_status),
-        check_brave_search(brave_key_set, brave_live_result.as_ref()),
+    let mut sections = vec![
+        CheckSection {
+            title: "Required".into(),
+            checks: vec![
+                check_config(if config_exists { config_path } else { None }),
+                check_llm_providers(&llm_statuses, llm_live_results.as_deref()),
+                check_github_app(&github_status),
+            ],
+        },
+        CheckSection {
+            title: "Optional".into(),
+            checks: vec![
+                check_sandbox(&sandbox_status),
+                check_brave_search(brave_key_set, brave_live_result.as_ref()),
+            ],
+        },
     ];
 
     #[cfg(feature = "server")]
-    {
-        checks.push(check_system_deps(DEP_SPECS, &dep_results));
-        checks.push(check_api(&api_status, api_live_result.as_ref()));
-        checks.push(check_web(&web_status, web_live_result.as_ref()));
-        checks.push(check_crypto(&crypto_input));
-    }
+    sections.push(CheckSection {
+        title: "Server".into(),
+        checks: vec![
+            check_system_deps(DEP_SPECS, &dep_results),
+            check_api(&api_status, api_live_result.as_ref()),
+            check_web(&web_status, web_live_result.as_ref()),
+            check_crypto(&crypto_input),
+        ],
+    });
 
     let report = CheckReport {
         title: "Arc Doctor".into(),
-        checks,
+        sections,
     };
 
     spinner.finish_and_clear();

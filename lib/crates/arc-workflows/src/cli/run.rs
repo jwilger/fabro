@@ -1863,7 +1863,9 @@ async fn run_preflight(
     github_app: Option<arc_github::GitHubAppCredentials>,
     origin_url: Option<&str>,
 ) -> anyhow::Result<()> {
-    use arc_util::check_report::{CheckDetail, CheckReport, CheckResult, CheckStatus};
+    use arc_util::check_report::{
+        CheckDetail, CheckReport, CheckResult, CheckSection, CheckStatus,
+    };
 
     let mut checks: Vec<CheckResult> = Vec::new();
 
@@ -2098,7 +2100,10 @@ async fn run_preflight(
     // 5. Render report
     let report = CheckReport {
         title: "Run Preflight".into(),
-        checks,
+        sections: vec![CheckSection {
+            title: String::new(),
+            checks,
+        }],
     };
 
     let term_width = console::Term::stderr().size().1;
