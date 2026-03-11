@@ -37,7 +37,7 @@ async fn create_env_with_github_app(
     let client = daytona_sdk::Client::new()
         .await
         .expect("Failed to create Daytona client — is DAYTONA_API_KEY set?");
-    DaytonaSandbox::new(client, DaytonaConfig::default(), github_app, None)
+    DaytonaSandbox::new(client, DaytonaConfig::default(), github_app, None, None)
 }
 
 fn load_github_app_credentials() -> arc_github::GitHubAppCredentials {
@@ -253,7 +253,7 @@ async fn daytona_snapshot_sandbox() {
     };
 
     let creds = load_github_app_credentials();
-    let env = DaytonaSandbox::new(client, config, Some(creds), None);
+    let env = DaytonaSandbox::new(client, config, Some(creds), None, None);
     env.initialize().await.unwrap();
 
     // Verify rg is available (installed by snapshot)
@@ -929,7 +929,7 @@ async fn run_daytona_cli_test(provider: Provider, model: &str, install_command: 
         }),
         ..DaytonaConfig::default()
     };
-    let env = DaytonaSandbox::new(client, config, Some(creds), None);
+    let env = DaytonaSandbox::new(client, config, Some(creds), None, None);
     env.initialize().await.unwrap();
     let env: Arc<dyn Sandbox> = Arc::new(env);
 
@@ -1875,7 +1875,7 @@ async fn daytona_computer_use_browser_screenshot() {
         }),
         ..DaytonaConfig::default()
     };
-    let env = DaytonaSandbox::new(client, config, None, None);
+    let env = DaytonaSandbox::new(client, config, None, None, None);
     env.initialize().await.unwrap();
 
     // 1. Start the computer use desktop environment (Xvfb, xfce4, etc.)
@@ -2036,7 +2036,7 @@ async fn daytona_playwright_mcp_sandbox_transport() {
         }),
         ..DaytonaConfig::default()
     };
-    let sandbox = DaytonaSandbox::new(client, config, None, None);
+    let sandbox = DaytonaSandbox::new(client, config, None, None, None);
     sandbox.initialize().await.unwrap();
 
     // 1. Install Playwright MCP server and its browser

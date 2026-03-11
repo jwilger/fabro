@@ -737,6 +737,7 @@ pub async fn run_command(
                 config,
                 github_app.clone(),
                 Some(run_id.clone()),
+                detected_base_branch.clone(),
             );
             let emitter_cb = Arc::clone(&emitter);
             env.set_event_callback(Arc::new(move |event| {
@@ -1922,6 +1923,7 @@ async fn run_preflight(
                     daytona_client,
                     config,
                     github_app,
+                    None,
                     None,
                 );
                 Ok(Arc::new(env) as Arc<dyn Sandbox>)

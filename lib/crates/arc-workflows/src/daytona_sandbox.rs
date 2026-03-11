@@ -160,6 +160,10 @@ pub struct DaytonaSandbox {
     /// HTTPS origin URL stored after clone so we can refresh push credentials later.
     origin_url: tokio::sync::OnceCell<String>,
     run_id: Option<String>,
+    /// Explicit branch to clone. When set, overrides the branch detected by
+    /// `detect_repo_info` — avoids cloning a local-only worktree branch
+    /// (e.g. `arc/run/...`) that was never pushed to origin.
+    clone_branch: Option<String>,
 }
 
 impl DaytonaSandbox {
@@ -169,6 +173,7 @@ impl DaytonaSandbox {
         config: DaytonaConfig,
         github_app: Option<GitHubAppCredentials>,
         run_id: Option<String>,
+        clone_branch: Option<String>,
     ) -> Self {
         Self {
             config,
@@ -179,6 +184,7 @@ impl DaytonaSandbox {
             event_callback: None,
             origin_url: tokio::sync::OnceCell::new(),
             run_id,
+            clone_branch,
         }
     }
 
@@ -197,6 +203,7 @@ impl DaytonaSandbox {
             event_callback: None,
             origin_url: tokio::sync::OnceCell::new(),
             run_id: None,
+            clone_branch: None,
         }
     }
 
@@ -562,7 +569,10 @@ impl Sandbox for DaytonaSandbox {
 
         // Clone the repo into the sandbox
         match detect_repo_info(&cwd) {
-            Ok((detected_url, branch)) => {
+            Ok((detected_url, detected_branch)) => {
+                // Use explicit clone_branch if provided (avoids cloning a local-only
+                // worktree branch like arc/run/... that hasn't been pushed).
+                let branch = self.clone_branch.clone().or(detected_branch);
                 // Daytona clones over HTTPS with token auth, so rewrite SSH URLs.
                 let url = ssh_url_to_https(&detected_url);
                 self.emit(SandboxEvent::GitCloneStarted {
@@ -1369,4 +1379,33 @@ mod tests {
             "unexpected error: {msg}"
         );
     }
+
+    #[test]
+    fn detect_repo_info_returns_worktree_branch() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = git2::Repository::init(dir.path()).unwrap();
+
+        // Create an initial commit so HEAD exists
+        let sig = git2::Signature::now("Test", "test@test.com").unwrap();
+        let tree_id = repo.index().unwrap().write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let commit = repo
+            .commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+            .unwrap();
+
+        repo.remote("origin", "https://github.com/org/repo.git")
+            .unwrap();
+
+        // Create and check out an arc/run/... branch (simulating worktree setup)
+        let commit_obj = repo.find_commit(commit).unwrap();
+        repo.branch("arc/run/ABC", &commit_obj, false).unwrap();
+        repo.set_head("refs/heads/arc/run/ABC").unwrap();
+
+        let (_, branch) = detect_repo_info(dir.path()).unwrap();
+        // Documents the current behavior: detect_repo_info returns whatever HEAD points to
+        assert_eq!(branch, Some("arc/run/ABC".into()));
+    }
+
+    // The `clone_branch` field on `DaytonaSandbox::new()` is verified at compile time —
+    // all call sites (run.rs, integration tests) must pass the new parameter.
 }
