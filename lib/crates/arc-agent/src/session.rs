@@ -564,39 +564,8 @@ impl Session {
                 return Err(self.aborted_error());
             }
 
-            // Pre-turn compaction check: compact before building the request so the
-            // LLM call uses a trimmed context when we're already over threshold.
-            let over_threshold = crate::compaction::check_context_usage(
-                &self.system_prompt,
-                &self.history,
-                self.provider_profile.as_ref(),
-                self.config.compaction_threshold_percent,
-                &self.event_emitter,
-                &self.id,
-            );
-            if over_threshold && self.config.enable_context_compaction {
-                if let Err(e) = crate::compaction::compact_context(
-                    &mut self.history,
-                    &self.llm_client,
-                    self.provider_profile.as_ref(),
-                    &self.system_prompt,
-                    &self.file_tracker,
-                    self.config.compaction_preserve_turns,
-                    &self.event_emitter,
-                    &self.id,
-                )
-                .await
-                {
-                    self.event_emitter.emit(
-                        self.id.clone(),
-                        AgentEvent::Error {
-                            error: AgentError::InvalidState(format!(
-                                "Context compaction failed: {e}"
-                            )),
-                        },
-                    );
-                }
-            }
+            // Pre-turn compaction: trim context before building the request
+            self.compact_if_needed().await;
 
             // Build request
             let request = self.build_request();
@@ -744,38 +713,8 @@ impl Session {
                 },
             );
 
-            // Check context window usage and compact if needed
-            let over_threshold = crate::compaction::check_context_usage(
-                &self.system_prompt,
-                &self.history,
-                self.provider_profile.as_ref(),
-                self.config.compaction_threshold_percent,
-                &self.event_emitter,
-                &self.id,
-            );
-            if over_threshold && self.config.enable_context_compaction {
-                if let Err(e) = crate::compaction::compact_context(
-                    &mut self.history,
-                    &self.llm_client,
-                    self.provider_profile.as_ref(),
-                    &self.system_prompt,
-                    &self.file_tracker,
-                    self.config.compaction_preserve_turns,
-                    &self.event_emitter,
-                    &self.id,
-                )
-                .await
-                {
-                    self.event_emitter.emit(
-                        self.id.clone(),
-                        AgentEvent::Error {
-                            error: AgentError::InvalidState(format!(
-                                "Context compaction failed: {e}"
-                            )),
-                        },
-                    );
-                }
-            }
+            // Post-response compaction: trim context after appending assistant turn
+            self.compact_if_needed().await;
 
             // If no tool calls, natural completion
             if tool_calls.is_empty() {
@@ -836,6 +775,38 @@ impl Session {
         }
 
         Ok(())
+    }
+
+    async fn compact_if_needed(&mut self) {
+        let over_threshold = crate::compaction::check_context_usage(
+            &self.system_prompt,
+            &self.history,
+            self.provider_profile.as_ref(),
+            self.config.compaction_threshold_percent,
+            &self.event_emitter,
+            &self.id,
+        );
+        if over_threshold && self.config.enable_context_compaction {
+            if let Err(e) = crate::compaction::compact_context(
+                &mut self.history,
+                &self.llm_client,
+                self.provider_profile.as_ref(),
+                &self.system_prompt,
+                &self.file_tracker,
+                self.config.compaction_preserve_turns,
+                &self.event_emitter,
+                &self.id,
+            )
+            .await
+            {
+                self.event_emitter.emit(
+                    self.id.clone(),
+                    AgentEvent::Error {
+                        error: AgentError::InvalidState(format!("Context compaction failed: {e}")),
+                    },
+                );
+            }
+        }
     }
 
     fn drain_steering(&mut self) {

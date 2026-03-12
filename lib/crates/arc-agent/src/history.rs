@@ -21,8 +21,9 @@ impl History {
             return;
         }
         let preserved = self.turns.split_off(self.turns.len() - preserve_count);
-        let extracted_user_messages = extract_recent_user_messages(&self.turns, 20_000);
-        self.turns.clear();
+        let discarded = std::mem::take(&mut self.turns);
+        let extracted_user_messages =
+            extract_recent_user_messages(discarded, COMPACTION_USER_MESSAGE_TOKEN_BUDGET);
         self.turns.push(Turn::System {
             content: summary,
             timestamp: std::time::SystemTime::now(),
@@ -101,27 +102,35 @@ impl History {
     }
 }
 
+/// Maximum token budget for user messages extracted from discarded turns during compaction.
+const COMPACTION_USER_MESSAGE_TOKEN_BUDGET: usize = 20_000;
+
 /// Walk discarded turns in reverse, collecting `Turn::User` variants up to
 /// a token budget (estimated at ~4 chars per token). Returns them in
 /// chronological order so they can be inserted between the summary and the
 /// preserved tail.
-fn extract_recent_user_messages(discarded: &[Turn], token_budget: usize) -> Vec<Turn> {
+fn extract_recent_user_messages(discarded: Vec<Turn>, token_budget: usize) -> Vec<Turn> {
     let char_budget = token_budget * 4;
     let mut total_chars = 0;
-    let mut collected: Vec<Turn> = Vec::new();
+    let mut first_kept_index = discarded.len();
 
-    for turn in discarded.iter().rev() {
+    // Walk backward to find the earliest user message within budget
+    for (i, turn) in discarded.iter().enumerate().rev() {
         if let Turn::User { content, .. } = turn {
             if total_chars + content.len() > char_budget {
                 break;
             }
             total_chars += content.len();
-            collected.push(turn.clone());
+            first_kept_index = i;
         }
     }
 
-    collected.reverse();
-    collected
+    // Collect kept user messages in forward (chronological) order
+    discarded
+        .into_iter()
+        .skip(first_kept_index)
+        .filter(|t| matches!(t, Turn::User { .. }))
+        .collect()
 }
 
 #[cfg(test)]
@@ -580,7 +589,7 @@ mod tests {
                 timestamp: SystemTime::now(),
             },
         ];
-        let extracted = extract_recent_user_messages(&turns, 20_000);
+        let extracted = extract_recent_user_messages(turns, 20_000);
         assert_eq!(extracted.len(), 2);
         assert!(matches!(&extracted[0], Turn::User { content, .. } if content == "first"));
         assert!(matches!(&extracted[1], Turn::User { content, .. } if content == "second"));
@@ -599,7 +608,7 @@ mod tests {
             },
         ];
         // Budget of 30 tokens = 120 chars; second message (100 chars) fits, first would exceed
-        let extracted = extract_recent_user_messages(&turns, 30);
+        let extracted = extract_recent_user_messages(turns, 30);
         assert_eq!(extracted.len(), 1);
         assert!(matches!(&extracted[0], Turn::User { content, .. } if content.starts_with('b')));
     }
