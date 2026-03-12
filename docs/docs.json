@@ -19,7 +19,7 @@
             "icon": "rocket",
             "pages": [
               "getting-started/introduction",
-              "getting-started/why-arc",
+              "getting-started/why-fabro",
               "getting-started/quick-start"
             ]
           },
@@ -27,7 +27,7 @@
             "group": "Core Concepts",
             "icon": "lightbulb",
             "pages": [
-              "core-concepts/how-arc-works",
+              "core-concepts/how-fabro-works",
               "core-concepts/workflows",
               "core-concepts/agents",
               "core-concepts/models",
@@ -164,7 +164,7 @@
       {
         "tab": "API Reference",
         "icon": "code",
-        "openapi": "api-reference/arc-api.yaml",
+        "openapi": "api-reference/fabro-api.yaml",
         "groups": [
           {
             "group": "Using the API",

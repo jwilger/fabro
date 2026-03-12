@@ -1,0 +1,7 @@
+bin.name = "fabro"
+args = ["exec", "--permissions", "bogus", "test prompt"]
+status = "failed"
+stderr-to-stdout = true
+
+[env]
+inherit = false

@@ -1,6 +1,0 @@
-bin.name = "arc"
-args = ["validate", "../../../test/conditions.dot"]
-
-[fs]
-sandbox = false
-cwd = "../../.."

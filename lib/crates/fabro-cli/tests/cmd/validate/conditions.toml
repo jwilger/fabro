@@ -1,0 +1,6 @@
+bin.name = "fabro"
+args = ["validate", "../../../test/conditions.dot"]
+
+[fs]
+sandbox = false
+cwd = "../../.."

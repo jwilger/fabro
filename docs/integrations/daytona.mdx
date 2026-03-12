@@ -44,7 +44,7 @@ preserve = false
 auto_stop_interval = 60
 
 [sandbox.daytona.labels]
-project = "arc"
+project = "fabro"
 env = "staging"
 team = "platform"
 
@@ -120,7 +120,7 @@ fabro run workflow.dot --sandbox daytona --ssh
 This creates temporary SSH credentials (valid for 60 minutes) and prints the connection command:
 
 ```
-SSH access ready: ssh daytona@arc-20260307-143022-a3f2.ssh.daytona.io
+SSH access ready: ssh daytona@fabro-20260307-143022-a3f2.ssh.daytona.io
 ```
 
 <Note>
@@ -160,7 +160,7 @@ auto_stop_interval = 30
 
 ## Server defaults
 
-When running via `fabro serve`, the server config at `~/.arc/server.toml` can set default Daytona settings for all runs. Run config TOML values override server defaults. Labels are **merged** — run config labels win on key collisions. The `network` setting uses simple override (run config replaces the server default entirely).
+When running via `fabro serve`, the server config at `~/.fabro/server.toml` can set default Daytona settings for all runs. Run config TOML values override server defaults. Labels are **merged** — run config labels win on key collisions. The `network` setting uses simple override (run config replaces the server default entirely).
 
 See [Server Configuration](/administration/server-configuration) for details.
 

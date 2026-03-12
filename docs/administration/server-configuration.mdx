@@ -5,7 +5,7 @@ description: "Server config file, CLI overrides, and environment variables"
 
 ## Config file
 
-The server config file at `~/.arc/server.toml` controls how `fabro serve` behaves — API binding, authentication, run defaults, and more. The [Quick Start](/getting-started/quick-start) doesn't require one, but production deployments should configure it explicitly.
+The server config file at `~/.fabro/server.toml` controls how `fabro serve` behaves — API binding, authentication, run defaults, and more. The [Quick Start](/getting-started/quick-start) doesn't require one, but production deployments should configure it explicitly.
 
 ### Full reference
 
@@ -13,23 +13,23 @@ The server config file at `~/.arc/server.toml` controls how `fabro serve` behave
 # Maximum concurrent workflow runs (default: 5)
 max_concurrent_runs = 8
 
-# Override the default data directory (default: ~/.arc)
-data_dir = "/var/lib/arc"
+# Override the default data directory (default: ~/.fabro)
+data_dir = "/var/lib/fabro"
 
 [api]
 base_url = "https://fabro.example.com"
 
 [api.tls]
-cert = "/etc/arc/tls/cert.pem"
-key = "/etc/arc/tls/key.pem"
-ca = "/etc/arc/tls/ca.pem"
+cert = "/etc/fabro/tls/cert.pem"
+key = "/etc/fabro/tls/key.pem"
+ca = "/etc/fabro/tls/ca.pem"
 
 # Authentication strategies (array of Jwt or Mtls)
 [[api.authentication_strategies]]
 type = "Jwt"
 
 [web]
-url = "https://arc-web.example.com"
+url = "https://fabro-web.example.com"
 
 [web.auth]
 provider = "Github"
@@ -44,8 +44,8 @@ client_id = "Iv1.abc123"
 level = "info"
 
 [git.author]
-name = "arc-bot"
-email = "arc-bot@company.com"
+name = "fabro-bot"
+email = "fabro-bot@company.com"
 
 [git.webhooks]
 strategy = "tailscale_funnel"
@@ -90,7 +90,7 @@ Several `server.toml` settings can be overridden via `fabro serve` flags:
 | `--provider` | — | Override default LLM provider |
 | `--sandbox` | — | Override default sandbox provider |
 | `--max-concurrent-runs` | `5` | Maximum concurrent run executions |
-| `--config` | `~/.arc/server.toml` | Path to server config file |
+| `--config` | `~/.fabro/server.toml` | Path to server config file |
 | `--dry-run` | — | Execute with simulated LLM backend |
 
 CLI flags take precedence over `server.toml` values. See [Run Configuration — Precedence](/execution/run-configuration#precedence) for the full resolution order.
@@ -109,12 +109,12 @@ Configure the default log level without environment variables. Precedence: `FABR
 
 ### `[git.author]` section
 
-Customize the git author identity used for checkpoint commits. When not set, defaults to `arc` / `arc@local`.
+Customize the git author identity used for checkpoint commits. When not set, defaults to `fabro` / `fabro@local`.
 
 | Key | Description | Default |
 |---|---|---|
-| `name` | Git author name | `"arc"` |
-| `email` | Git author email | `"arc@local"` |
+| `name` | Git author name | `"fabro"` |
+| `email` | Git author email | `"fabro@local"` |
 
 The CLI can also set `[git.author]` in `cli.toml` to override the server default.
 

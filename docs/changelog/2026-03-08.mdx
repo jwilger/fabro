@@ -7,7 +7,7 @@ date: "2026-03-08"
 
 You can now intercept tool calls at three points during agent execution: before a tool runs (`PreToolUse`), after it succeeds (`PostToolUse`), and after it fails (`PostToolUseFailure`). Each hook receives the tool name and arguments, and can modify, skip, or block the call. This makes it possible to enforce project conventions — like auto-formatting after file writes — or add guardrails without modifying agent prompts.
 
-```toml title="arc.toml"
+```toml title="fabro.toml"
 [[hooks]]
 event = "PostToolUse"
 tool = "write"

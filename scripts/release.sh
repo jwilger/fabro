@@ -48,4 +48,4 @@ git push origin main "$tag"
 
 echo ""
 echo "Released $tag"
-echo "Watch the build: https://github.com/brynary/arc/actions"
+echo "Watch the build: https://github.com/fabro-sh/fabro/actions"

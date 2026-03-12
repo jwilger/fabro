@@ -202,7 +202,7 @@ When a stage produces a large output (over 100KB of serialized JSON), Fabro auto
 response.plan → file:///tmp/logs/artifacts/values/response.plan.json
 ```
 
-The preamble renderer resolves these pointers and displays a reference to the file path. For remote sandboxes (Docker, Daytona), Fabro syncs artifact files to the sandbox at `{working_directory}/.arc/artifacts/` so agents can read them.
+The preamble renderer resolves these pointers and displays a reference to the file path. For remote sandboxes (Docker, Daytona), Fabro syncs artifact files to the sandbox at `{working_directory}/.fabro/artifacts/` so agents can read them.
 
 This keeps the context lean — large LLM responses, test output, and file listings don't bloat checkpoint files or overwhelm preamble summaries.
 

@@ -3,11 +3,11 @@ title: "CLI Configuration"
 description: "Configure default settings for the Fabro CLI with cli.toml"
 ---
 
-Fabro loads CLI defaults from `~/.arc/cli.toml` so you don't have to pass common flags every time. The file is optional — if it doesn't exist, built-in defaults are used.
+Fabro loads CLI defaults from `~/.fabro/cli.toml` so you don't have to pass common flags every time. The file is optional — if it doesn't exist, built-in defaults are used.
 
 ## File location
 
-The default path is `~/.arc/cli.toml`. Fabro silently skips loading if the file is missing.
+The default path is `~/.fabro/cli.toml`. Fabro silently skips loading if the file is missing.
 
 ## Precedence
 
@@ -27,9 +27,9 @@ mode = "server"
 base_url = "https://fabro.example.com:3000"
 
 [server.tls]
-cert = "~/.arc/tls/client.crt"
-key = "~/.arc/tls/client.key"
-ca = "~/.arc/tls/ca.crt"
+cert = "~/.fabro/tls/client.crt"
+key = "~/.fabro/tls/client.key"
+ca = "~/.fabro/tls/ca.crt"
 
 [exec]
 provider = "anthropic"
@@ -44,8 +44,8 @@ model = "claude-sonnet-4-5"
 level = "info"
 
 [git.author]
-name = "arc-bot"
-email = "arc-bot@company.com"
+name = "fabro-bot"
+email = "fabro-bot@company.com"
 
 [pull_request]
 enabled = true
@@ -132,8 +132,8 @@ Customize the git author identity used for checkpoint commits. Overrides the ser
 
 | Key | Description | Default |
 |---|---|---|
-| `name` | Git author name | `"arc"` |
-| `email` | Git author email | `"arc@local"` |
+| `name` | Git author name | `"fabro"` |
+| `email` | Git author email | `"fabro@local"` |
 
 ## `mode`
 
@@ -178,9 +178,9 @@ Paths support `~/` expansion. Example:
 
 ```toml title="cli.toml"
 [server.tls]
-cert = "~/.arc/tls/client.crt"
-key = "~/.arc/tls/client.key"
-ca = "~/.arc/tls/ca.crt"
+cert = "~/.fabro/tls/client.crt"
+key = "~/.fabro/tls/client.key"
+ca = "~/.fabro/tls/ca.crt"
 ```
 
 ## `[pull_request]`

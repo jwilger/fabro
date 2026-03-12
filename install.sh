@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-REPO="brynary/arc"
+REPO="fabro-sh/fabro"
 
 # Colors (only when stderr is a terminal)
 if [ -t 2 ]; then
@@ -62,27 +62,27 @@ case "$OS" in
     ;;
 esac
 
-ASSET="arc-${TARGET}.tar.gz"
+ASSET="fabro-${TARGET}.tar.gz"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-dim "Downloading arc for ${TARGET}..."
+dim "Downloading fabro for ${TARGET}..."
 gh release download --repo "$REPO" --pattern "$ASSET" --dir "$TMPDIR" --clobber
 
 dim "Extracting..."
 tar xzf "${TMPDIR}/${ASSET}" -C "$TMPDIR"
 
 # --- Install binary ---
-INSTALL_DIR="${ARC_INSTALL_DIR:-$HOME/.arc/bin}"
+INSTALL_DIR="${FABRO_INSTALL_DIR:-$HOME/.fabro/bin}"
 mkdir -p "$INSTALL_DIR"
-mv "${TMPDIR}/arc-${TARGET}/arc" "${INSTALL_DIR}/arc"
+mv "${TMPDIR}/fabro-${TARGET}/fabro" "${INSTALL_DIR}/fabro"
 
-chmod +x "${INSTALL_DIR}/arc"
+chmod +x "${INSTALL_DIR}/fabro"
 
 # --- Verify ---
-VERSION="$("${INSTALL_DIR}/arc" --version 2>/dev/null || true)"
+VERSION="$("${INSTALL_DIR}/fabro" --version 2>/dev/null || true)"
 if [ -z "$VERSION" ]; then
-  error "Installation failed: could not run arc --version"
+  error "Installation failed: could not run fabro --version"
 fi
 
 tildify() {
@@ -93,11 +93,11 @@ tildify() {
   fi
 }
 
-success "Installed ${VERSION} to ${BOLD_CYAN}$(tildify "${INSTALL_DIR}/arc")${RESET}"
+success "Installed ${VERSION} to ${BOLD_CYAN}$(tildify "${INSTALL_DIR}/fabro")${RESET}"
 
 # --- Ensure install dir is on PATH ---
-if command -v arc >/dev/null 2>&1; then
-  dim "arc is already on \$PATH, skipping shell config"
+if command -v fabro >/dev/null 2>&1; then
+  dim "fabro is already on \$PATH, skipping shell config"
 else
   tilde_bin_dir=$(tildify "$INSTALL_DIR")
   echo "" >&2
@@ -107,7 +107,7 @@ else
     : "${ZDOTDIR:="$HOME"}"
     shell_config="${ZDOTDIR%/}/.zshrc"
     {
-      printf '\n# arc\n'
+      printf '\n# fabro\n'
       echo "export PATH=\"$INSTALL_DIR:\$PATH\""
     } >>"$shell_config"
     info "Added ${BOLD_CYAN}${tilde_bin_dir}${RESET} to \$PATH in ${BOLD_CYAN}$(tildify "$shell_config")${RESET}"
@@ -118,7 +118,7 @@ else
       shell_config="$HOME/.bash_profile"
     fi
     {
-      printf '\n# arc\n'
+      printf '\n# fabro\n'
       echo "export PATH=\"$INSTALL_DIR:\$PATH\""
     } >>"$shell_config"
     info "Added ${BOLD_CYAN}${tilde_bin_dir}${RESET} to \$PATH in ${BOLD_CYAN}$(tildify "$shell_config")${RESET}"
@@ -127,7 +127,7 @@ else
     fish_config="$HOME/.config/fish/config.fish"
     mkdir -p "$(dirname "$fish_config")"
     {
-      printf '\n# arc\n'
+      printf '\n# fabro\n'
       echo "fish_add_path $INSTALL_DIR"
     } >>"$fish_config"
     info "Added ${BOLD_CYAN}${tilde_bin_dir}${RESET} to \$PATH in ${BOLD_CYAN}$(tildify "$fish_config")${RESET}"
@@ -145,12 +145,12 @@ echo "" >&2
 
 # --- Prompt to run setup wizard ---
 if [ -t 2 ] && [ -e /dev/tty ]; then
-  printf "  ${BOLD}Run ${BOLD_CYAN}arc install${RESET}${BOLD} now to complete setup? [Y/n]${RESET} " >&2
+  printf "  ${BOLD}Run ${BOLD_CYAN}fabro install${RESET}${BOLD} now to complete setup? [Y/n]${RESET} " >&2
   read -r answer </dev/tty
   case "$answer" in
-    [nN]*) dim "Skipping. Run ${BOLD_CYAN}arc install${RESET}${DIM} whenever you're ready." ;;
-    *)     echo "" >&2; exec "${INSTALL_DIR}/arc" install ;;
+    [nN]*) dim "Skipping. Run ${BOLD_CYAN}fabro install${RESET}${DIM} whenever you're ready." ;;
+    *)     echo "" >&2; exec "${INSTALL_DIR}/fabro" install ;;
   esac
 else
-  info "Run ${BOLD_CYAN}arc install${RESET} to complete setup."
+  info "Run ${BOLD_CYAN}fabro install${RESET} to complete setup."
 fi

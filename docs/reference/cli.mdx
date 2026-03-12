@@ -13,11 +13,11 @@ These flags apply to all subcommands:
 | `-h, --help` | Print help |
 | `-V, --version` | Print version |
 
-Fabro loads environment variables from `~/.arc/.env`.
+Fabro loads environment variables from `~/.fabro/.env`.
 
 ## Configuration
 
-CLI defaults can be set in `~/.arc/cli.toml` so you don't have to pass common flags every time:
+CLI defaults can be set in `~/.fabro/cli.toml` so you don't have to pass common flags every time:
 
 ```toml title="cli.toml"
 [exec]
@@ -70,7 +70,7 @@ fabro run --run-branch arc/run/abc123
 
 ## `fabro ps`
 
-List workflow runs stored in `~/.arc/runs`.
+List workflow runs stored in `~/.fabro/runs`.
 
 ```bash
 fabro ps
@@ -226,7 +226,7 @@ fabro serve --sandbox daytona --max-concurrent-runs 4
 | `--dry-run` | Execute with simulated LLM backend | — |
 | `--sandbox <SANDBOX>` | Sandbox for agent tools: `local`, `docker`, `daytona`, `ssh`, or `exe` | — |
 | `--max-concurrent-runs <N>` | Maximum number of concurrent run executions | — |
-| `--config <PATH>` | Path to server config file | `~/.arc/server.toml` |
+| `--config <PATH>` | Path to server config file | `~/.fabro/server.toml` |
 
 Demo mode is per-request: send the `X-Fabro-Demo: 1` header to get static demo data with auth disabled.
 

@@ -1,6 +1,6 @@
 [workspace]
 members = ["lib/crates/*"]
-default-members = ["lib/crates/arc-cli"]
+default-members = ["lib/crates/fabro-cli"]
 resolver = "2"
 
 [workspace.package]

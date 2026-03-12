@@ -1,0 +1,6 @@
+bin.name = "fabro"
+args = ["validate", "../../../test/branching.dot"]
+
+[fs]
+sandbox = false
+cwd = "../../.."

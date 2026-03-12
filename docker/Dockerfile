@@ -3,7 +3,7 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY lib/crates lib/crates
 COPY openapi openapi
-RUN cargo build --release --bin arc
+RUN cargo build --release --bin fabro
 
 FROM oven/bun:1
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,7 +15,7 @@ RUN npm i -g mintlify && \
 
 WORKDIR /app
 
-COPY --from=rust-builder /app/target/release/arc /usr/local/bin/arc
+COPY --from=rust-builder /app/target/release/fabro /usr/local/bin/fabro
 
 COPY package.json bun.lock ./
 COPY apps/fabro-web/package.json apps/fabro-web/

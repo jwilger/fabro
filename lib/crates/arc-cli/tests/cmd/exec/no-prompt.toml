@@ -1,7 +1,0 @@
-bin.name = "arc"
-args = ["exec"]
-status = "failed"
-stderr-to-stdout = true
-
-[env]
-inherit = false

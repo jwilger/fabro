@@ -3,7 +3,7 @@ import { getAppConfig } from "./lib/config.server";
 import { isDemoMode } from "./lib/demo-mode.server";
 import { getUser } from "./lib/session.server";
 
-const ARC_JWT_PRIVATE_KEY = process.env.ARC_JWT_PRIVATE_KEY;
+const FABRO_JWT_PRIVATE_KEY = process.env.FABRO_JWT_PRIVATE_KEY;
 
 function decodePemEnv(value: string): string {
   if (value.startsWith("-----")) return value;
@@ -14,16 +14,16 @@ let cachedKey: CryptoKey | null = null;
 
 async function getSigningKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
-  if (!ARC_JWT_PRIVATE_KEY) {
-    throw new Error("ARC_JWT_PRIVATE_KEY environment variable is not set");
+  if (!FABRO_JWT_PRIVATE_KEY) {
+    throw new Error("FABRO_JWT_PRIVATE_KEY environment variable is not set");
   }
-  cachedKey = await importPKCS8(decodePemEnv(ARC_JWT_PRIVATE_KEY), "EdDSA");
+  cachedKey = await importPKCS8(decodePemEnv(FABRO_JWT_PRIVATE_KEY), "EdDSA");
   return cachedKey;
 }
 
 async function signToken(sub?: string): Promise<string> {
   const key = await getSigningKey();
-  return new SignJWT({ iss: "arc-web", ...(sub ? { sub } : {}) })
+  return new SignJWT({ iss: "fabro-web", ...(sub ? { sub } : {}) })
     .setProtectedHeader({ alg: "EdDSA" })
     .setIssuedAt()
     .setExpirationTime("30s")
@@ -54,12 +54,12 @@ export async function apiFetch(
   }
 
   const headers = new Headers(init?.headers);
-  if (ARC_JWT_PRIVATE_KEY) {
+  if (FABRO_JWT_PRIVATE_KEY) {
     const token = await signToken(sub);
     headers.set("Authorization", `Bearer ${token}`);
   }
   if (request && isDemoMode(request)) {
-    headers.set("X-Arc-Demo", "1");
+    headers.set("X-Fabro-Demo", "1");
   }
 
   const url = `${base_url}${path}`;

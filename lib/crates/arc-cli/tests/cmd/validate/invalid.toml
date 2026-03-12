@@ -1,7 +1,0 @@
-bin.name = "arc"
-args = ["validate", "../../../test/invalid.dot"]
-status = "failed"
-
-[fs]
-sandbox = false
-cwd = "../../.."

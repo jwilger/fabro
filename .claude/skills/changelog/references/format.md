@@ -17,7 +17,7 @@ One paragraph explaining what this enables and why it matters. Start with the us
 If there's a CLI command or config snippet that shows how to use it, include it:
 
 ```bash
-arc run start --ssh my-workflow.dot
+fabro run start --ssh my-workflow.dot
 ```
 
 Or a config example:
@@ -47,8 +47,8 @@ To migrate:
 </Accordion>
 
 <Accordion title="CLI">
-- Added `arc parse` command for printing the raw AST of a DOT workflow as JSON
-- Persistent CLI defaults in `~/.arc/cli.toml`
+- Added `fabro parse` command for printing the raw AST of a DOT workflow as JSON
+- Persistent CLI defaults in `~/.fabro/cli.toml`
 </Accordion>
 
 <Accordion title="Workflows">
@@ -102,7 +102,7 @@ The REST API now organizes related fields into typed sub-objects...
 
 ## exe.dev sandbox provider (beta)
 
-Arc can now run agent stages inside ephemeral exe.dev VMs...
+Fabro can now run agent stages inside ephemeral exe.dev VMs...
 
 ## Streaming stage logs for CLI agents
 
@@ -118,7 +118,7 @@ Good (2 hero features, everything else in More):
 ```mdx
 ## exe.dev sandbox provider (beta)
 
-Arc can now run agent stages inside ephemeral exe.dev VMs as an alternative to Daytona sandboxes. The new provider manages VM lifecycle through SSH...
+Fabro can now run agent stages inside ephemeral exe.dev VMs as an alternative to Daytona sandboxes. The new provider manages VM lifecycle through SSH...
 
 ```toml
 [execution]

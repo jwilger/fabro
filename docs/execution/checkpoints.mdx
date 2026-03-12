@@ -11,8 +11,8 @@ Each run creates two Git branches that work in tandem:
 
 | Branch | Ref format | Contains |
 |---|---|---|
-| **Run branch** | `arc/run/{run_id}` | File changes made by agents and commands — the actual work product |
-| **Metadata branch** | `refs/arc/{run_id}` | Checkpoint JSON, the workflow graph, a run manifest, and offloaded artifacts |
+| **Run branch** | `fabro/run/{run_id}` | File changes made by agents and commands — the actual work product |
+| **Metadata branch** | `refs/fabro/{run_id}` | Checkpoint JSON, the workflow graph, a run manifest, and offloaded artifacts |
 
 The run branch is a regular Git branch that grows one commit per completed node. The metadata branch is an orphan branch (no shared history with your code) that stores structured data using Git's object database directly — no working tree needed.
 
@@ -21,7 +21,7 @@ The run branch is a regular Git branch that grows one commit per completed node.
 After each node finishes, Fabro stages file changes and creates a commit on the run branch. Files matching `[checkpoint] exclude_globs` patterns (configured in [run.toml](/execution/run-configuration#checkpoint) or [server.toml](/administration/server-configuration#checkpoint-section)) are excluded from staging:
 
 ```
-arc(01JKXYZ...): plan (success)
+fabro(01JKXYZ...): plan (success)
 
 Fabro-Run: 01JKXYZ...
 Fabro-Completed: 2
@@ -41,7 +41,7 @@ The `Fabro-Checkpoint` trailer links each run branch commit to its metadata bran
 
 ### Metadata branch
 
-The metadata branch (`refs/arc/{run_id}`) is an orphan branch that stores structured run data using Git's object storage directly (via `git2`). It is initialized at run start with:
+The metadata branch (`refs/fabro/{run_id}`) is an orphan branch that stores structured run data using Git's object storage directly (via `git2`). It is initialized at run start with:
 
 - **`manifest.json`** — Run metadata: run ID, graph name, node/edge counts, base SHA, and branch name
 - **`graph.dot`** — The workflow DOT source as it was parsed
@@ -77,7 +77,7 @@ The checkpoint is also saved to `checkpoint.json` in the run directory for quick
 Fabro uses Git worktrees to isolate workflow runs from your working directory. When a run starts in a clean Git repository:
 
 1. Fabro records the current HEAD as the **base SHA**
-2. Creates a new branch `arc/run/{run_id}` at that SHA
+2. Creates a new branch `fabro/run/{run_id}` at that SHA
 3. Adds a worktree at `{run_dir}/worktree` on that branch
 4. Changes into the worktree directory for the duration of the run
 
@@ -87,7 +87,7 @@ This means your original working directory stays untouched while the agent makes
 If the working directory has uncommitted changes, Fabro skips worktree setup and runs in place, logging a warning. Git checkpointing is disabled in this case.
 </Note>
 
-For Daytona sandboxes, the worktree is created inside the remote sandbox instead. The metadata branch is still written to the host repository so that runs can be resumed locally. Both the run branch and the metadata branch are pushed to origin after each checkpoint — the run branch is pushed from the sandbox, while the metadata branch is pushed from the host using a GitHub App installation token. On the remote, the metadata branch appears at `arc/meta/{run_id}` (rather than the local `refs/arc/{run_id}` custom ref, since GitHub disallows branch names starting with `refs/`).
+For Daytona sandboxes, the worktree is created inside the remote sandbox instead. The metadata branch is still written to the host repository so that runs can be resumed locally. Both the run branch and the metadata branch are pushed to origin after each checkpoint — the run branch is pushed from the sandbox, while the metadata branch is pushed from the host using a GitHub App installation token. On the remote, the metadata branch appears at `fabro/meta/{run_id}` (rather than the local `refs/fabro/{run_id}` custom ref, since GitHub disallows branch names starting with `refs/`).
 
 ## Resuming a run
 
@@ -108,10 +108,10 @@ Fabro loads the checkpoint, restores the context and execution state, and contin
 Resume from the Git branches created during a previous run:
 
 ```bash
-fabro run --run-branch arc/run/01JKXYZ...
+fabro run --run-branch fabro/run/01JKXYZ...
 ```
 
-This reads the checkpoint, manifest, and graph DOT from the metadata branch (`refs/arc/01JKXYZ...`), re-attaches a worktree to the existing run branch, and resumes execution. No workflow file argument is needed — everything is recovered from Git.
+This reads the checkpoint, manifest, and graph DOT from the metadata branch (`refs/fabro/01JKXYZ...`), re-attaches a worktree to the existing run branch, and resumes execution. No workflow file argument is needed — everything is recovered from Git.
 
 <Accordion title="What happens during resume">
 1. Fabro reads `checkpoint.json` from the metadata branch
@@ -139,19 +139,19 @@ Because checkpoints are plain Git commits, you can inspect them with standard Gi
 
 ```bash
 # View the commit log for a run
-git log arc/run/01JKXYZ... --oneline
+git log fabro/run/01JKXYZ... --oneline
 
 # See what an agent changed at a specific node
-git show arc/run/01JKXYZ...
+git show fabro/run/01JKXYZ...
 
 # Diff the full run against the starting point
-git diff main..arc/run/01JKXYZ...
+git diff main..fabro/run/01JKXYZ...
 
 # Read checkpoint data from the metadata branch (local)
-git show refs/arc/01JKXYZ...:checkpoint.json | jq .current_node
+git show refs/fabro/01JKXYZ...:checkpoint.json | jq .current_node
 
 # Read checkpoint data from the remote (Daytona runs)
-git show origin/arc/meta/01JKXYZ...:checkpoint.json | jq .current_node
+git show origin/fabro/meta/01JKXYZ...:checkpoint.json | jq .current_node
 ```
 
 ## When checkpointing is active

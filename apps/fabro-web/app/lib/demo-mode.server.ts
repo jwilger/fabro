@@ -5,7 +5,7 @@ export function isDemoMode(request: Request): boolean {
   const cookies = request.headers.get("Cookie") ?? "";
   const match = cookies.match(/(?:^|;\s*)fabro-demo=([^;]*)/);
   if (match) return match[1] === "1";
-  return process.env.ARC_DEMO === "1";
+  return process.env.FABRO_DEMO === "1";
 }
 
 /** Build a Set-Cookie header value to persist the demo mode preference. */

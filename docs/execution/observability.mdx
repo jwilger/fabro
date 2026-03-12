@@ -11,7 +11,7 @@ The event stream is the foundation of Fabro's observability. Every workflow run 
 
 - **Written to `progress.jsonl`** in the run's directory (one JSON object per line)
 - **Broadcast via SSE** to connected API clients in real time
-- **Logged via `tracing`** to the daily log file at `~/.arc/logs/`
+- **Logged via `tracing`** to the daily log file at `~/.fabro/logs/`
 
 ### Event types
 
@@ -118,13 +118,13 @@ Every run writes its event stream to `{run_dir}/progress.jsonl`. This is the pri
 
 ```bash
 # Count tool calls in a run
-grep "ToolCallStarted" ~/.arc/runs/01JKXYZ.../progress.jsonl | wc -l
+grep "ToolCallStarted" ~/.fabro/runs/01JKXYZ.../progress.jsonl | wc -l
 
 # Find all failures
-grep -E "StageFailed|WorkflowRunFailed" ~/.arc/runs/01JKXYZ.../progress.jsonl | jq .
+grep -E "StageFailed|WorkflowRunFailed" ~/.fabro/runs/01JKXYZ.../progress.jsonl | jq .
 
 # See which edges were taken
-grep "EdgeSelected" ~/.arc/runs/01JKXYZ.../progress.jsonl | jq '{from: .from_node, to: .to_node}'
+grep "EdgeSelected" ~/.fabro/runs/01JKXYZ.../progress.jsonl | jq '{from: .from_node, to: .to_node}'
 ```
 
 ### Live snapshot (`live.json`)
@@ -132,12 +132,12 @@ grep "EdgeSelected" ~/.arc/runs/01JKXYZ.../progress.jsonl | jq '{from: .from_nod
 During execution, Fabro also writes `live.json` — a pretty-printed copy of the most recent event. This is useful for quick status checks while a run is in progress:
 
 ```bash
-cat ~/.arc/runs/01JKXYZ.../live.json
+cat ~/.fabro/runs/01JKXYZ.../live.json
 ```
 
 ### Application logs
 
-Fabro uses the `tracing` crate to write structured logs to `~/.arc/logs/YYYY-MM-DD.log`. Control the log level with the `FABRO_LOG` environment variable:
+Fabro uses the `tracing` crate to write structured logs to `~/.fabro/logs/YYYY-MM-DD.log`. Control the log level with the `FABRO_LOG` environment variable:
 
 ```bash
 FABRO_LOG=debug fabro run workflow.dot
@@ -182,7 +182,7 @@ fabro ps --label team=platform
 fabro ps --json
 ```
 
-This scans `~/.arc/runs/` and displays each run's ID, workflow name, status, and start time. Use `--json` for machine-readable output.
+This scans `~/.fabro/runs/` and displays each run's ID, workflow name, status, and start time. Use `--json` for machine-readable output.
 
 ### Run artifacts
 

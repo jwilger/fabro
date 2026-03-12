@@ -1,0 +1,4 @@
+bin.name = "fabro"
+args = ["--no-dotenv", "doctor"]
+status = "failed"
+stderr-to-stdout = true

@@ -7,7 +7,7 @@ type ServiceConfig = {
 
 const services: Record<string, ServiceConfig> = {
   api: {
-    command: ["arc", "serve", "--host", "0.0.0.0"],
+    command: ["fabro", "serve", "--host", "0.0.0.0"],
   },
   web: {
     command: ["bun", "run", "dev", "--host", "0.0.0.0"],
@@ -22,7 +22,7 @@ const services: Record<string, ServiceConfig> = {
 const validServices = Object.keys(services).join("|");
 
 if (!service) {
-  console.error(`Usage: docker run arc <${validServices}>`);
+  console.error(`Usage: docker run fabro <${validServices}>`);
   process.exit(1);
 }
 

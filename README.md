@@ -1,25 +1,25 @@
 <div align="left" id="top">
-<a href="https://arc.dev"><img alt="Arc" src="docs/logo/dark.svg" height="75"></a>
+<a href="https://fabro.dev"><img alt="Fabro" src="docs/logo/dark.svg" height="75"></a>
 </div>
 
 ## The open source software factory for expert engineers
 
-AI coding agents are powerful but unpredictable. You either babysit every step or review a 50-file diff you don't trust. Arc gives you a middle path: define the process as a graph, let agents execute it, and intervene only where it matters. [Why Arc?](https://arc.dev/getting-started/why-arc)
+AI coding agents are powerful but unpredictable. You either babysit every step or review a 50-file diff you don't trust. Fabro gives you a middle path: define the process as a graph, let agents execute it, and intervene only where it matters. [Why Fabro?](https://fabro.dev/getting-started/why-arc)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
-[![docs](https://img.shields.io/badge/docs-arc.dev-357F9E)](https://arc.dev)
+[![docs](https://img.shields.io/badge/docs-fabro.dev-357F9E)](https://fabro.dev)
 
 ```bash
 curl -fsSL https://fabro.sh/install.sh | bash
 ```
 
-<img src="docs/images/runs-board.png" alt="Arc Runs board showing workflows across Working, Pending, Verify, and Merge stages" />
+<img src="docs/images/runs-board.png" alt="Fabro Runs board showing workflows across Working, Pending, Verify, and Merge stages" />
 
 ---
 
 ## Use Cases
 
-- **Extend disengagement time** — Stop babysitting an agent REPL. Define a workflow with verification gates and walk away — Arc keeps the process on track without you.
+- **Extend disengagement time** — Stop babysitting an agent REPL. Define a workflow with verification gates and walk away — Fabrokeeps the process on track without you.
 - **Leverage ensemble intelligence** — Seamlessly combine models from different vendors. Use one model to implement, another to cross-critique, and a third to summarize — all in a single workflow.
 - **Share best practices across your team** — Collaborate on version-controlled workflows that encode your software processes as code. Review, iterate, and reuse them like any other source file.
 - **Reduce token bills** — Route cheap tasks to fast, inexpensive models and reserve frontier models for the steps that need them. CSS-like stylesheets make this a one-line change.
@@ -40,7 +40,7 @@ curl -fsSL https://fabro.sh/install.sh | bash
 | 🙋  | Human-in-the-loop              | Approval gates pause for human decisions. Steer running agents mid-turn. Interview steps collect structured input |
 | 🎨  | Multi-model routing            | CSS-like stylesheets route each node to the right model and provider, with automatic fallback chains  |
 | ☁️  | Cloud sandboxes                | Run agents in isolated Daytona cloud VMs with snapshot-based setup, network controls, and automatic cleanup |
-| 🔌  | SSH access and preview links   | Shell into running sandboxes with `arc ssh` and expose ports with `arc preview` for live debugging    |
+| 🔌  | SSH access and preview links   | Shell into running sandboxes with `fabro ssh` and expose ports with `fabro preview` for live debugging    |
 | 🌲  | Git checkpointing              | Every stage commits code changes and execution metadata to Git branches. Resume, revert, or trace any change |
 | 📊  | Automatic retros               | Each run generates a retrospective with cost, duration, files touched, and an LLM-written narrative   |
 | ⚡  | Comprehensive API              | REST API with SSE event streaming and a React web UI. Run workflows programmatically or as a service  |
@@ -78,19 +78,19 @@ digraph PlanImplement {
 }
 ```
 
-Agents run as multi-turn LLM sessions with tool access. Human gates (`hexagon`) pause for approval. The stylesheet routes planning to a cheap model and coding to a frontier model. See the [DOT language reference](https://arc.dev/reference/dot-language) for the full syntax.
+Agents run as multi-turn LLM sessions with tool access. Human gates (`hexagon`) pause for approval. The stylesheet routes planning to a cheap model and coding to a frontier model. See the [DOT language reference](https://fabro.dev/reference/dot-language) for the full syntax.
 
 ---
 
 ## 📖 Documentation
 
-Arc ships with [comprehensive documentation](https://arc.dev) covering every feature in depth:
+Fabro ships with [comprehensive documentation](https://fabro.dev) covering every feature in depth:
 
-- [**Getting Started**](https://arc.dev/getting-started/introduction) -- Installation, first workflow, and why Arc exists
-- [**Defining Workflows**](https://arc.dev/workflows/stages-and-nodes) -- Node types, transitions, variables, stylesheets, and human gates
-- [**Executing Workflows**](https://arc.dev/execution/run-configuration) -- Run configuration, sandboxes, checkpoints, retros, and failure handling
-- [**Tutorials**](https://arc.dev/tutorials/hello-world) -- Step-by-step guides from hello world to parallel multi-model ensembles
-- [**API Reference**](https://arc.dev/api-reference/overview) -- Full OpenAPI spec with authentication, SSE events, and client SDKs
+- [**Getting Started**](https://fabro.dev/getting-started/introduction) -- Installation, first workflow, and why Fabro exists
+- [**Defining Workflows**](https://fabro.dev/workflows/stages-and-nodes) -- Node types, transitions, variables, stylesheets, and human gates
+- [**Executing Workflows**](https://fabro.dev/execution/run-configuration) -- Run configuration, sandboxes, checkpoints, retros, and failure handling
+- [**Tutorials**](https://fabro.dev/tutorials/hello-world) -- Step-by-step guides from hello world to parallel multi-model ensembles
+- [**API Reference**](https://fabro.dev/api-reference/overview) -- Full OpenAPI spec with authentication, SSE events, and client SDKs
 
 ---
 
@@ -103,10 +103,10 @@ curl -fsSL https://fabro.sh/install.sh | bash
 
 # Initialize your project
 cd my-repo/
-arc init
+fabro init
 
 # Run your first workflow
-arc run hello
+fabro run hello
 ```
 
 ---
@@ -122,4 +122,4 @@ arc run hello
 
 ## License
 
-Arc is licensed under the [MIT License](LICENSE.md).
+Fabro is licensed under the [MIT License](LICENSE.md).

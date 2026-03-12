@@ -3,21 +3,21 @@ title: "Project config, fabro cp, fabro pr create, and exe.dev maturation"
 date: "2026-03-09"
 ---
 
-## Project config (arc.toml)
+## Project config (fabro.toml)
 
 Fabro now supports project-level configuration via `fabro.toml`. Previously, you had to pass full file paths to `fabro run` and configure each run individually. Now, you can define workflow aliases, pull request defaults, and retro settings at the project level. Fabro discovers `fabro.toml` by walking up from the current directory, similar to how Cargo or Node find their config files.
 
-```toml title="arc.toml"
+```toml title="fabro.toml"
 [workflows]
-implement = "arc/workflows/implement.toml"
-hello = "arc/workflows/hello.toml"
+implement = "fabro/workflows/implement.toml"
+hello = "fabro/workflows/hello.toml"
 
 [retro]
 enabled = false
 ```
 
 ```bash
-fabro run implement  # resolves via arc.toml
+fabro run implement  # resolves via fabro.toml
 ```
 
 ## exe.dev sandbox maturation

@@ -30,7 +30,7 @@ For example, a server named `filesystem` exposing a `read_file` tool becomes `mc
 
 MCP servers can be configured in two places:
 
-- **`~/.arc/cli.toml`** — applies to `fabro exec` sessions. See [CLI Configuration](/reference/cli-configuration#mcp_servers-section).
+- **`~/.fabro/cli.toml`** — applies to `fabro exec` sessions. See [CLI Configuration](/reference/cli-configuration#mcp_servers-section).
 - **Run config TOML** — applies to workflow runs (`fabro run`). See [Run Configuration](/execution/run-configuration#mcp_servers).
 
 Each server entry specifies a transport type and optional timeouts. The server name is the TOML table key and is used in qualified tool names.
@@ -193,7 +193,7 @@ MCP servers that fail to start do not block the agent session. The agent proceed
 
 ## Protocol details
 
-Fabro implements the MCP client side using the `rmcp` SDK (protocol version `2025-03-26`). The client identifies itself as `arc-mcp` and supports:
+Fabro implements the MCP client side using the `rmcp` SDK (protocol version `2025-03-26`). The client identifies itself as `fabro-mcp` and supports:
 
 - Tool listing and invocation
 - Server logging notifications (routed to Fabro's tracing system)

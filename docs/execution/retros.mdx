@@ -113,7 +113,7 @@ Retros are saved to `{run_dir}/retro.json` after every run. The path is printed 
 
 ```
 Retro: smooth — Successfully implemented the feature
-  Retro saved to ~/arc-logs/01JKXYZ.../retro.json
+  Retro saved to ~/fabro-logs/01JKXYZ.../retro.json
 ```
 
 To skip retro generation for a single run, pass `--no-retro`:
@@ -124,10 +124,10 @@ fabro run workflow.dot --no-retro
 
 To disable retros project-wide, set `retro = false` in your `fabro.toml`:
 
-```toml title="arc.toml"
+```toml title="fabro.toml"
 version = 1
 
-[arc]
+[fabro]
 retro = false
 ```
 

@@ -158,7 +158,7 @@ Attach key-value labels to sandboxes for filtering and identification in the Day
 
 ```toml title="run.toml"
 [sandbox.daytona.labels]
-project = "arc"
+project = "fabro"
 env = "ci"
 team = "platform"
 ```
@@ -238,10 +238,10 @@ Use `config_file` to point Fabro at a non-default SSH config — useful when the
 [sandbox.ssh]
 destination = "devbox"
 working_directory = "/home/user/projects/myapp"
-config_file = "/home/user/.ssh/arc_config"
+config_file = "/home/user/.ssh/fabro_config"
 ```
 
-```ssh-config title="~/.ssh/arc_config"
+```ssh-config title="~/.ssh/fabro_config"
 Host devbox
   HostName 192.168.1.42
   User alice

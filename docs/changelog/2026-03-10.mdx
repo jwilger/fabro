@@ -8,11 +8,11 @@ date: "2026-03-10"
 Getting Fabro installed and configured previously required multiple manual steps — downloading binaries, setting API keys, and configuring GitHub integration individually. Now, a single command installs Fabro and walks you through everything:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/brynary/arc/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fabro-sh/fabro/main/install.sh | bash
 fabro install
 ```
 
-The installer detects your platform, installs to `~/.arc/bin`, and auto-configures your shell PATH. The `fabro install` wizard then guides you through LLM provider setup with immediate API key validation, OpenAI OAuth for Codex compatibility, and GitHub App creation via manifest flow — all with styled terminal output showing progress at each step.
+The installer detects your platform, installs to `~/.fabro/bin`, and auto-configures your shell PATH. The `fabro install` wizard then guides you through LLM provider setup with immediate API key validation, OpenAI OAuth for Codex compatibility, and GitHub App creation via manifest flow — all with styled terminal output showing progress at each step.
 
 ## MCP servers in workflows
 
@@ -35,7 +35,7 @@ devcontainer = true
 ```
 
 <Warning>
-**`--no-dotenv` flag removed.** Fabro now always loads `~/.arc/.env` and never loads a local `./.env` file. If you were relying on project-local `.env` files, move those values to `~/.arc/.env`.
+**`--no-dotenv` flag removed.** Fabro now always loads `~/.fabro/.env` and never loads a local `./.env` file. If you were relying on project-local `.env` files, move those values to `~/.fabro/.env`.
 </Warning>
 
 ## More
@@ -57,7 +57,7 @@ devcontainer = true
 - `fabro doctor` sections reordered: Config, LLM, GitHub App, Cloud sandbox, Brave Search
 - `fabro run --preflight` now shows a Repository section, merged LLM check, and truncated output
 - Added `[pull_request]` support to project config (`fabro.toml`) for project-level PR defaults
-- Per-run data moved from `~/.arc/logs/` to `~/.arc/runs/`; daily CLI logs stay in `~/.arc/logs/`
+- Per-run data moved from `~/.fabro/logs/` to `~/.fabro/runs/`; daily CLI logs stay in `~/.fabro/logs/`
 - Per-run tracing logs now written to `cli.log` inside each run directory
 - Asset paths now display full `~/...` paths after workflow run output
 - Hidden `fabro ps`, `llm`, `exec`, and `parse` from CLI help output

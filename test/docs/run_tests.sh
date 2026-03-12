@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ARC="${ARC:-$REPO_ROOT/target/release/arc}"
+ARC="${ARC:-$REPO_ROOT/target/release/fabro}"
 
 PHASE="${1:-validate}"
 VERBOSE="${VERBOSE:-0}"

@@ -1,6 +1,6 @@
 services:
   api:
-    image: arc
+    image: fabro
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -12,21 +12,21 @@ services:
       - "3000:3000"
 
   web:
-    image: arc
+    image: fabro
     pull_policy: never
     command: ["web"]
     ports:
       - "5173:5173"
     environment:
-      - ARC_DEMO=1
+      - FABRO_DEMO=1
     volumes:
-      - ./demo-server.toml:/root/.arc/server.toml:ro
+      - ./demo-server.toml:/root/.fabro/server.toml:ro
       - ../apps/fabro-web/public:/app/apps/fabro-web/public
     depends_on:
       - api
 
   docs:
-    image: arc
+    image: fabro
     pull_policy: never
     command: ["docs"]
     ports:

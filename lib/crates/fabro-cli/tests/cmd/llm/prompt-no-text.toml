@@ -1,0 +1,4 @@
+bin.name = "fabro"
+args = ["llm", "prompt"]
+status = "failed"
+stderr-to-stdout = true

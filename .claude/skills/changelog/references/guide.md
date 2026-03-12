@@ -1,6 +1,6 @@
 # Changelog Writing Guide
 
-How to write Arc changelog entries, inspired by [Linear's changelog](https://linear.app/changelog).
+How to write Fabro changelog entries, inspired by [Linear's changelog](https://linear.app/changelog).
 
 ## Post structure
 
@@ -15,7 +15,7 @@ Each changelog entry follows this structure:
 
 Each major feature gets its own `##` section. Write 2-4 sentences max. Most posts should have 2-4 hero features — be selective.
 
-**A feature deserves a hero section if** it changes how users think about or interact with Arc — a new capability, a new integration, or a meaningful shift in workflow. New API endpoints, CLI commands, syntax additions, and incremental options belong in the accordion footer, not as hero sections.
+**A feature deserves a hero section if** it changes how users think about or interact with Fabro — a new capability, a new integration, or a meaningful shift in workflow. New API endpoints, CLI commands, syntax additions, and incremental options belong in the accordion footer, not as hero sections.
 
 **Combine closely related features** into a single hero section rather than splitting them. For example, three types of hooks (HTTP, prompt, agent) are one feature, not three.
 
@@ -44,7 +44,7 @@ Use only the categories that apply to a given post. Order them as listed:
 | Category | What goes here | Verb tense |
 |---|---|---|
 | **API** | New/changed endpoints, query params, response shapes, server behavior changes | Present: "New `GET /usage` endpoint returns..." |
-| **CLI** | New commands, flags, config, output formatting | Past: "Added `arc parse` command for inspecting workflow ASTs" |
+| **CLI** | New commands, flags, config, output formatting | Past: "Added `fabro parse` command for inspecting workflow ASTs" |
 | **Workflows** | DOT syntax, node types, stylesheet options, execution behavior | Past: "Added `wait.timer` node type for scheduled pauses" |
 | **Fixes** | Bug fixes | Past: "Fixed UTF-8 slicing panic when..." |
 | **Improvements** | Small enhancements, UI polish, perf wins | Past: "Added Gemini 3.1 Flash Lite to model catalog" |
@@ -59,7 +59,7 @@ Use only the categories that apply to a given post. Order them as listed:
 ## Title conventions
 
 - Name the post after the hero feature: "Time in status", "Form templates"
-- For multi-feature posts, list 2-3 top features: "mTLS auth, setup wizard, and arc doctor"
+- For multi-feature posts, list 2-3 top features: "mTLS auth, setup wizard, and fabro doctor"
 - No version numbers or dates in the title (the frontmatter has the date)
 
 ## What NOT to do

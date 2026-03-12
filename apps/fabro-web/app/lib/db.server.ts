@@ -8,7 +8,7 @@ let db: Database.Database | null = null;
 export function getDatabase(): Database.Database {
   if (db) return db;
 
-  const fabroDir = path.join(os.homedir(), ".arc");
+  const fabroDir = path.join(os.homedir(), ".fabro");
   fs.mkdirSync(fabroDir, { recursive: true });
 
   db = new Database(path.join(fabroDir, "fabro-web.db"));

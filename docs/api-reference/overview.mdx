@@ -45,7 +45,7 @@ The token must include these claims:
 
 | Claim | Description |
 |-------|-------------|
-| `iss` | Issuer — must be `arc-web` |
+| `iss` | Issuer — must be `fabro-web` |
 | `iat` | Issued-at timestamp (Unix seconds) |
 | `exp` | Expiration timestamp (Unix seconds) |
 | `sub` | Subject — a URL identifying the user (e.g. `https://github.com/username`) |
@@ -63,9 +63,9 @@ With mTLS, the client authenticates using a TLS client certificate. Configure bo
 authentication_strategies = ["mtls"]
 
 [api.tls]
-cert = "~/.arc/certs/server.crt"
-key = "~/.arc/certs/server.key"
-ca = "~/.arc/certs/ca.crt"
+cert = "~/.fabro/certs/server.crt"
+key = "~/.fabro/certs/server.key"
+ca = "~/.fabro/certs/ca.crt"
 ```
 
 The Common Name (CN) from the client certificate identifies the user.

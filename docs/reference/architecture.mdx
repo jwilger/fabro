@@ -32,7 +32,7 @@ fabro serve
 
 ### Configuration
 
-The server reads `~/.arc/server.toml` for default settings (model, sandbox, variables, authentication). This file is live-reloaded — changes take effect within seconds without restarting the server.
+The server reads `~/.fabro/server.toml` for default settings (model, sandbox, variables, authentication). This file is live-reloaded — changes take effect within seconds without restarting the server.
 
 Key server config options:
 
@@ -72,11 +72,11 @@ Demo mode is per-request: send the `X-Fabro-Demo: 1` HTTP header to get static m
 
 ## Web UI
 
-The web UI is a React app (`apps/arc-web`) that connects to the API server. Start it alongside `fabro serve`:
+The web UI is a React app (`apps/fabro-web`) that connects to the API server. Start it alongside `fabro serve`:
 
 ```bash
 fabro serve                        # API on port 3000
-cd apps/arc-web && bun run dev   # Web UI on port 5173
+cd apps/fabro-web && bun run dev   # Web UI on port 5173
 ```
 
 The UI provides:

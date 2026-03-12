@@ -1,0 +1,25 @@
+[package]
+name = "fabro-github"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "GitHub App authentication and API helpers for Fabro"
+
+[lib]
+doctest = false
+
+[dependencies]
+fabro-tracker = { path = "../fabro-tracker" }
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+jsonwebtoken.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tokio = { workspace = true }
+
+[dev-dependencies]
+mockito = "1"
+tokio = { workspace = true, features = ["test-util", "macros"] }
+base64.workspace = true

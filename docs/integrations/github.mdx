@@ -19,7 +19,7 @@ Fabro uses a [GitHub App](https://docs.github.com/en/apps/overview) to authentic
 ### Prerequisites
 
 - A GitHub account (personal or organization)
-- The Fabro web app running (`cd apps/arc-web && bun run dev`)
+- The Fabro web app running (`cd apps/fabro-web && bun run dev`)
 
 ### Register the GitHub App
 
@@ -40,7 +40,7 @@ Fabro uses a [GitHub App](https://docs.github.com/en/apps/overview) to authentic
 
 4. GitHub redirects back to Fabro, which automatically:
    - Exchanges the temporary code for permanent app credentials
-   - Writes `app_id`, `client_id`, and `slug` to `~/.arc/server.toml`
+   - Writes `app_id`, `client_id`, and `slug` to `~/.fabro/server.toml`
    - Writes `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`, and `GITHUB_APP_PRIVATE_KEY` to `.env`
    - Generates a `SESSION_SECRET` for web app sessions
    - Redirects you to the login page
@@ -59,8 +59,8 @@ The GitHub App check verifies five fields:
 
 | Field | Source |
 |---|---|
-| `git.app_id` | `~/.arc/server.toml` |
-| `git.client_id` | `~/.arc/server.toml` |
+| `git.app_id` | `~/.fabro/server.toml` |
+| `git.client_id` | `~/.fabro/server.toml` |
 | `GITHUB_APP_CLIENT_SECRET` | `.env` |
 | `GITHUB_APP_WEBHOOK_SECRET` | `.env` |
 | `GITHUB_APP_PRIVATE_KEY` | `.env` |
@@ -71,14 +71,14 @@ If all five are set, the check passes. If none are set, it warns (GitHub integra
 
 The GitHub App configuration lives in two places:
 
-### `~/.arc/server.toml`
+### `~/.fabro/server.toml`
 
 ```toml title="server.toml"
 [git]
 provider = "github"
 app_id = "123456"
 client_id = "Iv1.abc123def"
-slug = "arc-a3f2"
+slug = "fabro-a3f2"
 ```
 
 | Field | Description |

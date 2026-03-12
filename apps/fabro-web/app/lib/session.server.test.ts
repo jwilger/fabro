@@ -7,7 +7,7 @@ let testAuthConfig = { provider: "github" as string, allowed_usernames: [] as st
 mock.module("./config.server", () => ({
   getAppConfig: () => ({ web: { auth: testAuthConfig } }),
   reloadAppConfig: () => {},
-  ARC_CONFIG_PATH: "/tmp/test.toml",
+  FABRO_CONFIG_PATH: "/tmp/test.toml",
 }));
 
 let sessionData: Record<string, unknown> = {};

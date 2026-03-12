@@ -3,17 +3,17 @@ title: "Logs & Runs Directories"
 description: "Structure of Fabro's local logs and runs directories"
 ---
 
-Fabro stores data in two directories under `~/.arc/`:
+Fabro stores data in two directories under `~/.fabro/`:
 
-- **`~/.arc/runs/`** — Per-run data. Each workflow run gets its own subdirectory containing event streams, checkpoints, artifacts, and worktrees.
-- **`~/.arc/logs/`** — Daily CLI log files. One `.log` file per day with aggregated tracing output.
+- **`~/.fabro/runs/`** — Per-run data. Each workflow run gets its own subdirectory containing event streams, checkpoints, artifacts, and worktrees.
+- **`~/.fabro/logs/`** — Daily CLI log files. One `.log` file per day with aggregated tracing output.
 
 ## Daily log files
 
 The CLI appends tracing output to a daily log file:
 
 ```
-~/.arc/logs/2026-03-07.log
+~/.fabro/logs/2026-03-07.log
 ```
 
 The log level defaults to `info`. Set `FABRO_LOG=debug` or pass `--debug` for verbose output including HTTP connection pool diagnostics.
@@ -23,7 +23,7 @@ The log level defaults to `info`. Set `FABRO_LOG=debug` or pass `--debug` for ve
 Each `fabro run` invocation creates a timestamped directory:
 
 ```
-~/.arc/runs/20260307-01JQXYZ123ABC456DEF789/
+~/.fabro/runs/20260307-01JQXYZ123ABC456DEF789/
 ```
 
 The naming format is `YYYYMMDD-{run_id}`, where `run_id` is the ULID assigned to the run. You can override the location with `--run-dir`.
@@ -96,10 +96,10 @@ fabro ps --filter workflow=my-workflow
 ## Full directory tree
 
 ```
-~/.arc/logs/
+~/.fabro/logs/
 ├── 2026-03-07.log                    # Daily CLI log
 
-~/.arc/runs/
+~/.fabro/runs/
 ├── 20260307-01JQXYZ123ABC456DEF789/  # One directory per run
 │   ├── manifest.json
 │   ├── graph.dot

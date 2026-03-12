@@ -1,6 +1,0 @@
-bin.name = "arc"
-args = ["run", "--dry-run", "--auto-approve", "../../../test/conditions.dot"]
-
-[fs]
-sandbox = false
-cwd = "../../.."

@@ -62,10 +62,10 @@ const FEATURE_FLAGS_DEFAULTS: FeatureFlags = {
   session_sandboxes: false,
 };
 
-export const ARC_CONFIG_PATH = join(homedir(), ".arc", "server.toml");
+export const FABRO_CONFIG_PATH = join(homedir(), ".fabro", "server.toml");
 
 function loadAppConfig(): AppConfig {
-  const configPath = ARC_CONFIG_PATH;
+  const configPath = FABRO_CONFIG_PATH;
 
   let raw: Record<string, unknown> = {};
   try {
@@ -80,7 +80,7 @@ function loadAppConfig(): AppConfig {
   const rawGit = (raw.git ?? {}) as Partial<GitConfig>;
   const rawFeatureFlags = (raw.feature_flags ?? {}) as Partial<FeatureFlags>;
 
-  const demo = process.env.ARC_DEMO === "1";
+  const demo = process.env.FABRO_DEMO === "1";
 
   return {
     web: {

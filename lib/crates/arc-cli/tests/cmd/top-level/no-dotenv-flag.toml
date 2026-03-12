@@ -1,4 +1,0 @@
-bin.name = "arc"
-args = ["--no-dotenv", "doctor"]
-status = "failed"
-stderr-to-stdout = true

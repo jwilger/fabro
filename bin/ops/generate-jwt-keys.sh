@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-openssl genpkey -algorithm Ed25519 -out arc-jwt-private.pem
-openssl pkey -in arc-jwt-private.pem -pubout -out arc-jwt-public.pem
+openssl genpkey -algorithm Ed25519 -out fabro-jwt-private.pem
+openssl pkey -in fabro-jwt-private.pem -pubout -out fabro-jwt-public.pem
 
 echo ""
 echo "Generated:"
-echo "  arc-jwt-private.pem  (private key — for arc-web / ARC_JWT_PRIVATE_KEY)"
-echo "  arc-jwt-public.pem   (public key  — for arc-workflows / ARC_JWT_PUBLIC_KEY)"
+echo "  fabro-jwt-private.pem  (private key — for fabro-web / FABRO_JWT_PRIVATE_KEY)"
+echo "  fabro-jwt-public.pem   (public key  — for fabro-workflows / FABRO_JWT_PUBLIC_KEY)"
 echo ""
 echo "Set env vars with the PEM contents (including header/footer lines):"
 echo ""
-echo '  export ARC_JWT_PRIVATE_KEY="$(cat arc-jwt-private.pem)"'
-echo '  export ARC_JWT_PUBLIC_KEY="$(cat arc-jwt-public.pem)"'
+echo '  export FABRO_JWT_PRIVATE_KEY="$(cat fabro-jwt-private.pem)"'
+echo '  export FABRO_JWT_PUBLIC_KEY="$(cat fabro-jwt-public.pem)"'

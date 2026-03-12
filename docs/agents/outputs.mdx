@@ -150,7 +150,7 @@ Values under 100KB remain in the context as-is.
 Offloaded artifacts are written to the run's directory:
 
 ```
-~/.arc/runs/{run_id}/
+~/.fabro/runs/{run_id}/
   artifacts/
     values/
       response.plan.json
@@ -182,7 +182,7 @@ This keeps preambles concise while still giving agents a path to read the full o
 Artifact data is persisted on the Git [metadata branch](/execution/checkpoints#metadata-branch) alongside checkpoint data. Each time a checkpoint is written, any file-backed artifacts are included as additional entries:
 
 ```
-refs/arc/{run_id}
+refs/fabro/{run_id}
   manifest.json
   graph.dot
   checkpoint.json
@@ -201,15 +201,15 @@ For each pointer in the context updates:
 
 1. Fabro checks whether the file is already accessible inside the sandbox
 2. If not, it reads the local file and uploads it via the sandbox's `write_file` interface
-3. The file is placed at `{working_directory}/.arc/artifacts/{filename}`
+3. The file is placed at `{working_directory}/.fabro/artifacts/{filename}`
 4. The pointer is rewritten to reference the remote path
 
 ```
 # Before sync (host path)
-file:///home/user/.arc/runs/01JK.../artifacts/values/response.plan.json
+file:///home/user/.fabro/runs/01JK.../artifacts/values/response.plan.json
 
 # After sync (sandbox path)
-file:///workspace/.arc/artifacts/response.plan.json
+file:///workspace/.fabro/artifacts/response.plan.json
 ```
 
 This ensures agents running in remote sandboxes can read offloaded artifacts using the same `file://` pointer mechanism.
@@ -255,7 +255,7 @@ Tool caches and dependency directories (`node_modules`, `.cache/ms-playwright`, 
 Collected assets are written to the run's directory, organized by node and retry attempt:
 
 ```
-~/.arc/runs/{run_id}/
+~/.fabro/runs/{run_id}/
   assets/
     {node_slug}/
       retry_1/

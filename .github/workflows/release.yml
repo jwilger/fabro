@@ -40,17 +40,17 @@ jobs:
 
       - name: Package
         run: |
-          mkdir arc-${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/arc arc-${{ matrix.target }}/
-          tar czf arc-${{ matrix.target }}.tar.gz arc-${{ matrix.target }}
-          shasum -a 256 arc-${{ matrix.target }}.tar.gz > arc-${{ matrix.target }}.tar.gz.sha256
+          mkdir fabro-${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/fabro fabro-${{ matrix.target }}/
+          tar czf fabro-${{ matrix.target }}.tar.gz fabro-${{ matrix.target }}
+          shasum -a 256 fabro-${{ matrix.target }}.tar.gz > fabro-${{ matrix.target }}.tar.gz.sha256
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: artifacts-arc-${{ matrix.target }}
+          name: artifacts-fabro-${{ matrix.target }}
           path: |
-            arc-${{ matrix.target }}.tar.gz
-            arc-${{ matrix.target }}.tar.gz.sha256
+            fabro-${{ matrix.target }}.tar.gz
+            fabro-${{ matrix.target }}.tar.gz.sha256
 
   release:
     name: Release
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: target/distrib
-          pattern: artifacts-arc-*
+          pattern: artifacts-fabro-*
           merge-multiple: true
 
       - name: Create GitHub Release

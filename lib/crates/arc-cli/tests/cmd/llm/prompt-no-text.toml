@@ -1,4 +1,0 @@
-bin.name = "arc"
-args = ["llm", "prompt"]
-status = "failed"
-stderr-to-stdout = true

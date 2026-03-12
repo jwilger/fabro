@@ -1,6 +1,0 @@
-bin.name = "arc"
-args = ["validate", "../../../test/branching.dot"]
-
-[fs]
-sandbox = false
-cwd = "../../.."

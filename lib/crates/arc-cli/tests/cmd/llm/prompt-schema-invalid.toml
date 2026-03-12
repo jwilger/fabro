@@ -1,4 +1,0 @@
-bin.name = "arc"
-args = ["llm", "prompt", "--no-stream", "-m", "test-model", "--schema", "not json", "hello"]
-status = "failed"
-stderr-to-stdout = true

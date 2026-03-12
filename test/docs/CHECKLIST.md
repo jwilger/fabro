@@ -4,7 +4,7 @@
 - 40 .dot files (34 extracted from full workflows + 6 assembled from snippets)
 - Skipped: changelog/2026-02-27 (deprecated `handler=codergen` syntax), human-tools/vnc-access, human-tools/vpn-connections (workflows not yet working)
 
-## Phase 1: Validate (`arc validate`)
+## Phase 1: Validate (`fabro validate`)
 
 | # | File | Status | Notes |
 |---|------|--------|-------|
@@ -26,7 +26,7 @@
 | 16 | execution/failures/example-04.dot | PASS | added start/exit |
 | 17 | execution/interviews/default-choice.dot | PASS | assembled |
 | 18 | execution/run-configuration/c-i.dot | PASS | added start/exit, has run.toml |
-| 19 | getting-started/why-arc/plan-implement.dot | PASS | |
+| 19 | getting-started/why-fabro/plan-implement.dot | PASS | |
 | 20 | human-tools/preview/build-and-preview.dot | PASS | new |
 | 21 | integrations/brave-search/research.dot | PASS | new |
 | 22 | integrations/daytona/example.dot | PASS | added start/exit |
@@ -49,19 +49,19 @@
 | 39 | workflows/variables/check.dot | PASS | has run.toml |
 | 40 | workflows/variables/example.dot | PASS | added start/exit |
 
-## Phase 2: Dry Run (`arc run --dry-run --auto-approve`)
+## Phase 2: Dry Run (`fabro run --dry-run --auto-approve`)
 
 | # | File | Status | Notes |
 |---|------|--------|-------|
 | 1-40 | (all) | | |
 
-## Phase 3: Haiku (`arc run --model claude-haiku-4-5 --auto-approve`)
+## Phase 3: Haiku (`fabro run --model claude-haiku-4-5 --auto-approve`)
 
 | # | File | Status | Notes |
 |---|------|--------|-------|
 | 1-40 | (all) | | |
 
-## Phase 4: Full (`arc run --auto-approve`)
+## Phase 4: Full (`fabro run --auto-approve`)
 
 | # | File | Status | Notes |
 |---|------|--------|-------|

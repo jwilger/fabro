@@ -50,7 +50,7 @@ Surgical edits only — change only affected sections. Preserve existing voice, 
 - Insert rows into reference tables in logical position
 - Add new sections for entirely new capabilities
 - Update existing descriptions when behavior changes
-- Never edit `docs/api-reference/arc-api.yaml` — that is the API workflow's source of truth
+- Never edit `docs/api-reference/fabro-api.yaml` — that is the API workflow's source of truth
 
 ### 6. Validate DOT examples
 
