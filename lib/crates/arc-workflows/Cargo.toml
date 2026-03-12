@@ -23,6 +23,7 @@ dotenvy.workspace = true
 arc-agent = { path = "../arc-agent" }
 arc-devcontainer = { path = "../arc-devcontainer" }
 arc-exe = { path = "../arc-exe", optional = true }
+arc-ssh = { path = "../arc-ssh" }
 arc-mcp = { path = "../arc-mcp" }
 arc-github = { path = "../arc-github" }
 arc-util = { path = "../arc-util" }

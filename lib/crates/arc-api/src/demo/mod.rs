@@ -1333,6 +1333,7 @@ mod runs {
                     network: Some(arc_workflows::daytona_sandbox::DaytonaNetwork::Block),
                 }),
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             vars: Some(std::collections::HashMap::from([
@@ -1490,6 +1491,7 @@ mod workflows {
                             network: None,
                         }),
                         exe: None,
+                ssh: None,
                 env: None,
                     }),
                     vars: Some(std::collections::HashMap::from([
@@ -1561,6 +1563,7 @@ mod workflows {
                             network: None,
                         }),
                         exe: None,
+                ssh: None,
                 env: None,
                     }),
                     vars: Some(std::collections::HashMap::from([
@@ -1643,6 +1646,7 @@ mod workflows {
                             network: None,
                         }),
                         exe: None,
+                ssh: None,
                 env: None,
                     }),
                     vars: Some(std::collections::HashMap::from([
@@ -1716,6 +1720,7 @@ mod workflows {
                             network: None,
                         }),
                         exe: None,
+                ssh: None,
                 env: None,
                     }),
                     vars: Some(std::collections::HashMap::from([
@@ -3279,6 +3284,7 @@ mod settings {
                         network: Some(arc_workflows::daytona_sandbox::DaytonaNetwork::Block),
                     }),
                     exe: None,
+                    ssh: None,
                     env: None,
                 }),
                 vars: None,

@@ -38,6 +38,8 @@ pub enum SandboxProvider {
     /// Run tools inside an exe.dev VM
     #[cfg(feature = "exedev")]
     Exe,
+    /// Run tools on a user-provided SSH host
+    Ssh,
 }
 
 impl SandboxProvider {
@@ -46,6 +48,7 @@ impl SandboxProvider {
             Self::Daytona => true,
             #[cfg(feature = "exedev")]
             Self::Exe => true,
+            Self::Ssh => true,
             _ => false,
         }
     }
@@ -59,6 +62,7 @@ impl fmt::Display for SandboxProvider {
             Self::Daytona => write!(f, "daytona"),
             #[cfg(feature = "exedev")]
             Self::Exe => write!(f, "exe"),
+            Self::Ssh => write!(f, "ssh"),
         }
     }
 }
@@ -73,6 +77,7 @@ impl FromStr for SandboxProvider {
             "daytona" => Ok(Self::Daytona),
             #[cfg(feature = "exedev")]
             "exe" => Ok(Self::Exe),
+            "ssh" => Ok(Self::Ssh),
             other => Err(format!("unknown sandbox provider: {other}")),
         }
     }
@@ -309,6 +314,14 @@ mod tests {
                 SandboxProvider::Exe
             );
         }
+        assert_eq!(
+            "ssh".parse::<SandboxProvider>().unwrap(),
+            SandboxProvider::Ssh
+        );
+        assert_eq!(
+            "SSH".parse::<SandboxProvider>().unwrap(),
+            SandboxProvider::Ssh
+        );
         assert!("invalid".parse::<SandboxProvider>().is_err());
     }
 
@@ -319,6 +332,7 @@ mod tests {
         assert_eq!(SandboxProvider::Daytona.to_string(), "daytona");
         #[cfg(feature = "exedev")]
         assert_eq!(SandboxProvider::Exe.to_string(), "exe");
+        assert_eq!(SandboxProvider::Ssh.to_string(), "ssh");
     }
 
     #[test]

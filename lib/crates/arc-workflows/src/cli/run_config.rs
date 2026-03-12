@@ -118,6 +118,7 @@ pub struct SandboxConfig {
     pub daytona: Option<DaytonaConfig>,
     #[cfg(feature = "exedev")]
     pub exe: Option<arc_exe::ExeConfig>,
+    pub ssh: Option<arc_ssh::SshConfig>,
     pub env: Option<HashMap<String, String>>,
 }
 
@@ -1107,6 +1108,7 @@ preserve = true
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1137,6 +1139,7 @@ provider = "docker"
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1170,6 +1173,7 @@ provider = "daytona"
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1210,6 +1214,7 @@ auto_stop_interval = 60
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1249,6 +1254,7 @@ env = "from_task"
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1292,6 +1298,7 @@ cpu = 2
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1334,6 +1341,7 @@ auto_stop_interval = 60
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1559,6 +1567,7 @@ network = "block"
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1597,6 +1606,7 @@ auto_stop_interval = 60
                 }),
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -1807,6 +1817,7 @@ SHARED = "from_task"
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: Some(HashMap::from([
                     ("DEFAULT_KEY".into(), "default_val".into()),
                     ("SHARED".into(), "from_default".into()),
@@ -1843,6 +1854,7 @@ provider = "daytona"
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: Some(HashMap::from([("KEY".into(), "val".into())])),
             }),
             ..RunDefaults::default()

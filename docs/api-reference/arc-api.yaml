@@ -4080,6 +4080,8 @@ components:
           $ref: "#/components/schemas/DaytonaConfiguration"
         exe:
           $ref: "#/components/schemas/ExeConfiguration"
+        ssh:
+          $ref: "#/components/schemas/SshConfiguration"
         local:
           $ref: "#/components/schemas/LocalSandboxConfiguration"
         env:
@@ -4105,6 +4107,23 @@ components:
         image:
           type: string
           description: VM image to use for the exe.dev sandbox.
+
+    SshConfiguration:
+      description: SSH sandbox configuration for user-provided hosts.
+      type: object
+      required:
+        - destination
+        - working_directory
+      properties:
+        destination:
+          type: string
+          description: SSH destination (e.g. user@host or an SSH alias).
+        working_directory:
+          type: string
+          description: Remote working directory.
+        config_file:
+          type: string
+          description: Optional path to a custom SSH config file.
 
     DaytonaConfiguration:
       description: Daytona-specific sandbox settings.

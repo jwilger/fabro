@@ -225,6 +225,33 @@ fn resolve_exe_clone_params(cwd: &std::path::Path) -> Option<arc_exe::GitClonePa
     Some(arc_exe::GitCloneParams { url, branch })
 }
 
+/// Resolve SSH sandbox config: TOML config > run defaults.
+fn resolve_ssh_config(
+    run_cfg: Option<&WorkflowRunConfig>,
+    run_defaults: &RunDefaults,
+) -> Option<arc_ssh::SshConfig> {
+    run_cfg
+        .and_then(|c| c.sandbox.as_ref())
+        .and_then(|e| e.ssh.clone())
+        .or_else(|| run_defaults.sandbox.as_ref().and_then(|s| s.ssh.clone()))
+}
+
+/// Resolve SSH sandbox git clone parameters from the current repo.
+///
+/// Returns `None` if no git repo is detected. Credential resolution is
+/// handled by SshSandbox itself via its `github_app` field.
+fn resolve_ssh_clone_params(cwd: &std::path::Path) -> Option<arc_ssh::GitCloneParams> {
+    let (detected_url, branch) = match crate::daytona_sandbox::detect_repo_info(cwd) {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::warn!("No git repo detected for SSH clone: {e}");
+            return None;
+        }
+    };
+    let url = arc_github::ssh_url_to_https(&detected_url);
+    Some(arc_ssh::GitCloneParams { url, branch })
+}
+
 /// Resolve the fallback chain from config.
 ///
 /// `apply_defaults` must be called on `run_cfg` before this — it merges
@@ -625,6 +652,7 @@ pub async fn run_command(
     let mut daytona_config = resolve_daytona_config(run_cfg.as_ref(), &run_defaults);
     #[cfg(feature = "exedev")]
     let exe_config = resolve_exe_config(run_cfg.as_ref(), &run_defaults);
+    let ssh_config = resolve_ssh_config(run_cfg.as_ref(), &run_defaults);
 
     // Resolve devcontainer if enabled
     let devcontainer_config = if run_cfg
@@ -762,6 +790,23 @@ pub async fn run_command(
             }));
             Arc::new(env)
         }
+        SandboxProvider::Ssh => {
+            let config = ssh_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("--sandbox ssh requires [sandbox.ssh] config"))?;
+            let clone_params = resolve_ssh_clone_params(&original_cwd);
+            let mut env = arc_ssh::SshSandbox::new(
+                config,
+                clone_params,
+                Some(run_id.clone()),
+                github_app.clone(),
+            );
+            let emitter_cb = Arc::clone(&emitter);
+            env.set_event_callback(Arc::new(move |event| {
+                emitter_cb.emit(&crate::event::WorkflowRunEvent::Sandbox { event });
+            }));
+            Arc::new(env)
+        }
         SandboxProvider::Local => {
             let mut env = LocalSandbox::new(cwd.clone());
             let emitter_cb = Arc::clone(&emitter);
@@ -836,6 +881,17 @@ pub async fn run_command(
                     data_host,
                 }
             }
+            SandboxProvider::Ssh => {
+                let data_host = ssh_config.as_ref().map(|c| c.destination.clone());
+                crate::sandbox_record::SandboxRecord {
+                    provider: "ssh".to_string(),
+                    working_directory: sandbox.working_directory().to_string(),
+                    identifier: sandbox_info_opt,
+                    host_working_directory: None,
+                    container_mount_point: None,
+                    data_host,
+                }
+            }
         };
         if let Err(e) = record.save(&run_dir.join("sandbox.json")) {
             tracing::warn!(error = %e, "Failed to save sandbox record");
@@ -895,7 +951,7 @@ pub async fn run_command(
             }
             Ok(None) => {
                 eprintln!(
-                    "{} --ssh only works with --sandbox daytona or exe, skipping.",
+                    "{} --ssh only works with --sandbox daytona, exe, or ssh, skipping.",
                     styles.yellow.apply_to("Warning:"),
                 );
             }
@@ -1611,6 +1667,23 @@ async fn run_from_branch(
                 }));
                 (Arc::new(env), None)
             }
+            SandboxProvider::Ssh => {
+                let config = resolve_ssh_config(None, &run_defaults).ok_or_else(|| {
+                    anyhow::anyhow!("--sandbox ssh requires [sandbox.ssh] config")
+                })?;
+                let clone_params = resolve_ssh_clone_params(&original_cwd);
+                let mut env = arc_ssh::SshSandbox::new(
+                    config,
+                    clone_params,
+                    Some(run_id.clone()),
+                    github_app.clone(),
+                );
+                let emitter_cb = Arc::clone(&emitter);
+                env.set_event_callback(Arc::new(move |event| {
+                    emitter_cb.emit(&crate::event::WorkflowRunEvent::Sandbox { event });
+                }));
+                (Arc::new(env), None)
+            }
             SandboxProvider::Daytona => {
                 bail!("--run-branch resume is not yet supported with --sandbox daytona");
             }
@@ -1911,6 +1984,7 @@ async fn run_preflight(
     let daytona_config = resolve_daytona_config(run_cfg.as_ref(), run_defaults);
     #[cfg(feature = "exedev")]
     let exe_config = resolve_exe_config(run_cfg.as_ref(), run_defaults);
+    let ssh_config = resolve_ssh_config(run_cfg.as_ref(), run_defaults);
 
     let sandbox_result: Result<Arc<dyn Sandbox>, String> = match sandbox_provider {
         SandboxProvider::Docker => {
@@ -1946,6 +2020,14 @@ async fn run_preflight(
                 Ok(Arc::new(env) as Arc<dyn Sandbox>)
             }
             Err(e) => Err(format!("exe.dev SSH connection failed: {e}")),
+        },
+        SandboxProvider::Ssh => match ssh_config {
+            Some(config) => {
+                let clone_params = resolve_ssh_clone_params(&original_cwd);
+                let env = arc_ssh::SshSandbox::new(config, clone_params, None, None);
+                Ok(Arc::new(env) as Arc<dyn Sandbox>)
+            }
+            None => Err("SSH sandbox requires [sandbox.ssh] config".to_string()),
         },
         SandboxProvider::Local => {
             Ok(Arc::new(LocalSandbox::new(original_cwd.clone())) as Arc<dyn Sandbox>)
@@ -2592,6 +2674,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             vars: None,
@@ -2622,6 +2705,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             vars: None,
@@ -2640,6 +2724,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -2658,6 +2743,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -2699,6 +2785,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             vars: None,
@@ -2728,6 +2815,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()
@@ -2757,6 +2845,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             vars: None,
@@ -2777,6 +2866,7 @@ mod tests {
                 daytona: None,
                 #[cfg(feature = "exedev")]
                 exe: None,
+                ssh: None,
                 env: None,
             }),
             ..RunDefaults::default()

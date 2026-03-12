@@ -410,6 +410,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-ssh"
+version = "0.2.0"
+dependencies = [
+ "arc-agent",
+ "arc-github",
+ "async-trait",
+ "base64",
+ "openssh",
+ "serde",
+ "serde_json",
+ "shlex",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "arc-types"
 version = "0.2.0"
 dependencies = [
@@ -463,6 +481,7 @@ dependencies = [
  "arc-github",
  "arc-llm",
  "arc-mcp",
+ "arc-ssh",
  "arc-util",
  "assert_cmd",
  "async-trait",

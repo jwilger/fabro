@@ -150,6 +150,26 @@ pub async fn reconnect(record: &SandboxRecord) -> Result<Box<dyn arc_agent::sand
             let sandbox = arc_exe::ExeSandbox::from_existing(Box::new(data_ssh));
             Ok(Box::new(sandbox))
         }
+        "ssh" => {
+            let destination = record
+                .data_host
+                .as_deref()
+                .context("SSH sandbox record missing data_host (destination)")?;
+
+            let ssh = arc_ssh::OpensshRunner::connect(destination, None)
+                .await
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to connect to SSH sandbox '{destination}': {e}")
+                })?;
+
+            let config = arc_ssh::SshConfig {
+                destination: destination.to_string(),
+                working_directory: record.working_directory.clone(),
+                config_file: None,
+            };
+            let sandbox = arc_ssh::SshSandbox::from_existing(Box::new(ssh), config);
+            Ok(Box::new(sandbox))
+        }
         other => bail!("Unknown sandbox provider: {other}"),
     }
 }
