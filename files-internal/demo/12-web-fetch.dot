@@ -1,0 +1,11 @@
+digraph WebFetch {
+    graph [goal="Fetch a web page and summarize its contents"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    fetch [label="Fetch & Summarize", prompt="Use the web_fetch tool to fetch https://httpbin.org/html and summarize the page contents in 2-3 sentences. Write your summary to summary.txt."]
+
+    start -> fetch -> exit
+}

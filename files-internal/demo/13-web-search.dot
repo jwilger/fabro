@@ -1,0 +1,11 @@
+digraph WebSearch {
+    graph [goal="Search the web for a topic and summarize the findings"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    search [label="Search & Summarize", prompt="Use the web_search tool to search for 'what is DOT graph language' and summarize the top results in 2-3 sentences. Write your summary to search-results.txt."]
+
+    start -> search -> exit
+}

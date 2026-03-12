@@ -1,0 +1,19 @@
+version = 1
+goal = "Search the web for a famous landmark, then generate an image of it"
+graph = "14-search-imagegen.dot"
+
+[sandbox]
+provider = "daytona"
+
+[sandbox.env]
+GEMINI_API_KEY = "${env.GEMINI_API_KEY}"
+
+[sandbox.daytona.snapshot]
+name = "imagegen-tools-v3"
+cpu = 4
+memory = 8
+disk = 10
+dockerfile = { path = "../../arc/workflows/imagegen/Dockerfile.imagegen" }
+
+[assets]
+include = ["output/**"]

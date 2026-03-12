@@ -1,4 +1,4 @@
-Read the acceptance criteria from the feature requirements doc matching $goal under docs-internal/product/features/.
+Read the acceptance criteria from the feature requirements doc matching $goal under files-internal/product/features/.
 
 For each acceptance criterion (AC-NNN-XXX.N):
 - Verify the implementation satisfies "When [condition], the system shall [behavior]"

@@ -1,4 +1,4 @@
-Using the ingested artifacts, write the following product documents under docs-internal/product/:
+Using the ingested artifacts, write the following product documents under files-internal/product/:
 
 1. **business-problem.md** — The problem this product solves, who it affects, why existing solutions fall short
 2. **personas.md** — Target user types with goals, pain points, and usage patterns

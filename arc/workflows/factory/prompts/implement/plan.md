@@ -1,6 +1,6 @@
-Read the feature blueprint matching $goal under docs-internal/architecture/features/.
-Read the foundation blueprints under docs-internal/architecture/foundation-blueprints/.
-Read the acceptance criteria from the matching doc under docs-internal/product/features/.
+Read the feature blueprint matching $goal under files-internal/architecture/features/.
+Read the foundation blueprints under files-internal/architecture/foundation-blueprints/.
+Read the acceptance criteria from the matching doc under files-internal/product/features/.
 Read the relevant existing source code.
 
 Decomposition strategy: $context.human.gate.label

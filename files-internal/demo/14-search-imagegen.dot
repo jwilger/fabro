@@ -1,0 +1,13 @@
+digraph SearchImageGen {
+    graph [goal="Search the web for a famous landmark, then generate an image of it"]
+    rankdir=LR
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    research [label="Research", prompt="Use web_search to find a brief description of the Sagrada Familia in Barcelona. Save a 2-3 sentence description to landmark.txt."]
+
+    imagine [label="Generate Image", prompt="Read landmark.txt. Using its description, craft a vivid, detailed image generation prompt.\nThen run: mkdir -p output && imagegen '<your prompt>' output/landmark.png\nThe imagegen command takes a text prompt and an output path."]
+
+    start -> research -> imagine -> exit
+}

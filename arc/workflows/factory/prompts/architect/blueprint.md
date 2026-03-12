@@ -1,9 +1,9 @@
-Read the feature requirements doc matching $goal under docs-internal/product/features/.
-Read the foundation blueprints under docs-internal/architecture/foundation-blueprints/ (backend.md, data-layer.md, frontend.md).
-Read all existing feature blueprints under docs-internal/architecture/features/.
+Read the feature requirements doc matching $goal under files-internal/product/features/.
+Read the foundation blueprints under files-internal/architecture/foundation-blueprints/ (backend.md, data-layer.md, frontend.md).
+Read all existing feature blueprints under files-internal/architecture/features/.
 Read the current codebase structure.
 
-Write the feature blueprint at docs-internal/architecture/features/ with:
+Write the feature blueprint at files-internal/architecture/features/ with:
 
 ## Solution Design
 

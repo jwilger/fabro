@@ -1,6 +1,6 @@
 Review the implementation with fresh eyes. You did not write this code.
 
-Read the feature blueprint matching $goal under docs-internal/architecture/features/.
+Read the feature blueprint matching $goal under files-internal/architecture/features/.
 Read the implementation files created or modified by the previous step.
 
 Evaluate the code for:

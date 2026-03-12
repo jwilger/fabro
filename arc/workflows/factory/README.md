@@ -13,7 +13,7 @@ The factory operates on three layers:
 The first two layers are markdown docs. The third is generated from them.
 
 ```
-docs-internal/
+files-internal/
   product/                              Layer 1: WHAT to build
     business-problem.md
     personas.md

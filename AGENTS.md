@@ -73,8 +73,8 @@ Fabro is an AI-powered workflow orchestration platform. Workflows are defined as
 
 When working on Rust crates, read the relevant strategy doc **before** making changes:
 
-- **`docs-internal/logging-strategy.md`** — read when adding `tracing` calls (`info!`, `debug!`, `warn!`, `error!`), working on error handling paths, or adding new operations that should be observable
-- **`docs-internal/events-strategy.md`** — read when adding or modifying `WorkflowRunEvent` variants, touching `EventEmitter`/`emit()`, changing `progress.jsonl` output, or adding new workflow stage types
+- **`files-internal/logging-strategy.md`** — read when adding `tracing` calls (`info!`, `debug!`, `warn!`, `error!`), working on error handling paths, or adding new operations that should be observable
+- **`files-internal/events-strategy.md`** — read when adding or modifying `WorkflowRunEvent` variants, touching `EventEmitter`/`emit()`, changing `progress.jsonl` output, or adding new workflow stage types
 
 ## Shell quoting in sandbox code
 

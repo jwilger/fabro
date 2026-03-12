@@ -1,4 +1,4 @@
-Read all product docs under docs-internal/product/, all architecture docs under docs-internal/architecture/, and the current codebase.
+Read all product docs under files-internal/product/, all architecture docs under files-internal/architecture/, and the current codebase.
 
 The requested change: $goal
 

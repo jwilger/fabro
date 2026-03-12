@@ -1,4 +1,4 @@
-Read the feature blueprint just written and the current system diagrams under docs-internal/architecture/system-diagrams/.
+Read the feature blueprint just written and the current system diagrams under files-internal/architecture/system-diagrams/.
 
 Update only the diagrams that need changes:
 - **entity-relationship-diagram.md**: Add new entities and relationships from the data model section

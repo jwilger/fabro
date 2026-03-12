@@ -1,7 +1,7 @@
 Read all three layers and compare for alignment:
 
-1. **Product docs:** docs-internal/product/ (all feature requirements and acceptance criteria)
-2. **Architecture docs:** docs-internal/architecture/ (foundation blueprints, feature blueprints, system diagrams)
+1. **Product docs:** files-internal/product/ (all feature requirements and acceptance criteria)
+2. **Architecture docs:** files-internal/architecture/ (foundation blueprints, feature blueprints, system diagrams)
 3. **Source code:** the actual implementation
 
 For each feature, check:

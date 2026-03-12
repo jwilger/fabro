@@ -1,4 +1,4 @@
-Write the feature requirements document at docs-internal/product/features/ following the template structure:
+Write the feature requirements document at files-internal/product/features/ following the template structure:
 
 ## Overview
 

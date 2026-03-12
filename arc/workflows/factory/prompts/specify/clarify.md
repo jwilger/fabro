@@ -1,4 +1,4 @@
-Read all product context docs under docs-internal/product/ and all existing feature docs under docs-internal/product/features/.
+Read all product context docs under files-internal/product/ and all existing feature docs under files-internal/product/features/.
 
 The feature to specify: $goal
 
