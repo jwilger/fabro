@@ -1,12 +1,35 @@
 ---
-title: "SSH preview URLs"
+title: "Simpler model stylesheets with provider auto-inference"
 date: "2026-03-12"
 ---
+
+## Simpler model stylesheets
+
+Model stylesheets no longer require you to specify the provider alongside the model. The `llm_model` and `llm_provider` properties have been renamed to `model` and `provider`, and the provider is now auto-inferred from the model catalog — so you can drop `provider` entirely in most cases.
+
+Before:
+
+```css
+* { llm_model: claude-opus-4-6; llm_provider: anthropic; }
+.gpt { llm_model: gpt-5.2; llm_provider: openai; }
+```
+
+After:
+
+```css
+* { model: claude-opus-4-6; }
+.gpt { model: gpt-5.2; }
+```
+
+<Warning>
+**Breaking change.** `llm_model` and `llm_provider` stylesheet properties have been renamed to `model` and `provider`. Update your DOT workflow stylesheets.
+</Warning>
 
 ## More
 
 <Accordion title="Improvements">
-- SSH sandbox now supports `preview_url_base` — set it to the host's reachable address (e.g. `"http://myserver"`) so port preview URLs resolve correctly instead of falling back to `localhost`
+- SSH sandbox now supports `preview_url_base` for correct port preview URLs on remote hosts
+- Renamed `logs-directory` to `run-directory` in docs reference
 </Accordion>
 
 <Accordion title="Fixes">
