@@ -1,0 +1,13 @@
+digraph REPL {
+    graph [goal="Interactive REPL: execute user prompts in a loop"]
+    rankdir=LR
+
+    start  [shape=Mdiamond, label="Start"]
+
+    prompt [shape=hexagon, label="Enter prompt"]
+    agent  [label="Agent", fidelity="summary:high", prompt="Execute the user's request. Their prompt is in the context from the previous human gate."]
+
+    start -> prompt
+    prompt -> agent [freeform=true]
+    agent -> prompt
+}

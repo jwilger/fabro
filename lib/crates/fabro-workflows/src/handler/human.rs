@@ -138,7 +138,12 @@ impl Handler for HumanHandler {
             })
             .collect();
 
-        let mut question = Question::new(node.label(), QuestionType::MultipleChoice);
+        let question_type = if choices.is_empty() {
+            QuestionType::Freeform
+        } else {
+            QuestionType::MultipleChoice
+        };
+        let mut question = Question::new(node.label(), question_type);
         question.options = options;
         question.allow_freeform = freeform_target.is_some();
         question.stage.clone_from(&node.id);
@@ -284,6 +289,7 @@ mod tests {
     use crate::handler::start::StartHandler;
     use crate::handler::HandlerRegistry;
     use crate::interviewer::auto_approve::AutoApproveInterviewer;
+    use crate::interviewer::recording::RecordingInterviewer;
 
     fn make_services() -> EngineServices {
         EngineServices {
@@ -433,5 +439,43 @@ mod tests {
             outcome.context_updates.get(keys::HUMAN_GATE_TEXT),
             Some(&serde_json::json!("custom input"))
         );
+    }
+
+    #[tokio::test]
+    async fn freeform_only_gate_uses_freeform_question_type() {
+        let inner = Box::new(crate::interviewer::callback::CallbackInterviewer::new(
+            |_| Answer::text("hello"),
+        ));
+        let recorder = Arc::new(RecordingInterviewer::new(inner));
+        let handler = HumanHandler::new(recorder.clone());
+
+        let mut graph = Graph::new("test");
+        let mut gate = Node::new("gate");
+        gate.attrs.insert(
+            "label".to_string(),
+            AttrValue::String("Enter prompt".to_string()),
+        );
+        graph.nodes.insert("gate".to_string(), gate);
+        graph
+            .nodes
+            .insert("target".to_string(), Node::new("target"));
+
+        let mut edge = Edge::new("gate", "target");
+        edge.attrs
+            .insert("freeform".to_string(), AttrValue::Boolean(true));
+        graph.edges.push(edge);
+
+        let node = graph.nodes.get("gate").unwrap();
+        let context = Context::new();
+        let run_dir = Path::new("/tmp/test");
+
+        handler
+            .execute(node, &context, &graph, run_dir, &make_services())
+            .await
+            .unwrap();
+
+        let recordings = recorder.recordings();
+        assert_eq!(recordings.len(), 1);
+        assert_eq!(recordings[0].0.question_type, QuestionType::Freeform);
     }
 }
