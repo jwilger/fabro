@@ -1,21 +1,23 @@
 {
-  "timestamp": "2026-03-14T21:04:14.632781Z",
-  "current_node": "validate",
+  "timestamp": "2026-03-14T21:04:16.294888Z",
+  "current_node": "gate",
   "completed_nodes": [
     "start",
     "plan",
     "implement",
-    "validate"
+    "validate",
+    "gate"
   ],
   "node_retries": {
     "implement": 1,
+    "gate": 1,
     "plan": 1,
     "start": 1,
     "validate": 1
   },
   "context_values": {
-    "current_node": "validate",
-    "internal.thread_id": "implement",
+    "current_node": "gate",
+    "internal.thread_id": "validate",
     "internal.run_id": "01KKQ2KT7916BT652VW9CPDMV5",
     "graph.goal": "Implement and validate a feature",
     "last_stage": "validate",
@@ -27,8 +29,9 @@
     "internal.work_dir": "/Users/bhelmkamp/.fabro/runs/20260314-01KKQ2KT7916BT652VW9CPDMV5/worktree",
     "internal.fidelity": "compact",
     "thread.plan.current_node": "implement",
+    "thread.validate.current_node": "gate",
     "failure_signature": "",
-    "current.preamble": "Goal: Implement and validate a feature\n\n## Completed stages\n- **plan**: success\n- **implement**: success\n",
+    "current.preamble": "Goal: Implement and validate a feature\n\n## Completed stages\n- **plan**: success\n- **implement**: success\n- **validate**: success\n",
     "internal.node_visit_count": 1,
     "internal.retry_count.implement": 1,
     "response.plan": "[Simulated] Response for stage: plan",
@@ -36,6 +39,7 @@
     "internal.retry_count.start": 1,
     "outcome": "success",
     "internal.retry_count.validate": 1,
+    "internal.retry_count.gate": 1,
     "internal.retry_count.plan": 1,
     "thread.start.current_node": "plan"
   },
@@ -54,6 +58,11 @@
       },
       "notes": "Stage completed: validate",
       "duration_ms": 5
+    },
+    "gate": {
+      "status": "success",
+      "notes": "Conditional node evaluated: gate",
+      "duration_ms": 0
     },
     "implement": {
       "status": "success",
@@ -76,10 +85,11 @@
       "duration_ms": 10
     }
   },
-  "next_node_id": "gate",
+  "next_node_id": "exit",
   "node_visits": {
     "validate": 1,
     "implement": 1,
+    "gate": 1,
     "start": 1,
     "plan": 1
   }
