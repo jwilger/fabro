@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-03-14T21:18:22.994266Z",
+  "current_node": "main",
+  "completed_nodes": [
+    "start",
+    "main"
+  ],
+  "node_retries": {
+    "start": 1,
+    "main": 1
+  },
+  "context_values": {
+    "thread.start.current_node": "main",
+    "graph.goal": "Verify the sandbox can lint and test the project",
+    "internal.thread_id": "start",
+    "last_response": "All commands have been executed. Here's the summary:\n\n| # | Command | Result |\n|---|---------|--------|\n| 1 | `rustc --version && cargo --version` | ✅ **Pass** — rustc 1.94.0, cargo 1.94.0 |\n| 2 |",
+    "internal.retry_count.main": 1,
+    "current_node": "main",
+    "outcome": "success",
+    "graph.rankdir": "LR",
+    "internal.run_id": "01KKQ3349ZPJ36899XZ0F9WCTA",
+    "internal.retry_count.start": 1,
+    "failure_signature": "",
+    "current.preamble": "Goal: Verify the sandbox can lint and test the project\n",
+    "failure_class": "",
+    "internal.fidelity": "compact",
+    "internal.node_visit_count": 1,
+    "response.main": "All commands have been executed. Here's the summary:\n\n| # | Command | Result |\n|---|---------|--------|\n| 1 | `rustc --version && cargo --version` | ✅ **Pass** — rustc 1.94.0, cargo 1.94.0 |\n| 2 | `bun --version` | ✅ **Pass** — bun 1.3.10 |\n| 3 | `cargo fmt --check --all` | ✅ **Pass** — no formatting issues |\n| 4 | `cargo clippy --workspace -- -D warnings` | ✅ **Pass** — no warnings |\n| 5 | `cargo test --workspace` | ❌ **Fail** — 1 failure: `cli_doctor` trycmd test (`dry-run-flag.toml` expected exit 0 but got exit 1) |\n| 6 | `bun install && bun run typecheck` | ✅ **Pass** — 1086 packages installed, typecheck clean |\n| 7 | `bun test` | ✅ **Pass** — 15 tests passed across 3 files |\n\n**Overall: 6/7 passing.** The single failure is in `fabro-cli`'s `cli_doctor` trycmd test — the `doctor dry-run` subcommand exited with code 1 (expected 0). This is a known CI-environment issue (the doctor command detects missing configuration/tools in the sandbox and reports a non-zero exit), and the recent commit `84932eb` (\"Fix doctor dry-run trycmd test on CI by setting HOME to nonexistent path\") was an attempt to address it that may need further adjustment for this environment.",
+    "last_stage": "main"
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "main": {
+      "status": "success",
+      "context_updates": {
+        "last_stage": "main",
+        "last_response": "All commands have been executed. Here's the summary:\n\n| # | Command | Result |\n|---|---------|--------|\n| 1 | `rustc --version && cargo --version` | ✅ **Pass** — rustc 1.94.0, cargo 1.94.0 |\n| 2 |",
+        "response.main": "All commands have been executed. Here's the summary:\n\n| # | Command | Result |\n|---|---------|--------|\n| 1 | `rustc --version && cargo --version` | ✅ **Pass** — rustc 1.94.0, cargo 1.94.0 |\n| 2 | `bun --version` | ✅ **Pass** — bun 1.3.10 |\n| 3 | `cargo fmt --check --all` | ✅ **Pass** — no formatting issues |\n| 4 | `cargo clippy --workspace -- -D warnings` | ✅ **Pass** — no warnings |\n| 5 | `cargo test --workspace` | ❌ **Fail** — 1 failure: `cli_doctor` trycmd test (`dry-run-flag.toml` expected exit 0 but got exit 1) |\n| 6 | `bun install && bun run typecheck` | ✅ **Pass** — 1086 packages installed, typecheck clean |\n| 7 | `bun test` | ✅ **Pass** — 15 tests passed across 3 files |\n\n**Overall: 6/7 passing.** The single failure is in `fabro-cli`'s `cli_doctor` trycmd test — the `doctor dry-run` subcommand exited with code 1 (expected 0). This is a known CI-environment issue (the doctor command detects missing configuration/tools in the sandbox and reports a non-zero exit), and the recent commit `84932eb` (\"Fix doctor dry-run trycmd test on CI by setting HOME to nonexistent path\") was an attempt to address it that may need further adjustment for this environment."
+      },
+      "notes": "Stage completed: main",
+      "usage": {
+        "model": "claude-opus-4-6",
+        "input_tokens": 10095,
+        "output_tokens": 1346,
+        "cache_read_tokens": 39645,
+        "cache_write_tokens": 18129,
+        "reasoning_tokens": 95,
+        "cost": 0.252375
+      },
+      "duration_ms": 345232
+    }
+  },
+  "next_node_id": "exit",
+  "node_visits": {
+    "start": 1,
+    "main": 1
+  }
+}
