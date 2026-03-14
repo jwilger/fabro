@@ -1,0 +1,9 @@
+{
+  "status": "success",
+  "context_updates": {
+    "last_stage": "branch2",
+    "response.branch2": "[Simulated] Response for stage: branch2",
+    "last_response": "[Simulated] Response for stage: branch2"
+  },
+  "notes": "Stage completed: branch2"
+}
