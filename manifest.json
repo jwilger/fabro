@@ -1,0 +1,12 @@
+{
+  "run_id": "01KKPZWZD0FP9Q2PHVNDBY36SS",
+  "workflow_name": "Smoke",
+  "goal": "Verify the sandbox can lint and test the project",
+  "start_time": "2026-03-14T20:16:52.773554Z",
+  "node_count": 3,
+  "edge_count": 2,
+  "run_branch": "fabro/run/01KKPZWZD0FP9Q2PHVNDBY36SS",
+  "base_sha": "94652907b019c6177a9de324ea9abde10c9d89cd",
+  "base_branch": "main",
+  "workflow_slug": "smoke"
+}
