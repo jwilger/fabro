@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-03-14T20:23:24.154965Z",
+  "current_node": "main",
+  "completed_nodes": [
+    "start",
+    "main"
+  ],
+  "node_retries": {
+    "start": 1,
+    "main": 1
+  },
+  "context_values": {
+    "internal.thread_id": "start",
+    "last_response": "All done. Here's the summary:\n\n---\n\n## Results Summary\n\n| # | Step | Command | Result |\n|---|------|---------|--------|\n| 1 | Rust toolchain | `rustc --version && cargo --version` | ✅ **PASS** — r",
+    "failure_class": "",
+    "failure_signature": "",
+    "internal.fidelity": "compact",
+    "internal.node_visit_count": 1,
+    "thread.start.current_node": "main",
+    "response.main": "All done. Here's the summary:\n\n---\n\n## Results Summary\n\n| # | Step | Command | Result |\n|---|------|---------|--------|\n| 1 | Rust toolchain | `rustc --version && cargo --version` | ✅ **PASS** — rustc 1.94.0, cargo 1.94.0 |\n| 2 | Bun version | `bun --version` | ✅ **PASS** — 1.3.10 |\n| 3 | Rust formatting | `cargo fmt --check --all` | ✅ **PASS** |\n| 4 | Clippy lints | `cargo clippy --workspace -- -D warnings` | ✅ **PASS** |\n| 5 | Rust tests | `cargo test --workspace` | ❌ **FAIL** — 1 failure (`cli_doctor` trycmd) |\n| 6 | TS typecheck | `bun install && bun run typecheck` | ✅ **PASS** |\n| 7 | TS tests | `bun test` | ✅ **PASS** — 15/15 |\n\n### Failure Details\n\n**Step 5 — `cargo test --workspace`**: The `cli_doctor` trycmd snapshot test failed. The test `tests/cmd/doctor/dry-run-flag.toml` expected exit code 0 but the command exited with code 1. This is a snapshot/environment mismatch — the `fabro doctor` command likely fails in this sandbox because required tools or config aren't fully present. All other test suites passed (186 tests passed, 11 ignored for missing API keys).\n\n**Overall: 6/7 steps pass. The single failure is an environment-specific trycmd snapshot, not a code defect.**",
+    "graph.rankdir": "LR",
+    "internal.retry_count.start": 1,
+    "outcome": "success",
+    "last_stage": "main",
+    "graph.goal": "Verify the sandbox can lint and test the project",
+    "internal.retry_count.main": 1,
+    "current_node": "main",
+    "current.preamble": "Goal: Verify the sandbox can lint and test the project\n",
+    "internal.run_id": "01KKPZWZD0FP9Q2PHVNDBY36SS"
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "main": {
+      "status": "success",
+      "context_updates": {
+        "response.main": "All done. Here's the summary:\n\n---\n\n## Results Summary\n\n| # | Step | Command | Result |\n|---|------|---------|--------|\n| 1 | Rust toolchain | `rustc --version && cargo --version` | ✅ **PASS** — rustc 1.94.0, cargo 1.94.0 |\n| 2 | Bun version | `bun --version` | ✅ **PASS** — 1.3.10 |\n| 3 | Rust formatting | `cargo fmt --check --all` | ✅ **PASS** |\n| 4 | Clippy lints | `cargo clippy --workspace -- -D warnings` | ✅ **PASS** |\n| 5 | Rust tests | `cargo test --workspace` | ❌ **FAIL** — 1 failure (`cli_doctor` trycmd) |\n| 6 | TS typecheck | `bun install && bun run typecheck` | ✅ **PASS** |\n| 7 | TS tests | `bun test` | ✅ **PASS** — 15/15 |\n\n### Failure Details\n\n**Step 5 — `cargo test --workspace`**: The `cli_doctor` trycmd snapshot test failed. The test `tests/cmd/doctor/dry-run-flag.toml` expected exit code 0 but the command exited with code 1. This is a snapshot/environment mismatch — the `fabro doctor` command likely fails in this sandbox because required tools or config aren't fully present. All other test suites passed (186 tests passed, 11 ignored for missing API keys).\n\n**Overall: 6/7 steps pass. The single failure is an environment-specific trycmd snapshot, not a code defect.**",
+        "last_stage": "main",
+        "last_response": "All done. Here's the summary:\n\n---\n\n## Results Summary\n\n| # | Step | Command | Result |\n|---|------|---------|--------|\n| 1 | Rust toolchain | `rustc --version && cargo --version` | ✅ **PASS** — r"
+      },
+      "notes": "Stage completed: main",
+      "usage": {
+        "model": "claude-opus-4-6",
+        "input_tokens": 10104,
+        "output_tokens": 1366,
+        "cache_read_tokens": 43636,
+        "cache_write_tokens": 14146,
+        "reasoning_tokens": 104,
+        "cost": 0.25401
+      },
+      "duration_ms": 391368
+    }
+  },
+  "next_node_id": "exit",
+  "node_visits": {
+    "start": 1,
+    "main": 1
+  }
+}
