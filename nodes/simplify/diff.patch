@@ -1,0 +1,186 @@
+diff --git a/lib/crates/fabro-workflows/src/engine.rs b/lib/crates/fabro-workflows/src/engine.rs
+index a26b418..42ef402 100644
+--- a/lib/crates/fabro-workflows/src/engine.rs
++++ b/lib/crates/fabro-workflows/src/engine.rs
+@@ -5218,4 +5218,4 @@ mod tests {
+             "work node should have a git checkpoint, but found: {git_checkpoint_node_ids:?}"
+         );
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/agent.rs b/lib/crates/fabro-workflows/src/handler/agent.rs
+index 7a54327..342b15e 100644
+--- a/lib/crates/fabro-workflows/src/handler/agent.rs
++++ b/lib/crates/fabro-workflows/src/handler/agent.rs
+@@ -196,6 +196,25 @@ pub(crate) fn truncate(s: &str, max_chars: usize) -> &str {
+     }
+ }
+ 
++/// Shared simulate implementation for LLM-backed handlers (agent & prompt).
++/// Produces a simulated outcome with standard context updates.
++pub(crate) fn simulate_llm_handler(node: &Node) -> Outcome {
++    let simulated_text = format!("[Simulated] Response for stage: {}", node.id);
++    let mut outcome = Outcome::simulated(&node.id);
++    outcome
++        .context_updates
++        .insert(keys::LAST_STAGE.to_string(), serde_json::json!(node.id));
++    outcome.context_updates.insert(
++        keys::LAST_RESPONSE.to_string(),
++        serde_json::json!(truncate(&simulated_text, 200)),
++    );
++    outcome.context_updates.insert(
++        keys::response_key(&node.id),
++        serde_json::json!(&simulated_text),
++    );
++    outcome
++}
++
+ #[async_trait]
+ impl Handler for AgentHandler {
+     async fn simulate(
+@@ -206,20 +225,7 @@ impl Handler for AgentHandler {
+         _run_dir: &Path,
+         _services: &EngineServices,
+     ) -> Result<Outcome, FabroError> {
+-        let simulated_text = format!("[Simulated] Response for stage: {}", node.id);
+-        let mut outcome = Outcome::simulated(&node.id);
+-        outcome
+-            .context_updates
+-            .insert(keys::LAST_STAGE.to_string(), serde_json::json!(node.id));
+-        outcome.context_updates.insert(
+-            keys::LAST_RESPONSE.to_string(),
+-            serde_json::json!(truncate(&simulated_text, 200)),
+-        );
+-        outcome.context_updates.insert(
+-            keys::response_key(&node.id),
+-            serde_json::json!(&simulated_text),
+-        );
+-        Ok(outcome)
++        Ok(simulate_llm_handler(node))
+     }
+ 
+     async fn execute(
+@@ -1115,4 +1121,4 @@ Some text in between.
+             "prompt.md should contain original prompt"
+         );
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/command.rs b/lib/crates/fabro-workflows/src/handler/command.rs
+index b54ddb2..79bd8e6 100644
+--- a/lib/crates/fabro-workflows/src/handler/command.rs
++++ b/lib/crates/fabro-workflows/src/handler/command.rs
+@@ -42,7 +42,7 @@ impl Handler for CommandHandler {
+             .and_then(|v| v.as_str())
+             .unwrap_or("");
+ 
+-        let mut outcome = Outcome::success();
++        let mut outcome = Outcome::simulated(&node.id);
+         outcome.notes = Some(format!("[Simulated] Command skipped: {script}"));
+         outcome
+             .context_updates
+@@ -968,4 +968,4 @@ mod tests {
+             "command.output should contain stdout, got: {command_output:?}"
+         );
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/fan_in.rs b/lib/crates/fabro-workflows/src/handler/fan_in.rs
+index df4ffeb..eb93d6e 100644
+--- a/lib/crates/fabro-workflows/src/handler/fan_in.rs
++++ b/lib/crates/fabro-workflows/src/handler/fan_in.rs
+@@ -54,6 +54,7 @@ impl Handler for FanInHandler {
+             keys::PARALLEL_FAN_IN_BEST_OUTCOME.to_string(),
+             serde_json::json!(best.status),
+         );
++        // Override the generic simulated notes with handler-specific detail.
+         outcome.notes = Some(format!("[Simulated] Selected best candidate: {}", best.id));
+         Ok(outcome)
+     }
+@@ -577,4 +578,4 @@ mod tests {
+             Some(&serde_json::json!("branch_b"))
+         );
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/human.rs b/lib/crates/fabro-workflows/src/handler/human.rs
+index 0ebdfab..002b181 100644
+--- a/lib/crates/fabro-workflows/src/handler/human.rs
++++ b/lib/crates/fabro-workflows/src/handler/human.rs
+@@ -532,4 +532,4 @@ mod tests {
+         );
+         assert_eq!(outcome.suggested_next_ids, vec!["approve"]);
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/mod.rs b/lib/crates/fabro-workflows/src/handler/mod.rs
+index 2b1ee27..5e07181 100644
+--- a/lib/crates/fabro-workflows/src/handler/mod.rs
++++ b/lib/crates/fabro-workflows/src/handler/mod.rs
+@@ -382,4 +382,4 @@ mod tests {
+         // execute() returns success with no notes
+         assert!(outcome.notes.is_none());
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/parallel.rs b/lib/crates/fabro-workflows/src/handler/parallel.rs
+index a636436..41b83f9 100644
+--- a/lib/crates/fabro-workflows/src/handler/parallel.rs
++++ b/lib/crates/fabro-workflows/src/handler/parallel.rs
+@@ -1028,4 +1028,4 @@ mod tests {
+         let branch_count = context.get(keys::PARALLEL_BRANCH_COUNT);
+         assert_eq!(branch_count, Some(serde_json::json!(2)));
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/handler/prompt.rs b/lib/crates/fabro-workflows/src/handler/prompt.rs
+index 7ace01c..77e7f8e 100644
+--- a/lib/crates/fabro-workflows/src/handler/prompt.rs
++++ b/lib/crates/fabro-workflows/src/handler/prompt.rs
+@@ -37,20 +37,7 @@ impl Handler for PromptHandler {
+         _run_dir: &Path,
+         _services: &EngineServices,
+     ) -> Result<Outcome, FabroError> {
+-        let simulated_text = format!("[Simulated] Response for stage: {}", node.id);
+-        let mut outcome = Outcome::simulated(&node.id);
+-        outcome
+-            .context_updates
+-            .insert(keys::LAST_STAGE.to_string(), serde_json::json!(node.id));
+-        outcome.context_updates.insert(
+-            keys::LAST_RESPONSE.to_string(),
+-            serde_json::json!(super::agent::truncate(&simulated_text, 200)),
+-        );
+-        outcome.context_updates.insert(
+-            keys::response_key(&node.id),
+-            serde_json::json!(&simulated_text),
+-        );
+-        Ok(outcome)
++        Ok(super::agent::simulate_llm_handler(node))
+     }
+ 
+     async fn execute(
+@@ -416,4 +403,4 @@ mod tests {
+             "system_prompt should be None when project_memory=false"
+         );
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/lib/crates/fabro-workflows/src/outcome.rs b/lib/crates/fabro-workflows/src/outcome.rs
+index 16d935c..2580411 100644
+--- a/lib/crates/fabro-workflows/src/outcome.rs
++++ b/lib/crates/fabro-workflows/src/outcome.rs
+@@ -458,4 +458,4 @@ mod tests {
+         assert!(o.failure.is_none());
+         assert!(o.context_updates.is_empty());
+     }
+-}
+\ No newline at end of file
++}
