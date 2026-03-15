@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-03-15T21:52:56.811439Z",
+  "current_node": "check_auth",
+  "completed_nodes": [
+    "start",
+    "check_auth"
+  ],
+  "node_retries": {
+    "check_auth": 1,
+    "start": 1
+  },
+  "context_values": {
+    "command.output": "",
+    "failure_class": "",
+    "current.preamble": "Goal: Verify GitHub CLI authentication works via GITHUB_TOKEN\n",
+    "thread.start.current_node": "check_auth",
+    "outcome": "success",
+    "graph.rankdir": "LR",
+    "current_node": "check_auth",
+    "internal.fidelity": "compact",
+    "internal.node_visit_count": 1,
+    "internal.run_id": "01KKSQSTR5WAYHP9T0C6DJEEX8",
+    "command.stderr": "",
+    "graph.goal": "Verify GitHub CLI authentication works via GITHUB_TOKEN",
+    "internal.retry_count.start": 1,
+    "internal.retry_count.check_auth": 1,
+    "internal.work_dir": "/Users/bhelmkamp/.fabro/runs/20260315-01KKSQSTR5WAYHP9T0C6DJEEX8/worktree",
+    "failure_signature": "",
+    "internal.thread_id": "start"
+  },
+  "logs": [],
+  "node_outcomes": {
+    "check_auth": {
+      "status": "success",
+      "context_updates": {
+        "command.stderr": "",
+        "command.output": ""
+      },
+      "notes": "[Simulated] Command skipped: echo '--- Checking gh auth status ---' && gh auth status && echo '--- Listing repo ---' && gh repo view fabro-sh/fabro --json name,owner -q '.owner.login + \"/\" + .name' && echo '--- Done ---'",
+      "duration_ms": 0
+    },
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    }
+  },
+  "next_node_id": "exit",
+  "node_visits": {
+    "start": 1,
+    "check_auth": 1
+  }
+}
