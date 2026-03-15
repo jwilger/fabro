@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-03-15T22:54:36.405505Z",
+  "current_node": "toolchain",
+  "completed_nodes": [
+    "start",
+    "toolchain"
+  ],
+  "node_retries": {
+    "toolchain": 1,
+    "start": 1
+  },
+  "context_values": {
+    "current.preamble": "Goal: # Rename `[feature_flags]` to `[features]`\n\n## Context\nRename the TOML config section `[feature_flags]` → `[features]` and the corresponding Rust struct field `feature_flags` → `features` throughout the codebase. The `FeatureFlags` type name stays as-is (only the field/key name changes).\n\n## Changes\n\n### 1. OpenAPI spec (source of truth)\n**`docs/api-reference/fabro-api.yaml`** (~line 4276)\n- Rename `feature_flags` property → `features` in `ServerConfiguration` schema\n- Rename `FeatureFlags` schema → `Features`\n\n### 2. Rust — fabro-config\n**`lib/crates/fabro-config/src/server.rs`**\n- Rename struct `FeatureFlags` → `Features` (line 119)\n- Rename field `feature_flags: FeatureFlags` → `features: Features` in `ServerConfig` (line 140)\n- Update tests: `parse_feature_flags` and `parse_feature_flags_defaults` — update TOML strings (`[feature_flags]` → `[features]`) and field accesses (`config.feature_flags` → `config.features`)\n\n### 3. Rust — fabro-api\n**`lib/crates/fabro-api/src/demo/mod.rs`** (~line 3280)\n- `feature_flags: FeatureFlags { … }` → `features: Features { … }`\n\n**`lib/crates/fabro-api/tests/openapi_conformance.rs`** (~line 273)\n- `feature_flags: FeatureFlags { … }` → `features: Features { … }`\n\n### 4. Regenerate fabro-types\n- `cargo build -p fabro-types` (picks up OpenAPI rename)\n\n### 5. Regenerate TypeScript API client\n- `cd lib/packages/fabro-api-client && bun run generate`\n- This will auto-rename the generated files: `feature-flags.ts` → `features.ts`, update `server-configuration.ts`, and `index.ts`\n\n### 6. TypeScript — fabro-web (manual edits)\n**`apps/fabro-web/app/lib/config.server.ts`**\n- Rename `FeatureFlags` interface → `Features`\n- Rename `feature_flags` property → `features` in `AppConfig` interface\n- Rename `FEATURE_FLAGS_DEFAULTS` → `FEATURES_DEFAULTS`\n- Update `raw.feature_flags` → `raw.features`\n- Update spread: `feature_flags: { …FEATURE_FLAGS_DEFAULTS, …rawFeatureFlags }` → `features: { …FEATURES_DEFAULTS, …rawFeatures }`\n\n**`apps/fabro-web/app/layouts/app-shell.tsx`** (~line 45, 51)\n- `feature_flags: config.feature_flags` → `features: config.features`\n\n**`apps/fabro-web/app/routes/start.tsx`**\n- `const { features } = getAppConfig()` (was `feature_flags`)\n- `return { sessionGroups, features }`\n- `const { sessionGroups, features } = loaderData`\n- `{features.session_sandboxes && (`\n\n### 7. Config file\n**`docker/demo-server.toml`**\n- `[feature_flags]` → `[features]`\n\n## Verification\n1. `cargo build --workspace`\n2. `cargo test -p fabro-config`\n3. `cargo test -p fabro-api`\n4. `cd apps/fabro-web && bun run typecheck`\n\n",
+    "graph.goal": "# Rename `[feature_flags]` to `[features]`\n\n## Context\nRename the TOML config section `[feature_flags]` → `[features]` and the corresponding Rust struct field `feature_flags` → `features` throughout the codebase. The `FeatureFlags` type name stays as-is (only the field/key name changes).\n\n## Changes\n\n### 1. OpenAPI spec (source of truth)\n**`docs/api-reference/fabro-api.yaml`** (~line 4276)\n- Rename `feature_flags` property → `features` in `ServerConfiguration` schema\n- Rename `FeatureFlags` schema → `Features`\n\n### 2. Rust — fabro-config\n**`lib/crates/fabro-config/src/server.rs`**\n- Rename struct `FeatureFlags` → `Features` (line 119)\n- Rename field `feature_flags: FeatureFlags` → `features: Features` in `ServerConfig` (line 140)\n- Update tests: `parse_feature_flags` and `parse_feature_flags_defaults` — update TOML strings (`[feature_flags]` → `[features]`) and field accesses (`config.feature_flags` → `config.features`)\n\n### 3. Rust — fabro-api\n**`lib/crates/fabro-api/src/demo/mod.rs`** (~line 3280)\n- `feature_flags: FeatureFlags { … }` → `features: Features { … }`\n\n**`lib/crates/fabro-api/tests/openapi_conformance.rs`** (~line 273)\n- `feature_flags: FeatureFlags { … }` → `features: Features { … }`\n\n### 4. Regenerate fabro-types\n- `cargo build -p fabro-types` (picks up OpenAPI rename)\n\n### 5. Regenerate TypeScript API client\n- `cd lib/packages/fabro-api-client && bun run generate`\n- This will auto-rename the generated files: `feature-flags.ts` → `features.ts`, update `server-configuration.ts`, and `index.ts`\n\n### 6. TypeScript — fabro-web (manual edits)\n**`apps/fabro-web/app/lib/config.server.ts`**\n- Rename `FeatureFlags` interface → `Features`\n- Rename `feature_flags` property → `features` in `AppConfig` interface\n- Rename `FEATURE_FLAGS_DEFAULTS` → `FEATURES_DEFAULTS`\n- Update `raw.feature_flags` → `raw.features`\n- Update spread: `feature_flags: { …FEATURE_FLAGS_DEFAULTS, …rawFeatureFlags }` → `features: { …FEATURES_DEFAULTS, …rawFeatures }`\n\n**`apps/fabro-web/app/layouts/app-shell.tsx`** (~line 45, 51)\n- `feature_flags: config.feature_flags` → `features: config.features`\n\n**`apps/fabro-web/app/routes/start.tsx`**\n- `const { features } = getAppConfig()` (was `feature_flags`)\n- `return { sessionGroups, features }`\n- `const { sessionGroups, features } = loaderData`\n- `{features.session_sandboxes && (`\n\n### 7. Config file\n**`docker/demo-server.toml`**\n- `[feature_flags]` → `[features]`\n\n## Verification\n1. `cargo build --workspace`\n2. `cargo test -p fabro-config`\n3. `cargo test -p fabro-api`\n4. `cd apps/fabro-web && bun run typecheck`\n",
+    "graph.model_stylesheet": "\n            * { backend: api; model: claude-opus-4-6;}\n        ",
+    "thread.start.current_node": "toolchain",
+    "internal.thread_id": "start",
+    "outcome": "success",
+    "failure_class": "",
+    "failure_signature": "",
+    "command.stderr": "",
+    "internal.fidelity": "compact",
+    "command.output": "cargo 1.94.0 (85eff7c80 2026-01-15)\n",
+    "internal.run_id": "01KKSVAFR3EPEE70H482SNZZ0B",
+    "internal.retry_count.toolchain": 1,
+    "graph.rankdir": "LR",
+    "internal.node_visit_count": 1,
+    "current_node": "toolchain",
+    "internal.retry_count.start": 1
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "toolchain": {
+      "status": "success",
+      "context_updates": {
+        "command.stderr": "",
+        "command.output": "cargo 1.94.0 (85eff7c80 2026-01-15)\n"
+      },
+      "notes": "Script completed: command -v cargo >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && sudo ln -sf $HOME/.cargo/bin/* /usr/local/bin/; }; cargo --version 2>&1",
+      "duration_ms": 328
+    }
+  },
+  "next_node_id": "preflight_compile",
+  "node_visits": {
+    "start": 1,
+    "toolchain": 1
+  }
+}
