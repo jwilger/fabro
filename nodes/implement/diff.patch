@@ -1,0 +1,1311 @@
+diff --git a/docs/agents/hooks.mdx b/docs/agents/hooks.mdx
+index 25cf860..9fdffd1 100644
+--- a/docs/agents/hooks.mdx
++++ b/docs/agents/hooks.mdx
+@@ -94,7 +94,7 @@ Each hook fires on a specific lifecycle event:
+ | `edge_selected` | After an edge is chosen for traversal | Yes |
+ | `parallel_start` | Before parallel branches fan out | No |
+ | `parallel_complete` | After parallel branches merge | No |
+-| `sandbox_ready` | After the sandbox environment is created | No |
++| `sandbox_ready` | After the sandbox is initialized and ready | Yes |
+ | `sandbox_cleanup` | Before the sandbox is torn down | No |
+ | `checkpoint_saved` | After a checkpoint is written to disk | No |
+ | `pre_tool_use` | Before an agent tool call executes | Yes |
+@@ -137,7 +137,7 @@ sandbox = false
+ 
+ Blocking hooks can affect workflow execution. Non-blocking hooks run for side effects only — their decisions are ignored.
+ 
+-**Blocking by default:** `run_start`, `stage_start`, `edge_selected`, `pre_tool_use`. These events represent decision points where a hook can prevent or redirect execution.
++**Blocking by default:** `run_start`, `stage_start`, `edge_selected`, `pre_tool_use`, `sandbox_ready`. These events represent decision points where a hook can prevent or redirect execution.
+ 
+ **Non-blocking by default:** All other events. Override with `blocking = true` if needed.
+ 
+@@ -399,4 +399,4 @@ event = "post_tool_use"
+ command = "cargo fmt"
+ matcher = "write_file|edit_file|apply_patch"
+ blocking = true
+-```
++```
+\ No newline at end of file
+diff --git a/lib/crates/fabro-workflows/src/cli/run.rs b/lib/crates/fabro-workflows/src/cli/run.rs
+index 749f888..157439c 100644
+--- a/lib/crates/fabro-workflows/src/cli/run.rs
++++ b/lib/crates/fabro-workflows/src/cli/run.rs
+@@ -798,7 +798,104 @@ pub async fn run_command(
+         None
+     };
+ 
+-    // Wrap emitter in Fabro now so we can share it with exec env callbacks
++    // Deferred sandbox reference — filled after sandbox creation, consumed by event listeners.
++    let deferred_sandbox: Arc<Mutex<Option<Arc<dyn Sandbox>>>> = Arc::new(Mutex::new(None));
++
++    // Register SandboxInitialized listener (must happen before emitter is wrapped in Arc)
++    {
++        let sandbox_provider_name = match sandbox_provider {
++            SandboxProvider::Local => "local",
++            SandboxProvider::Docker => "docker",
++            SandboxProvider::Daytona => "daytona",
++            #[cfg(feature = "exedev")]
++            SandboxProvider::Exe => "exe",
++            SandboxProvider::Ssh => "ssh",
++        };
++        let run_dir_for_listener = run_dir.clone();
++        let progress_for_listener = Arc::clone(&progress_ui);
++        let cwd_for_listener = cwd.to_string_lossy().to_string();
++        let ssh_data_host = ssh_config.as_ref().map(|c| c.destination.clone());
++        let deferred_sb = Arc::clone(&deferred_sandbox);
++        let provider_name = sandbox_provider_name.to_string();
++        emitter.on_event(move |event| {
++            if let crate::event::WorkflowRunEvent::SandboxInitialized { working_directory } = event
++            {
++                progress_for_listener
++                    .lock()
++                    .expect("progress lock poisoned")
++                    .set_working_directory(working_directory.clone());
++
++                // Build sandbox record from template
++                let sandbox_info_opt = deferred_sb
++                    .lock()
++                    .unwrap()
++                    .as_ref()
++                    .map(|sb| {
++                        let info = sb.sandbox_info();
++                        if info.is_empty() {
++                            None
++                        } else {
++                            Some(info)
++                        }
++                    })
++                    .unwrap_or(None);
++
++                let record = crate::sandbox_record::SandboxRecord {
++                    provider: provider_name.clone(),
++                    working_directory: working_directory.clone(),
++                    identifier: sandbox_info_opt,
++                    host_working_directory: if provider_name == "docker" {
++                        Some(cwd_for_listener.clone())
++                    } else {
++                        None
++                    },
++                    container_mount_point: if provider_name == "docker" {
++                        Some(working_directory.clone())
++                    } else {
++                        None
++                    },
++                    data_host: if provider_name == "ssh" {
++                        ssh_data_host.clone()
++                    } else {
++                        None
++                    },
++                };
++                if let Err(e) = record.save(&run_dir_for_listener.join("sandbox.json")) {
++                    tracing::warn!(error = %e, "Failed to save sandbox record");
++                }
++            }
++        });
++    }
++
++    // Register SSH access listener
++    if args.ssh {
++        let deferred_sb_ssh = Arc::clone(&deferred_sandbox);
++        emitter.on_event(move |event| {
++            if let crate::event::WorkflowRunEvent::SandboxInitialized { .. } = event {
++                if let Ok(rt) = tokio::runtime::Handle::try_current() {
++                    let sb_lock = deferred_sb_ssh.lock().unwrap();
++                    if let Some(ref sb) = *sb_lock {
++                        let sb = Arc::clone(sb);
++                        rt.spawn(async move {
++                            match sb.ssh_access_command().await {
++                                Ok(Some(_ssh_command)) => {
++                                    // Note: we can't emit from here since emitter is shared;
++                                    // SSH access info is logged via tracing.
++                                    tracing::info!(ssh_command = _ssh_command, "SSH access ready");
++                                }
++                                Ok(None) => {}
++                                Err(e) => {
++                                    tracing::warn!(error = %e, "Failed to create SSH access");
++                                }
++                            }
++                        });
++                    }
++                }
++            }
++        });
++    }
++
++    // Wrap emitter in Arc so we can share it with exec env callbacks
+     let emitter = Arc::new(emitter);
+ 
+     let sandbox: Arc<dyn Sandbox> = match sandbox_provider {
+@@ -881,214 +978,12 @@ pub async fn run_command(
+         }
+     };
+ 
+-    // Initialize sandbox (creates sandbox/container once for the whole run)
+-    sandbox
+-        .initialize()
+-        .await
+-        .map_err(|e| anyhow::anyhow!("Failed to initialize sandbox: {e}"))?;
+-
+-    progress_ui
+-        .lock()
+-        .expect("progress lock poisoned")
+-        .set_working_directory(sandbox.working_directory().to_string());
+-
+-    // Persist sandbox connection info for `fabro cp`
+-    {
+-        let sandbox_info_opt = {
+-            let info = sandbox.sandbox_info();
+-            if info.is_empty() {
+-                None
+-            } else {
+-                Some(info)
+-            }
+-        };
+-        let record = match sandbox_provider {
+-            SandboxProvider::Local => crate::sandbox_record::SandboxRecord {
+-                provider: "local".to_string(),
+-                working_directory: sandbox.working_directory().to_string(),
+-                identifier: None,
+-                host_working_directory: None,
+-                container_mount_point: None,
+-                data_host: None,
+-            },
+-            SandboxProvider::Docker => crate::sandbox_record::SandboxRecord {
+-                provider: "docker".to_string(),
+-                working_directory: sandbox.working_directory().to_string(),
+-                identifier: sandbox_info_opt,
+-                host_working_directory: Some(cwd.to_string_lossy().to_string()),
+-                container_mount_point: Some(sandbox.working_directory().to_string()),
+-                data_host: None,
+-            },
+-            SandboxProvider::Daytona => crate::sandbox_record::SandboxRecord {
+-                provider: "daytona".to_string(),
+-                working_directory: sandbox.working_directory().to_string(),
+-                identifier: sandbox_info_opt,
+-                host_working_directory: None,
+-                container_mount_point: None,
+-                data_host: None,
+-            },
+-            #[cfg(feature = "exedev")]
+-            SandboxProvider::Exe => {
+-                // Extract data_host from the ssh access command ("ssh <host>")
+-                let data_host = sandbox
+-                    .ssh_access_command()
+-                    .await
+-                    .ok()
+-                    .flatten()
+-                    .and_then(|cmd| cmd.strip_prefix("ssh ").map(String::from));
+-                crate::sandbox_record::SandboxRecord {
+-                    provider: "exe".to_string(),
+-                    working_directory: sandbox.working_directory().to_string(),
+-                    identifier: sandbox_info_opt,
+-                    host_working_directory: None,
+-                    container_mount_point: None,
+-                    data_host,
+-                }
+-            }
+-            SandboxProvider::Ssh => {
+-                let data_host = ssh_config.as_ref().map(|c| c.destination.clone());
+-                crate::sandbox_record::SandboxRecord {
+-                    provider: "ssh".to_string(),
+-                    working_directory: sandbox.working_directory().to_string(),
+-                    identifier: sandbox_info_opt,
+-                    host_working_directory: None,
+-                    container_mount_point: None,
+-                    data_host,
+-                }
+-            }
+-        };
+-        if let Err(e) = record.save(&run_dir.join("sandbox.json")) {
+-            tracing::warn!(error = %e, "Failed to save sandbox record");
+-        }
+-    }
+-
+     // Wrap with ReadBeforeWriteSandbox to enforce read-before-write guard
++    // (delegate_sandbox! macro delegates initialize/cleanup)
+     let sandbox: Arc<dyn Sandbox> = Arc::new(fabro_agent::ReadBeforeWriteSandbox::new(sandbox));
+ 
+-    // Safety net: if we panic or return early, best-effort cleanup via spawn.
+-    let sandbox_for_cleanup = Arc::clone(&sandbox);
+-    let cleanup_guard = scopeguard::guard((), move |()| {
+-        if preserve_sandbox {
+-            return;
+-        }
+-        let rt = tokio::runtime::Handle::try_current();
+-        if let Ok(handle) = rt {
+-            handle.spawn(async move {
+-                let _ = sandbox_for_cleanup.cleanup().await;
+-            });
+-        }
+-    });
+-
+-    // Set up git inside remote sandbox (Daytona or exe.dev) for checkpoint commits
+-    let (remote_base_sha, remote_branch, remote_base_branch) = if sandbox.is_remote() {
+-        match setup_remote_git(&*sandbox, &run_id).await {
+-            Ok((base, branch, base_br)) => (Some(base), Some(branch), base_br),
+-            Err(e) => {
+-                eprintln!(
+-                    "{} Remote git setup failed ({e}), running without git checkpoints.",
+-                    styles.yellow.apply_to("Warning:"),
+-                );
+-                (None, None, None)
+-            }
+-        }
+-    } else {
+-        (None, None, None)
+-    };
+-
+-    if worktree_base_sha.is_none() {
+-        if let Some(ref sha) = remote_base_sha {
+-            let branch = detected_base_branch
+-                .as_deref()
+-                .or(remote_base_branch.as_deref());
+-            progress_ui
+-                .lock()
+-                .expect("progress lock poisoned")
+-                .show_base_info(branch, sha);
+-        }
+-    }
+-
+-    // Create SSH access if requested
+-    if args.ssh {
+-        match sandbox.ssh_access_command().await {
+-            Ok(Some(ssh_command)) => {
+-                emitter.emit(&crate::event::WorkflowRunEvent::SshAccessReady { ssh_command });
+-            }
+-            Ok(None) => {
+-                eprintln!(
+-                    "{} --ssh only works with --sandbox daytona, exe, or ssh, skipping.",
+-                    styles.yellow.apply_to("Warning:"),
+-                );
+-            }
+-            Err(e) => {
+-                eprintln!(
+-                    "{} Failed to create SSH access: {e}",
+-                    styles.yellow.apply_to("Warning:"),
+-                );
+-            }
+-        }
+-    }
+-
+-    // Run setup commands inside the sandbox (once, not per-stage)
+-    if !setup_commands.is_empty() {
+-        emitter.emit(&crate::event::WorkflowRunEvent::SetupStarted {
+-            command_count: setup_commands.len(),
+-        });
+-        let setup_start = Instant::now();
+-        for (index, cmd) in setup_commands.iter().enumerate() {
+-            emitter.emit(&crate::event::WorkflowRunEvent::SetupCommandStarted {
+-                command: cmd.clone(),
+-                index,
+-            });
+-            let cmd_start = Instant::now();
+-            let result = sandbox
+-                .exec_command(cmd, 300_000, None, None, None)
+-                .await
+-                .map_err(|e| anyhow::anyhow!("Setup command failed: {e}"))?;
+-            let cmd_duration = crate::millis_u64(cmd_start.elapsed());
+-            if result.exit_code != 0 {
+-                emitter.emit(&crate::event::WorkflowRunEvent::SetupFailed {
+-                    command: cmd.clone(),
+-                    index,
+-                    exit_code: result.exit_code,
+-                    stderr: result.stderr.clone(),
+-                });
+-                anyhow::bail!(
+-                    "Setup command failed (exit code {}): {cmd}\n{}",
+-                    result.exit_code,
+-                    result.stderr,
+-                );
+-            }
+-            emitter.emit(&crate::event::WorkflowRunEvent::SetupCommandCompleted {
+-                command: cmd.clone(),
+-                index,
+-                exit_code: result.exit_code,
+-                duration_ms: cmd_duration,
+-            });
+-        }
+-        let setup_duration = crate::millis_u64(setup_start.elapsed());
+-        emitter.emit(&crate::event::WorkflowRunEvent::SetupCompleted {
+-            duration_ms: setup_duration,
+-        });
+-    }
+-
+-    // Run devcontainer lifecycle hooks inside the sandbox
+-    if let Some(ref dc) = devcontainer_config {
+-        let phases: &[(&str, &[fabro_devcontainer::Command])] = &[
+-            ("on_create", &dc.on_create_commands),
+-            ("post_create", &dc.post_create_commands),
+-            ("post_start", &dc.post_start_commands),
+-        ];
+-        for (phase, commands) in phases {
+-            devcontainer_bridge::run_devcontainer_lifecycle(
+-                sandbox.as_ref(),
+-                &emitter,
+-                phase,
+-                commands,
+-                300_000,
+-            )
+-            .await?;
+-        }
+-    }
++    // Fill deferred sandbox reference for event listeners registered above
++    *deferred_sandbox.lock().unwrap() = Some(Arc::clone(&sandbox));
+ 
+     // 6. Resolve backend, model, and provider
+     let (dry_run_mode, llm_client) = if args.dry_run {
+@@ -1234,8 +1129,8 @@ pub async fn run_command(
+     }
+ 
+     // 7. Execute
+-    // Set up metadata branch for git checkpointing (host or remote)
+-    let meta_branch = if worktree_work_dir.is_some() || remote_base_sha.is_some() {
++    // Set up metadata branch for git checkpointing (host or remote — engine fills remote)
++    let meta_branch = if worktree_work_dir.is_some() {
+         Some(crate::git::MetadataStore::branch_name(&run_id))
+     } else {
+         None
+@@ -1250,14 +1145,10 @@ pub async fn run_command(
+         cancel_token: None,
+         dry_run: dry_run_mode,
+         run_id: run_id.clone(),
+-        git_checkpoint_enabled: if sandbox.is_remote() {
+-            remote_base_sha.is_some()
+-        } else {
+-            worktree_work_dir.is_some()
+-        },
++        git_checkpoint_enabled: worktree_work_dir.is_some(),
+         host_repo_path: Some(original_cwd.clone()),
+-        base_sha: worktree_base_sha.or(remote_base_sha),
+-        run_branch: worktree_branch.or(remote_branch),
++        base_sha: worktree_base_sha,
++        run_branch: worktree_branch,
+         meta_branch,
+         labels: args
+             .label
+@@ -1268,7 +1159,7 @@ pub async fn run_command(
+         checkpoint_exclude_globs,
+         github_app: github_app.clone(),
+         git_author,
+-        base_branch: detected_base_branch.or(remote_base_branch),
++        base_branch: detected_base_branch,
+         pull_request_enabled: pr_cfg.is_some_and(|p| p.enabled),
+         pull_request_draft: pr_cfg.is_none_or(|p| p.draft),
+         asset_globs: run_cfg
+@@ -1279,17 +1170,62 @@ pub async fn run_command(
+         workflow_slug: workflow_slug.clone(),
+     };
+ 
++    // Build lifecycle config for sandbox init, setup commands, and devcontainer phases
++    let lifecycle = crate::engine::LifecycleConfig {
++        setup_commands: setup_commands.clone(),
++        setup_command_timeout_ms: 300_000,
++        devcontainer_phases: if let Some(ref dc) = devcontainer_config {
++            vec![
++                ("on_create".to_string(), dc.on_create_commands.clone()),
++                ("post_create".to_string(), dc.post_create_commands.clone()),
++                ("post_start".to_string(), dc.post_start_commands.clone()),
++            ]
++        } else {
++            Vec::new()
++        },
++    };
++
+     // Defuse the status guard — engine.run() will write "running" and conclusion handles "concluded"
+     scopeguard::ScopeGuard::into_inner(status_guard);
+ 
++    // Save config fields needed after run_with_lifecycle consumes config
++    let finalize_config = FinalizeConfig {
++        run_id: config.run_id.clone(),
++        meta_branch: config.meta_branch.clone(),
++        host_repo_path: config.host_repo_path.clone(),
++        git_author: config.git_author.clone(),
++        github_app: config.github_app.clone(),
++        base_branch: config.base_branch.clone(),
++        run_branch: config.run_branch.clone(),
++        git_checkpoint_enabled: config.git_checkpoint_enabled,
++        pull_request_enabled: config.pull_request_enabled,
++        pull_request_draft: config.pull_request_draft,
++    };
++
++    // Safety net: if we panic or return early, best-effort cleanup via spawn.
++    let sandbox_for_cleanup = Arc::clone(&sandbox);
++    let cleanup_guard = scopeguard::guard((), move |()| {
++        if preserve_sandbox {
++            return;
++        }
++        let rt = tokio::runtime::Handle::try_current();
++        if let Ok(handle) = rt {
++            handle.spawn(async move {
++                let _ = sandbox_for_cleanup.cleanup().await;
++            });
++        }
++    });
++
+     let run_start = Instant::now();
+     let engine_result = if let Some(ref checkpoint_path) = args.resume {
+         let checkpoint = Checkpoint::load(checkpoint_path)?;
+         engine
+-            .run_from_checkpoint(&graph, &config, &checkpoint)
++            .run_with_lifecycle(&graph, config, lifecycle, Some(&checkpoint))
+             .await
+     } else {
+-        engine.run(&graph, &config).await
++        engine
++            .run_with_lifecycle(&graph, config, lifecycle, None)
++            .await
+     };
+     let run_duration_ms = run_start.elapsed().as_millis() as u64;
+ 
+@@ -1389,7 +1325,7 @@ pub async fn run_command(
+             Err(e) => (true, Some(e.to_string())),
+         };
+         generate_retro(
+-            &config.run_id,
++            &finalize_config.run_id,
+             &graph.name,
+             graph.goal(),
+             &run_dir,
+@@ -1411,12 +1347,12 @@ pub async fn run_command(
+     progress_ui.lock().expect("progress lock poisoned").finish();
+ 
+     // Write finalize commit with retro.json + final node files (captures last diff.patch)
+-    write_finalize_commit(&config, &run_dir).await;
++    write_finalize_commit_from(&finalize_config, &run_dir).await;
+ 
+     // Auto-create PR on successful completion (skip in dry-run mode)
+     let mut pushed_branch: Option<String> = None;
+     let mut pr_url: Option<String> = None;
+-    if !config.pull_request_enabled {
++    if !finalize_config.pull_request_enabled {
+         debug!("Skipping PR creation: pull_request not enabled in config");
+     } else if dry_run_mode {
+         debug!("Skipping PR creation: dry-run mode");
+@@ -1438,14 +1374,14 @@ pub async fn run_command(
+                 Some(ref creds),
+                 Some(ref origin),
+             ) = (
+-                &config.base_branch,
+-                &config.run_branch,
++                &finalize_config.base_branch,
++                &finalize_config.run_branch,
+                 &github_app,
+                 &origin_url,
+             ) {
+                 // Run branch was pushed during checkpoint commits;
+                 // just record it for the PR creation.
+-                if config.git_checkpoint_enabled {
++                if finalize_config.git_checkpoint_enabled {
+                     pushed_branch = Some(run_branch.clone());
+                 }
+ 
+@@ -1457,7 +1393,7 @@ pub async fn run_command(
+                     graph.goal(),
+                     &diff,
+                     &model,
+-                    config.pull_request_draft,
++                    finalize_config.pull_request_draft,
+                     &run_dir,
+                 )
+                 .await
+@@ -1466,7 +1402,7 @@ pub async fn run_command(
+                         emitter.emit(&crate::event::WorkflowRunEvent::PullRequestCreated {
+                             pr_url: record.html_url.clone(),
+                             pr_number: record.number,
+-                            draft: config.pull_request_draft,
++                            draft: finalize_config.pull_request_draft,
+                         });
+                         pr_url = Some(record.html_url.clone());
+                         if let Err(e) = record.save(&run_dir.join("pull_request.json")) {
+@@ -1584,7 +1520,11 @@ pub async fn run_command(
+         } else {
+             eprintln!("\n{} sandbox preserved", styles.bold.apply_to("Info:"));
+         }
+-    } else if let Err(e) = sandbox.cleanup().await {
++    }
++    if let Err(e) = engine
++        .cleanup_sandbox(&run_id, &graph.name, preserve_sandbox)
++        .await
++    {
+         tracing::warn!(error = %e, "Sandbox cleanup failed");
+         eprintln!(
+             "\n{} sandbox cleanup failed: {e}",
+@@ -1623,61 +1563,6 @@ fn setup_worktree(
+     Ok((worktree_path.clone(), worktree_path, branch_name, base_sha))
+ }
+ 
+-/// Set up git inside a remote sandbox (Daytona or exe.dev) for checkpoint commits.
+-/// Returns (base_sha, branch_name, base_branch) on success.
+-async fn setup_remote_git(
+-    sandbox: &dyn fabro_agent::Sandbox,
+-    run_id: &str,
+-) -> anyhow::Result<(String, String, Option<String>)> {
+-    // Get current branch name before creating the run branch
+-    let branch_result = sandbox
+-        .exec_command("git rev-parse --abbrev-ref HEAD", 10_000, None, None, None)
+-        .await
+-        .map_err(|e| anyhow::anyhow!("git rev-parse --abbrev-ref HEAD failed: {e}"))?;
+-    let base_branch = if branch_result.exit_code == 0 {
+-        let name = branch_result.stdout.trim().to_string();
+-        if name.is_empty() || name == "HEAD" {
+-            None
+-        } else {
+-            Some(name)
+-        }
+-    } else {
+-        None
+-    };
+-
+-    // Get current HEAD as base SHA
+-    let sha_result = sandbox
+-        .exec_command("git rev-parse HEAD", 10_000, None, None, None)
+-        .await
+-        .map_err(|e| anyhow::anyhow!("git rev-parse HEAD failed: {e}"))?;
+-    if sha_result.exit_code != 0 {
+-        anyhow::bail!(
+-            "git rev-parse HEAD failed (exit {}): {}",
+-            sha_result.exit_code,
+-            sha_result.stderr
+-        );
+-    }
+-    let base_sha = sha_result.stdout.trim().to_string();
+-
+-    let branch_name = format!("{}{run_id}", crate::git::RUN_BRANCH_PREFIX);
+-
+-    // Create and checkout a run branch
+-    let checkout_cmd = format!("git checkout -b {branch_name}");
+-    let checkout_result = sandbox
+-        .exec_command(&checkout_cmd, 10_000, None, None, None)
+-        .await
+-        .map_err(|e| anyhow::anyhow!("git checkout failed: {e}"))?;
+-    if checkout_result.exit_code != 0 {
+-        anyhow::bail!(
+-            "git checkout -b failed (exit {}): {}",
+-            checkout_result.exit_code,
+-            checkout_result.stderr
+-        );
+-    }
+-
+-    Ok((base_sha, branch_name, base_branch))
+-}
+-
+ /// Resume a workflow run from a git run branch.
+ ///
+ /// Reads the checkpoint, manifest, and graph DOT from the metadata branch
+@@ -1832,32 +1717,19 @@ async fn run_from_branch(
+             }
+         };
+ 
+-    // Initialize remote sandboxes and checkout the run branch
+-    if sandbox.is_remote() {
+-        sandbox
+-            .initialize()
+-            .await
+-            .map_err(|e| anyhow::anyhow!("Failed to initialize sandbox: {e}"))?;
+-
+-        // Fetch and checkout the run branch inside the sandbox
+-        let fetch_cmd = format!("git fetch origin {run_branch} && git checkout {run_branch}");
+-        let result = sandbox
+-            .exec_command(&fetch_cmd, 60_000, None, None, None)
+-            .await
+-            .map_err(|e| anyhow::anyhow!("Failed to checkout run branch in sandbox: {e}"))?;
+-        if result.exit_code != 0 {
+-            bail!(
+-                "Failed to checkout run branch in sandbox (exit {}): {}",
+-                result.exit_code,
+-                result.stderr
+-            );
+-        }
+-    }
+-
+     // Wrap with ReadBeforeWriteSandbox to enforce read-before-write guard
+     let sandbox: Arc<dyn fabro_agent::Sandbox> =
+         Arc::new(fabro_agent::ReadBeforeWriteSandbox::new(sandbox));
+ 
++    // For remote sandboxes, prepare a setup command to fetch+checkout the existing run branch
++    let resume_setup_commands: Vec<String> = if sandbox.is_remote() {
++        vec![format!(
++            "git fetch origin {run_branch} && git checkout {run_branch}"
++        )]
++    } else {
++        Vec::new()
++    };
++
+     // Build interviewer
+     let interviewer: Arc<dyn crate::interviewer::Interviewer> = if args.auto_approve {
+         Arc::new(crate::interviewer::auto_approve::AutoApproveInterviewer)
+@@ -1929,15 +1801,34 @@ async fn run_from_branch(
+         workflow_slug: None,
+     };
+ 
++    let lifecycle = crate::engine::LifecycleConfig {
++        setup_commands: resume_setup_commands,
++        setup_command_timeout_ms: 60_000,
++        devcontainer_phases: Vec::new(),
++    };
++
++    // Save config fields needed after run_with_lifecycle consumes config
++    let finalize_config = FinalizeConfig {
++        run_id: config.run_id.clone(),
++        meta_branch: config.meta_branch.clone(),
++        host_repo_path: config.host_repo_path.clone(),
++        git_author: config.git_author.clone(),
++        github_app: config.github_app.clone(),
++        base_branch: config.base_branch.clone(),
++        run_branch: config.run_branch.clone(),
++        git_checkpoint_enabled: config.git_checkpoint_enabled,
++        pull_request_enabled: config.pull_request_enabled,
++        pull_request_draft: config.pull_request_draft,
++    };
++
+     let run_start = Instant::now();
+     let engine_result = engine
+-        .run_from_checkpoint(&graph, &config, &checkpoint)
++        .run_with_lifecycle(&graph, config, lifecycle, Some(&checkpoint))
+         .await;
+     let run_duration_ms = run_start.elapsed().as_millis() as u64;
+ 
+     // Restore cwd (worktree is kept for `fabro cp` access; pruned separately)
+     let _ = std::env::set_current_dir(&original_cwd);
+-    let _ = sandbox.cleanup().await;
+ 
+     // Auto-derive retro
+     if !args.no_retro && super::project_config::is_retro_enabled() {
+@@ -1956,7 +1847,7 @@ async fn run_from_branch(
+         };
+ 
+         generate_retro(
+-            &config.run_id,
++            &finalize_config.run_id,
+             &graph.name,
+             graph.goal(),
+             &run_dir,
+@@ -1975,7 +1866,12 @@ async fn run_from_branch(
+     }
+ 
+     // Write finalize commit with retro.json + final node files (captures last diff.patch)
+-    write_finalize_commit(&config, &run_dir).await;
++    write_finalize_commit_from(&finalize_config, &run_dir).await;
++
++    // Cleanup sandbox via engine (fires SandboxCleanup hook)
++    let _ = engine
++        .cleanup_sandbox(&finalize_config.run_id, &graph.name, false)
++        .await;
+ 
+     let outcome = engine_result?;
+ 
+@@ -2398,11 +2294,25 @@ async fn run_preflight(
+     }
+ }
+ 
++/// Subset of `RunConfig` fields needed after `run_with_lifecycle` consumes the config.
++struct FinalizeConfig {
++    run_id: String,
++    meta_branch: Option<String>,
++    host_repo_path: Option<PathBuf>,
++    git_author: crate::git::GitAuthor,
++    github_app: Option<fabro_github::GitHubAppCredentials>,
++    base_branch: Option<String>,
++    run_branch: Option<String>,
++    git_checkpoint_enabled: bool,
++    pull_request_enabled: bool,
++    pull_request_draft: bool,
++}
++
+ /// Write a finalize commit to the shadow branch with retro.json and final node files.
+ ///
+ /// This captures the last diff.patch (written after the final checkpoint) and retro.json.
+ /// Best-effort: errors are logged as warnings.
+-async fn write_finalize_commit(config: &RunConfig, run_dir: &std::path::Path) {
++async fn write_finalize_commit_from(config: &FinalizeConfig, run_dir: &std::path::Path) {
+     let (Some(ref meta_branch), Some(ref repo_path)) =
+         (&config.meta_branch, &config.host_repo_path)
+     else {
+diff --git a/lib/crates/fabro-workflows/src/engine.rs b/lib/crates/fabro-workflows/src/engine.rs
+index ca68942..bf6aa40 100644
+--- a/lib/crates/fabro-workflows/src/engine.rs
++++ b/lib/crates/fabro-workflows/src/engine.rs
+@@ -829,6 +829,59 @@ pub async fn git_replace_worktree(sandbox: &dyn Sandbox, path: &str, branch: &st
+     git_add_worktree(sandbox, path, branch).await
+ }
+ 
++/// Set up git inside a remote sandbox for checkpoint commits.
++/// Returns `(base_sha, branch_name, base_branch)` on success.
++pub async fn setup_remote_git(
++    sandbox: &dyn Sandbox,
++    run_id: &str,
++) -> std::result::Result<(String, String, Option<String>), String> {
++    // Get current branch name before creating the run branch
++    let branch_result = sandbox
++        .exec_command("git rev-parse --abbrev-ref HEAD", 10_000, None, None, None)
++        .await
++        .map_err(|e| format!("git rev-parse --abbrev-ref HEAD failed: {e}"))?;
++    let base_branch = if branch_result.exit_code == 0 {
++        let name = branch_result.stdout.trim().to_string();
++        if name.is_empty() || name == "HEAD" {
++            None
++        } else {
++            Some(name)
++        }
++    } else {
++        None
++    };
++
++    // Get current HEAD as base SHA
++    let sha_result = sandbox
++        .exec_command("git rev-parse HEAD", 10_000, None, None, None)
++        .await
++        .map_err(|e| format!("git rev-parse HEAD failed: {e}"))?;
++    if sha_result.exit_code != 0 {
++        return Err(format!(
++            "git rev-parse HEAD failed (exit {}): {}",
++            sha_result.exit_code, sha_result.stderr
++        ));
++    }
++    let base_sha = sha_result.stdout.trim().to_string();
++
++    let branch_name = format!("{}{run_id}", crate::git::RUN_BRANCH_PREFIX);
++
++    // Create and checkout a run branch
++    let checkout_cmd = format!("git checkout -b {branch_name}");
++    let checkout_result = sandbox
++        .exec_command(&checkout_cmd, 10_000, None, None, None)
++        .await
++        .map_err(|e| format!("git checkout failed: {e}"))?;
++    if checkout_result.exit_code != 0 {
++        return Err(format!(
++            "git checkout -b failed (exit {}): {}",
++            checkout_result.exit_code, checkout_result.stderr
++        ));
++    }
++
++    Ok((base_sha, branch_name, base_branch))
++}
++
+ /// Configuration for a workflow run.
+ pub struct RunConfig {
+     pub run_dir: PathBuf,
+@@ -867,6 +920,16 @@ pub struct RunConfig {
+     pub workflow_slug: Option<String>,
+ }
+ 
++/// Configuration for sandbox lifecycle management within the engine.
++pub struct LifecycleConfig {
++    /// Setup commands to run inside the sandbox after initialization.
++    pub setup_commands: Vec<String>,
++    /// Timeout in milliseconds for each setup command.
++    pub setup_command_timeout_ms: u64,
++    /// Devcontainer lifecycle phases and their commands.
++    pub devcontainer_phases: Vec<(String, Vec<fabro_devcontainer::Command>)>,
++}
++
+ /// The workflow run execution engine.
+ pub struct WorkflowRunEngine {
+     services: EngineServices,
+@@ -1190,6 +1253,180 @@ impl WorkflowRunEngine {
+         Ok(outcome)
+     }
+ 
++    /// Run a workflow with full sandbox lifecycle management.
++    ///
++    /// 1. Initialize sandbox
++    /// 2. Fire `SandboxReady` hook (blocking — can abort run)
++    /// 3. Emit `SandboxInitialized` event
++    /// 4. Remote git setup if `sandbox.is_remote()`
++    /// 5. Run setup commands
++    /// 6. Run devcontainer lifecycle phases
++    /// 7. Execute the workflow graph via `run_internal`
++    ///
++    /// The sandbox is left alive after return so the caller can run retro, PR creation, etc.
++    /// Call `cleanup_sandbox()` when done.
++    pub async fn run_with_lifecycle(
++        &self,
++        graph: &Graph,
++        mut config: RunConfig,
++        lifecycle: LifecycleConfig,
++        checkpoint: Option<&Checkpoint>,
++    ) -> Result<Outcome> {
++        // 1. Initialize sandbox
++        self.services
++            .sandbox
++            .initialize()
++            .await
++            .map_err(|e| FabroError::engine(format!("Failed to initialize sandbox: {e}")))?;
++
++        // 2. Fire SandboxReady hook (blocking — can abort run)
++        {
++            let hook_ctx = HookContext::new(
++                HookEvent::SandboxReady,
++                config.run_id.clone(),
++                graph.name.clone(),
++            );
++            let decision = self.run_hooks(&hook_ctx, None).await;
++            if let HookDecision::Block { reason } = decision {
++                let msg = reason.unwrap_or_else(|| "blocked by SandboxReady hook".into());
++                return Err(FabroError::engine(msg));
++            }
++        }
++
++        // 3. Emit SandboxInitialized event
++        self.services
++            .emitter
++            .emit(&WorkflowRunEvent::SandboxInitialized {
++                working_directory: self.services.sandbox.working_directory().to_string(),
++            });
++
++        // 4. Remote git setup if sandbox is remote and config doesn't already have git info
++        //    (skip when resuming from an existing branch — caller sets run_branch/base_sha)
++        if self.services.sandbox.is_remote() && config.run_branch.is_none() {
++            match setup_remote_git(self.services.sandbox.as_ref(), &config.run_id).await {
++                Ok((base_sha, run_branch, base_branch)) => {
++                    config.git_checkpoint_enabled = true;
++                    config.base_sha = Some(base_sha);
++                    config.run_branch = Some(run_branch);
++                    if config.base_branch.is_none() {
++                        config.base_branch = base_branch;
++                    }
++                    config.meta_branch =
++                        Some(crate::git::MetadataStore::branch_name(&config.run_id));
++                }
++                Err(e) => {
++                    tracing::warn!(error = %e, "Remote git setup failed, running without git checkpoints");
++                    // Leave config.git_checkpoint_enabled as-is (false for remote when no base_sha)
++                }
++            }
++        }
++
++        // 5. Run setup commands
++        if !lifecycle.setup_commands.is_empty() {
++            self.services.emitter.emit(&WorkflowRunEvent::SetupStarted {
++                command_count: lifecycle.setup_commands.len(),
++            });
++            let setup_start = Instant::now();
++            for (index, cmd) in lifecycle.setup_commands.iter().enumerate() {
++                self.services
++                    .emitter
++                    .emit(&WorkflowRunEvent::SetupCommandStarted {
++                        command: cmd.clone(),
++                        index,
++                    });
++                let cmd_start = Instant::now();
++                let result = self
++                    .services
++                    .sandbox
++                    .exec_command(cmd, lifecycle.setup_command_timeout_ms, None, None, None)
++                    .await
++                    .map_err(|e| FabroError::engine(format!("Setup command failed: {e}")))?;
++                let cmd_duration = crate::millis_u64(cmd_start.elapsed());
++                if result.exit_code != 0 {
++                    self.services.emitter.emit(&WorkflowRunEvent::SetupFailed {
++                        command: cmd.clone(),
++                        index,
++                        exit_code: result.exit_code,
++                        stderr: result.stderr.clone(),
++                    });
++                    return Err(FabroError::engine(format!(
++                        "Setup command failed (exit code {}): {cmd}\n{}",
++                        result.exit_code, result.stderr,
++                    )));
++                }
++                self.services
++                    .emitter
++                    .emit(&WorkflowRunEvent::SetupCommandCompleted {
++                        command: cmd.clone(),
++                        index,
++                        exit_code: result.exit_code,
++                        duration_ms: cmd_duration,
++                    });
++            }
++            let setup_duration = crate::millis_u64(setup_start.elapsed());
++            self.services
++                .emitter
++                .emit(&WorkflowRunEvent::SetupCompleted {
++                    duration_ms: setup_duration,
++                });
++        }
++
++        // 6. Run devcontainer lifecycle phases
++        for (phase, commands) in &lifecycle.devcontainer_phases {
++            crate::devcontainer_bridge::run_devcontainer_lifecycle(
++                self.services.sandbox.as_ref(),
++                &self.services.emitter,
++                phase,
++                commands,
++                lifecycle.setup_command_timeout_ms,
++            )
++            .await
++            .map_err(|e| FabroError::engine(e.to_string()))?;
++        }
++
++        // 7. Execute the workflow graph
++        if let Some(cp) = checkpoint {
++            let loop_state = LoopState {
++                node_visits: HashMap::new(),
++                loop_failure_signatures: cp.loop_failure_signatures.clone(),
++                restart_failure_signatures: cp.restart_failure_signatures.clone(),
++            };
++            let (outcome, _context) = self
++                .run_internal(graph, &config, Some(cp), None, None, loop_state)
++                .await?;
++            Ok(outcome)
++        } else {
++            let (outcome, _context) = self
++                .run_internal(graph, &config, None, None, None, LoopState::default())
++                .await?;
++            Ok(outcome)
++        }
++    }
++
++    /// Fire the `SandboxCleanup` hook and optionally clean up the sandbox.
++    ///
++    /// Call this after the retro/PR work is done. The hook fires even when
++    /// `preserve` is true (observability), but the actual cleanup is skipped.
++    pub async fn cleanup_sandbox(
++        &self,
++        run_id: &str,
++        workflow_name: &str,
++        preserve: bool,
++    ) -> std::result::Result<(), String> {
++        // Fire SandboxCleanup hook (non-blocking)
++        let hook_ctx = HookContext::new(
++            HookEvent::SandboxCleanup,
++            run_id.to_string(),
++            workflow_name.to_string(),
++        );
++        let _ = self.run_hooks(&hook_ctx, None).await;
++
++        if !preserve {
++            self.services.sandbox.cleanup().await?;
++        }
++        Ok(())
++    }
++
+     /// Run a workflow seeded with an existing context. Returns both the outcome
+     /// and the final context so the caller can diff changes.
+     pub async fn run_with_context(
+@@ -5428,4 +5665,239 @@ mod tests {
+             "work node should have a git checkpoint, but found: {git_checkpoint_node_ids:?}"
+         );
+     }
++
++    #[tokio::test]
++    async fn run_with_lifecycle_fires_sandbox_initialized_event() {
++        let dir = tempfile::tempdir().unwrap();
++        let g = simple_graph();
++
++        let events = Arc::new(std::sync::Mutex::new(Vec::<WorkflowRunEvent>::new()));
++        let events_clone = events.clone();
++        let mut emitter = EventEmitter::new();
++        emitter.on_event(move |event| {
++            events_clone.lock().unwrap().push(event.clone());
++        });
++
++        let engine = WorkflowRunEngine::new(make_registry(), Arc::new(emitter), local_env());
++        let config = RunConfig {
++            run_dir: dir.path().to_path_buf(),
++            cancel_token: None,
++            dry_run: false,
++            run_id: "lifecycle-test".into(),
++            git_checkpoint_enabled: false,
++            host_repo_path: None,
++            base_sha: None,
++            run_branch: None,
++            meta_branch: None,
++            labels: HashMap::new(),
++            checkpoint_exclude_globs: Vec::new(),
++            github_app: None,
++            git_author: crate::git::GitAuthor::default(),
++            base_branch: None,
++            pull_request_enabled: false,
++            pull_request_draft: false,
++            asset_globs: Vec::new(),
++            workflow_slug: None,
++        };
++        let lifecycle = LifecycleConfig {
++            setup_commands: Vec::new(),
++            setup_command_timeout_ms: 300_000,
++            devcontainer_phases: Vec::new(),
++        };
++        let outcome = engine
++            .run_with_lifecycle(&g, config, lifecycle, None)
++            .await
++            .unwrap();
++        assert_eq!(outcome.status, StageStatus::Success);
++
++        let collected = events.lock().unwrap();
++        let sandbox_init_count = collected
++            .iter()
++            .filter(|e| matches!(e, WorkflowRunEvent::SandboxInitialized { .. }))
++            .count();
++        assert_eq!(
++            sandbox_init_count, 1,
++            "expected exactly one SandboxInitialized event"
++        );
++    }
++
++    #[tokio::test]
++    async fn run_with_lifecycle_runs_setup_commands() {
++        let dir = tempfile::tempdir().unwrap();
++        let g = simple_graph();
++
++        let events = Arc::new(std::sync::Mutex::new(Vec::<WorkflowRunEvent>::new()));
++        let events_clone = events.clone();
++        let mut emitter = EventEmitter::new();
++        emitter.on_event(move |event| {
++            events_clone.lock().unwrap().push(event.clone());
++        });
++
++        let engine = WorkflowRunEngine::new(make_registry(), Arc::new(emitter), local_env());
++        let config = RunConfig {
++            run_dir: dir.path().to_path_buf(),
++            cancel_token: None,
++            dry_run: false,
++            run_id: "setup-test".into(),
++            git_checkpoint_enabled: false,
++            host_repo_path: None,
++            base_sha: None,
++            run_branch: None,
++            meta_branch: None,
++            labels: HashMap::new(),
++            checkpoint_exclude_globs: Vec::new(),
++            github_app: None,
++            git_author: crate::git::GitAuthor::default(),
++            base_branch: None,
++            pull_request_enabled: false,
++            pull_request_draft: false,
++            asset_globs: Vec::new(),
++            workflow_slug: None,
++        };
++        let lifecycle = LifecycleConfig {
++            setup_commands: vec!["echo hello".to_string()],
++            setup_command_timeout_ms: 300_000,
++            devcontainer_phases: Vec::new(),
++        };
++        let outcome = engine
++            .run_with_lifecycle(&g, config, lifecycle, None)
++            .await
++            .unwrap();
++        assert_eq!(outcome.status, StageStatus::Success);
++
++        let collected = events.lock().unwrap();
++        let setup_started = collected
++            .iter()
++            .any(|e| matches!(e, WorkflowRunEvent::SetupStarted { .. }));
++        let setup_completed = collected
++            .iter()
++            .any(|e| matches!(e, WorkflowRunEvent::SetupCompleted { .. }));
++        assert!(setup_started, "expected SetupStarted event");
++        assert!(setup_completed, "expected SetupCompleted event");
++    }
++
++    #[tokio::test]
++    async fn run_with_lifecycle_setup_failure_aborts_run() {
++        let dir = tempfile::tempdir().unwrap();
++        let g = simple_graph();
++
++        let engine =
++            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
++        let config = RunConfig {
++            run_dir: dir.path().to_path_buf(),
++            cancel_token: None,
++            dry_run: false,
++            run_id: "setup-fail-test".into(),
++            git_checkpoint_enabled: false,
++            host_repo_path: None,
++            base_sha: None,
++            run_branch: None,
++            meta_branch: None,
++            labels: HashMap::new(),
++            checkpoint_exclude_globs: Vec::new(),
++            github_app: None,
++            git_author: crate::git::GitAuthor::default(),
++            base_branch: None,
++            pull_request_enabled: false,
++            pull_request_draft: false,
++            asset_globs: Vec::new(),
++            workflow_slug: None,
++        };
++        let lifecycle = LifecycleConfig {
++            setup_commands: vec!["exit 1".to_string()],
++            setup_command_timeout_ms: 300_000,
++            devcontainer_phases: Vec::new(),
++        };
++        let result = engine.run_with_lifecycle(&g, config, lifecycle, None).await;
++        assert!(result.is_err());
++        let err = result.unwrap_err().to_string();
++        assert!(
++            err.contains("Setup command failed"),
++            "expected setup failure error, got: {err}"
++        );
++    }
++
++    #[tokio::test]
++    async fn cleanup_sandbox_fires_hook() {
++        let engine =
++            WorkflowRunEngine::new(make_registry(), Arc::new(EventEmitter::new()), local_env());
++        // With preserve=true, cleanup should succeed without error
++        let result = engine.cleanup_sandbox("test-run", "test-wf", true).await;
++        assert!(result.is_ok());
++    }
++
++    #[tokio::test]
++    async fn run_with_lifecycle_emits_events_in_order() {
++        let dir = tempfile::tempdir().unwrap();
++        let g = simple_graph();
++
++        let event_names = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
++        let names_clone = event_names.clone();
++        let mut emitter = EventEmitter::new();
++        emitter.on_event(move |event| {
++            let name = match event {
++                WorkflowRunEvent::SandboxInitialized { .. } => "SandboxInitialized",
++                WorkflowRunEvent::SetupStarted { .. } => "SetupStarted",
++                WorkflowRunEvent::SetupCompleted { .. } => "SetupCompleted",
++                WorkflowRunEvent::WorkflowRunStarted { .. } => "WorkflowRunStarted",
++                WorkflowRunEvent::WorkflowRunCompleted { .. } => "WorkflowRunCompleted",
++                _ => return,
++            };
++            names_clone.lock().unwrap().push(name.to_string());
++        });
++
++        let engine = WorkflowRunEngine::new(make_registry(), Arc::new(emitter), local_env());
++        let config = RunConfig {
++            run_dir: dir.path().to_path_buf(),
++            cancel_token: None,
++            dry_run: false,
++            run_id: "order-test".into(),
++            git_checkpoint_enabled: false,
++            host_repo_path: None,
++            base_sha: None,
++            run_branch: None,
++            meta_branch: None,
++            labels: HashMap::new(),
++            checkpoint_exclude_globs: Vec::new(),
++            github_app: None,
++            git_author: crate::git::GitAuthor::default(),
++            base_branch: None,
++            pull_request_enabled: false,
++            pull_request_draft: false,
++            asset_globs: Vec::new(),
++            workflow_slug: None,
++        };
++        let lifecycle = LifecycleConfig {
++            setup_commands: vec!["echo ok".to_string()],
++            setup_command_timeout_ms: 300_000,
++            devcontainer_phases: Vec::new(),
++        };
++        engine
++            .run_with_lifecycle(&g, config, lifecycle, None)
++            .await
++            .unwrap();
++
++        let names = event_names.lock().unwrap();
++        // SandboxInitialized must come before SetupStarted which comes before WorkflowRunStarted
++        let sandbox_idx = names
++            .iter()
++            .position(|n| n == "SandboxInitialized")
++            .expect("SandboxInitialized not found");
++        let setup_idx = names
++            .iter()
++            .position(|n| n == "SetupStarted")
++            .expect("SetupStarted not found");
++        let run_started_idx = names
++            .iter()
++            .position(|n| n == "WorkflowRunStarted")
++            .expect("WorkflowRunStarted not found");
++        assert!(
++            sandbox_idx < setup_idx,
++            "SandboxInitialized ({sandbox_idx}) should come before SetupStarted ({setup_idx})"
++        );
++        assert!(
++            setup_idx < run_started_idx,
++            "SetupStarted ({setup_idx}) should come before WorkflowRunStarted ({run_started_idx})"
++        );
++    }
+ }
+diff --git a/lib/crates/fabro-workflows/src/event.rs b/lib/crates/fabro-workflows/src/event.rs
+index 85a5797..536a6af 100644
+--- a/lib/crates/fabro-workflows/src/event.rs
++++ b/lib/crates/fabro-workflows/src/event.rs
+@@ -201,6 +201,10 @@ pub enum WorkflowRunEvent {
+     Sandbox {
+         event: SandboxEvent,
+     },
++    /// Emitted after the sandbox has been initialized (by engine lifecycle).
++    SandboxInitialized {
++        working_directory: String,
++    },
+     SetupStarted {
+         command_count: usize,
+     },
+@@ -533,6 +537,11 @@ impl WorkflowRunEvent {
+             }
+             Self::Agent { .. } => {}
+             Self::Sandbox { .. } => {}
++            Self::SandboxInitialized {
++                working_directory, ..
++            } => {
++                info!(working_directory, "Sandbox initialized");
++            }
+             Self::ParallelEarlyTermination {
+                 reason,
+                 completed_count,
+@@ -2457,4 +2466,31 @@ mod tests {
+         assert_eq!(events[0], "started");
+         assert_eq!(events[1], "completed");
+     }
++
++    #[test]
++    fn sandbox_initialized_event_serialization() {
++        let event = WorkflowRunEvent::SandboxInitialized {
++            working_directory: "/workspace/project".to_string(),
++        };
++        let json = serde_json::to_string(&event).unwrap();
++        assert!(json.contains("SandboxInitialized"));
++        assert!(json.contains("/workspace/project"));
++        let deserialized: WorkflowRunEvent = serde_json::from_str(&json).unwrap();
++        assert!(matches!(
++            deserialized,
++            WorkflowRunEvent::SandboxInitialized {
++                working_directory
++            } if working_directory == "/workspace/project"
++        ));
++    }
++
++    #[test]
++    fn flatten_sandbox_initialized() {
++        let event = WorkflowRunEvent::SandboxInitialized {
++            working_directory: "/workspace".to_string(),
++        };
++        let (name, fields) = flatten_event(&event);
++        assert_eq!(name, "SandboxInitialized");
++        assert_eq!(fields["working_directory"], "/workspace");
++    }
+ }
+diff --git a/lib/crates/fabro-workflows/src/hook/types.rs b/lib/crates/fabro-workflows/src/hook/types.rs
+index 2a299b8..5a33aaa 100644
+--- a/lib/crates/fabro-workflows/src/hook/types.rs
++++ b/lib/crates/fabro-workflows/src/hook/types.rs
+@@ -28,7 +28,11 @@ impl HookEvent {
+     pub fn is_blocking_by_default(self) -> bool {
+         matches!(
+             self,
+-            Self::RunStart | Self::StageStart | Self::EdgeSelected | Self::PreToolUse
++            Self::RunStart
++                | Self::StageStart
++                | Self::EdgeSelected
++                | Self::PreToolUse
++                | Self::SandboxReady
+         )
+     }
+ }
+@@ -231,6 +235,8 @@ mod tests {
+         assert!(HookEvent::RunStart.is_blocking_by_default());
+         assert!(HookEvent::StageStart.is_blocking_by_default());
+         assert!(HookEvent::EdgeSelected.is_blocking_by_default());
++        assert!(HookEvent::SandboxReady.is_blocking_by_default());
++        assert!(!HookEvent::SandboxCleanup.is_blocking_by_default());
+         assert!(!HookEvent::RunComplete.is_blocking_by_default());
+         assert!(!HookEvent::StageFailed.is_blocking_by_default());
+         assert!(!HookEvent::CheckpointSaved.is_blocking_by_default());
