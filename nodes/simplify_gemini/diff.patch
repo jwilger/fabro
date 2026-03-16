@@ -1,0 +1,94 @@
+diff --git a/lib/crates/fabro-api/src/server.rs b/lib/crates/fabro-api/src/server.rs
+index 787ba1f..dea0121 100644
+--- a/lib/crates/fabro-api/src/server.rs
++++ b/lib/crates/fabro-api/src/server.rs
+@@ -1432,45 +1432,17 @@ async fn get_retro(
+     }
+ }
+ 
+-/// Render DOT source to a styled SVG via the `dot` subprocess (async).
++/// Render DOT source to a styled SVG via `render_dot` on a blocking thread.
+ pub(crate) async fn render_dot_svg(dot_source: &str) -> Response {
+-    let styled_source = fabro_workflows::cli::graph::inject_dot_style_defaults(dot_source);
+-
+-    let mut child = match tokio::process::Command::new("dot")
+-        .arg("-Tsvg")
+-        .stdin(std::process::Stdio::piped())
+-        .stdout(std::process::Stdio::piped())
+-        .stderr(std::process::Stdio::piped())
+-        .spawn()
+-    {
+-        Ok(child) => child,
+-        Err(_) => {
+-            return ApiError::new(
+-                StatusCode::BAD_GATEWAY,
+-                "Graphviz dot command not available.",
+-            )
+-            .into_response();
+-        }
+-    };
+-
+-    if let Some(mut stdin) = child.stdin.take() {
+-        use tokio::io::AsyncWriteExt;
+-        let _ = stdin.write_all(styled_source.as_bytes()).await;
+-    }
++    use fabro_workflows::cli::graph::{render_dot, GraphFormat};
+ 
+-    match child.wait_with_output().await {
+-        Ok(output) if output.status.success() => (
+-            StatusCode::OK,
+-            [("content-type", "image/svg+xml")],
+-            fabro_workflows::cli::graph::postprocess_svg(output.stdout),
+-        )
+-            .into_response(),
+-        Ok(output) => {
+-            let stderr = String::from_utf8_lossy(&output.stderr);
+-            ApiError::new(StatusCode::BAD_GATEWAY, format!("dot failed: {stderr}")).into_response()
++    let source = dot_source.to_owned();
++    match tokio::task::spawn_blocking(move || render_dot(&source, GraphFormat::Svg)).await {
++        Ok(Ok(bytes)) => {
++            (StatusCode::OK, [("content-type", "image/svg+xml")], bytes).into_response()
+         }
+-        Err(e) => ApiError::new(StatusCode::BAD_GATEWAY, format!("dot process error: {e}"))
+-            .into_response(),
++        Ok(Err(e)) => ApiError::new(StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
++        Err(e) => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+     }
+ }
+ 
+diff --git a/lib/crates/fabro-workflows/src/cli/graph.rs b/lib/crates/fabro-workflows/src/cli/graph.rs
+index d0b81db..7f07a1c 100644
+--- a/lib/crates/fabro-workflows/src/cli/graph.rs
++++ b/lib/crates/fabro-workflows/src/cli/graph.rs
+@@ -91,7 +91,7 @@ const DARK_MODE_STYLE: &str = r##"
+ /// Inject DOT graph-level style defaults (transparent background, teal nodes,
+ /// gray edges, Helvetica font) right after the first `{` in the DOT source.
+ /// Per-node/edge attributes override these defaults.
+-pub fn inject_dot_style_defaults(source: &str) -> String {
++fn inject_dot_style_defaults(source: &str) -> String {
+     let Some(pos) = source.find('{') else {
+         return source.to_string();
+     };
+@@ -104,7 +104,7 @@ pub fn inject_dot_style_defaults(source: &str) -> String {
+ /// Post-process raw SVG output from Graphviz:
+ /// 1. Remove the white background `<polygon>` element
+ /// 2. Insert a dark-mode `<style>` block after the opening `<svg ...>` tag
+-pub fn postprocess_svg(raw: Vec<u8>) -> Vec<u8> {
++fn postprocess_svg(raw: Vec<u8>) -> Vec<u8> {
+     let mut svg = String::from_utf8(raw)
+         .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
+ 
+@@ -130,8 +130,11 @@ pub fn postprocess_svg(raw: Vec<u8>) -> Vec<u8> {
+     svg.into_bytes()
+ }
+ 
+-/// Spawn the `dot` command to render DOT source into the given format.
+-fn render_dot(source: &str, format: GraphFormat) -> anyhow::Result<Vec<u8>> {
++/// Render styled DOT source into the given format via the `dot` command.
++///
++/// Injects style defaults (colors, fonts, transparent background) into the DOT
++/// source, then post-processes SVG output with dark-mode CSS and background removal.
++pub fn render_dot(source: &str, format: GraphFormat) -> anyhow::Result<Vec<u8>> {
+     let styled_source = inject_dot_style_defaults(source);
+ 
+     let mut child = match Command::new("dot")
