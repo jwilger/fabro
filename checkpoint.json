@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-03-16T05:34:02.856527Z",
+  "current_node": "setup",
+  "completed_nodes": [
+    "start",
+    "setup"
+  ],
+  "node_retries": {
+    "setup": 1,
+    "start": 1
+  },
+  "context_values": {
+    "internal.node_visit_count": 1,
+    "current.preamble": "Goal: Use Admin Inline verbose_name as default for Inline verbose_name_plural\nDescription\n\t\nDjango allows specification of a verbose_name and a verbose_name_plural for Inline classes in admin views. However, verbose_name_plural for an Inline is not currently based on a specified verbose_name. Instead, it continues to be based on the model name, or an a verbose_name specified in the model's Meta class. This was confusing to me initially (I didn't understand why I had to specify both name forms for an Inline if I wanted to overrule the default name), and seems inconsistent with the approach for a model's Meta class (which does automatically base the plural form on a specified verbose_name). I propose that verbose_name_plural for an Inline class should by default be based on the verbose_name for an Inline if that is specified.\nI have written a patch to implement this, including tests. Would be happy to submit that.\n\n\n\n## Additional Context\n\nPlease push your patch as a ​Django pull request.\n",
+    "graph.goal": "Use Admin Inline verbose_name as default for Inline verbose_name_plural\nDescription\n\t\nDjango allows specification of a verbose_name and a verbose_name_plural for Inline classes in admin views. However, verbose_name_plural for an Inline is not currently based on a specified verbose_name. Instead, it continues to be based on the model name, or an a verbose_name specified in the model's Meta class. This was confusing to me initially (I didn't understand why I had to specify both name forms for an Inline if I wanted to overrule the default name), and seems inconsistent with the approach for a model's Meta class (which does automatically base the plural form on a specified verbose_name). I propose that verbose_name_plural for an Inline class should by default be based on the verbose_name for an Inline if that is specified.\nI have written a patch to implement this, including tests. Would be happy to submit that.\n\n\n\n## Additional Context\n\nPlease push your patch as a ​Django pull request.",
+    "graph.rankdir": "LR",
+    "internal.fidelity": "compact",
+    "internal.retry_count.setup": 1,
+    "failure_class": "deterministic",
+    "internal.run_id": "01KKTJ455KD3HJBT60A06NYRGB",
+    "command.output": "fatal: destination path '.' already exists and is not an empty directory.\n",
+    "internal.retry_count.start": 1,
+    "internal.thread_id": "start",
+    "command.stderr": "",
+    "current_node": "setup",
+    "failure_signature": "setup|deterministic|script failed with exit code: <n> ## stdout fatal: destination path '.' already exists and is not an empty directory.",
+    "thread.start.current_node": "setup",
+    "outcome": "fail"
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "setup": {
+      "status": "fail",
+      "context_updates": {
+        "command.output": "fatal: destination path '.' already exists and is not an empty directory.\n",
+        "command.stderr": ""
+      },
+      "failure": {
+        "message": "Script failed with exit code: 128\n\n## stdout\nfatal: destination path '.' already exists and is not an empty directory.\n",
+        "failure_class": "deterministic"
+      },
+      "duration_ms": 29
+    }
+  },
+  "next_node_id": "solve",
+  "loop_failure_signatures": {
+    "setup|deterministic|script failed with exit code: <n> ## stdout fatal: destination path '.' already exists and is not an empty directory.": 1
+  },
+  "node_visits": {
+    "setup": 1,
+    "start": 1
+  }
+}
