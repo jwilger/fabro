@@ -1,39 +1,52 @@
 {
-  "timestamp": "2026-03-16T02:00:03.259384Z",
-  "current_node": "preflight_compile",
+  "timestamp": "2026-03-16T02:00:22.109258Z",
+  "current_node": "preflight_lint",
   "completed_nodes": [
     "start",
     "toolchain",
-    "preflight_compile"
+    "preflight_compile",
+    "preflight_lint"
   ],
   "node_retries": {
-    "toolchain": 1,
     "preflight_compile": 1,
-    "start": 1
+    "start": 1,
+    "preflight_lint": 1,
+    "toolchain": 1
   },
   "context_values": {
     "internal.run_id": "01KKT5VYJ8FG6KX44AVXK8PY96",
     "outcome": "success",
-    "current.preamble": "Goal: # Fix: Sub-agent file writes not tracked in API backend\n\n## Context\n\nWhen the API backend's agent spawns sub-agents that call `edit_file`/`write_file`, those files are missing from `outcome.files_touched`. This causes downstream nodes (like `simplify_opus`) to receive an incomplete file list in their prompt preamble.\n\nRoot cause: `spawn_event_forwarder` in `backend.rs` only matches top-level `ToolCallStarted`/`ToolCallCompleted` events. Sub-agent tool calls arrive wrapped as `AgentEvent::SubAgentEvent { event: Box<inner> }` and hit the `_ => {}` catch-all.\n\n## Plan\n\n**Single file change:** `lib/crates/fabro-workflows/src/cli/backend.rs`\n\nIn `spawn_event_forwarder` (line 51), replace the flat match with a helper that recursively unwraps `SubAgentEvent` to extract the inner `ToolCallStarted`/`ToolCallCompleted`:\n\n```\nmatch &event.event {\n    AgentEvent::ToolCallStarted { .. } => { /* existing logic */ }\n    AgentEvent::ToolCallCompleted { .. } => { /* existing logic */ }\n+   AgentEvent::SubAgentEvent { event: inner, .. } => {\n+       // Recursively extract file-tracking events from sub-agents\n+       track_file_event(inner, &pending_tool_calls, &files_touched, &last_file_touched);\n+   }\n    _ => {}\n}\n```\n\nExtract the file-tracking logic into a `track_file_event(event, pending, touched, last)` function that:\n1. Matches `ToolCallStarted` for `write_file`/`edit_file` → records to `pending_tool_calls`\n2. Matches `ToolCallCompleted` (non-error) → moves from pending to `files_touched`\n3. Matches `SubAgentEvent` → recurses into the inner event (handles sub-sub-agents)\n4. Otherwise → no-op\n\nThe existing inline match in `spawn_event_forwarder` calls `track_file_event` for both top-level and sub-agent events.\n\n## Verification\n\n1. `cargo test -p fabro-workflows` — existing tests pass\n2. `cargo clippy --workspace -- -D warnings` — clean\n3. Add a unit test: emit a `SubAgentEvent` wrapping a `ToolCallStarted`/`ToolCallCompleted` for `edit_file`, verify it appears in `files_touched`\n\n\n## Completed stages\n- **toolchain**: success\n  - Script: `command -v cargo >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && sudo ln -sf $HOME/.cargo/bin/* /usr/local/bin/; }; cargo --version 2>&1`\n  - Stdout:\n    ```\n    cargo 1.94.0 (85eff7c80 2026-01-15)\n    ```\n  - Stderr: (empty)\n",
+    "current.preamble": "Goal: # Fix: Sub-agent file writes not tracked in API backend\n\n## Context\n\nWhen the API backend's agent spawns sub-agents that call `edit_file`/`write_file`, those files are missing from `outcome.files_touched`. This causes downstream nodes (like `simplify_opus`) to receive an incomplete file list in their prompt preamble.\n\nRoot cause: `spawn_event_forwarder` in `backend.rs` only matches top-level `ToolCallStarted`/`ToolCallCompleted` events. Sub-agent tool calls arrive wrapped as `AgentEvent::SubAgentEvent { event: Box<inner> }` and hit the `_ => {}` catch-all.\n\n## Plan\n\n**Single file change:** `lib/crates/fabro-workflows/src/cli/backend.rs`\n\nIn `spawn_event_forwarder` (line 51), replace the flat match with a helper that recursively unwraps `SubAgentEvent` to extract the inner `ToolCallStarted`/`ToolCallCompleted`:\n\n```\nmatch &event.event {\n    AgentEvent::ToolCallStarted { .. } => { /* existing logic */ }\n    AgentEvent::ToolCallCompleted { .. } => { /* existing logic */ }\n+   AgentEvent::SubAgentEvent { event: inner, .. } => {\n+       // Recursively extract file-tracking events from sub-agents\n+       track_file_event(inner, &pending_tool_calls, &files_touched, &last_file_touched);\n+   }\n    _ => {}\n}\n```\n\nExtract the file-tracking logic into a `track_file_event(event, pending, touched, last)` function that:\n1. Matches `ToolCallStarted` for `write_file`/`edit_file` → records to `pending_tool_calls`\n2. Matches `ToolCallCompleted` (non-error) → moves from pending to `files_touched`\n3. Matches `SubAgentEvent` → recurses into the inner event (handles sub-sub-agents)\n4. Otherwise → no-op\n\nThe existing inline match in `spawn_event_forwarder` calls `track_file_event` for both top-level and sub-agent events.\n\n## Verification\n\n1. `cargo test -p fabro-workflows` — existing tests pass\n2. `cargo clippy --workspace -- -D warnings` — clean\n3. Add a unit test: emit a `SubAgentEvent` wrapping a `ToolCallStarted`/`ToolCallCompleted` for `edit_file`, verify it appears in `files_touched`\n\n\n## Completed stages\n- **toolchain**: success\n  - Script: `command -v cargo >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && sudo ln -sf $HOME/.cargo/bin/* /usr/local/bin/; }; cargo --version 2>&1`\n  - Stdout:\n    ```\n    cargo 1.94.0 (85eff7c80 2026-01-15)\n    ```\n  - Stderr: (empty)\n- **preflight_compile**: success\n  - Script: `cargo check -q --workspace 2>&1`\n  - Stdout: (empty)\n  - Stderr: (empty)\n",
     "command.stderr": "",
     "graph.model_stylesheet": "\n            * { backend: api; model: claude-opus-4-6;}\n        ",
     "internal.fidelity": "compact",
-    "internal.thread_id": "toolchain",
+    "internal.thread_id": "preflight_compile",
     "thread.start.current_node": "toolchain",
     "command.output": "",
     "graph.goal": "# Fix: Sub-agent file writes not tracked in API backend\n\n## Context\n\nWhen the API backend's agent spawns sub-agents that call `edit_file`/`write_file`, those files are missing from `outcome.files_touched`. This causes downstream nodes (like `simplify_opus`) to receive an incomplete file list in their prompt preamble.\n\nRoot cause: `spawn_event_forwarder` in `backend.rs` only matches top-level `ToolCallStarted`/`ToolCallCompleted` events. Sub-agent tool calls arrive wrapped as `AgentEvent::SubAgentEvent { event: Box<inner> }` and hit the `_ => {}` catch-all.\n\n## Plan\n\n**Single file change:** `lib/crates/fabro-workflows/src/cli/backend.rs`\n\nIn `spawn_event_forwarder` (line 51), replace the flat match with a helper that recursively unwraps `SubAgentEvent` to extract the inner `ToolCallStarted`/`ToolCallCompleted`:\n\n```\nmatch &event.event {\n    AgentEvent::ToolCallStarted { .. } => { /* existing logic */ }\n    AgentEvent::ToolCallCompleted { .. } => { /* existing logic */ }\n+   AgentEvent::SubAgentEvent { event: inner, .. } => {\n+       // Recursively extract file-tracking events from sub-agents\n+       track_file_event(inner, &pending_tool_calls, &files_touched, &last_file_touched);\n+   }\n    _ => {}\n}\n```\n\nExtract the file-tracking logic into a `track_file_event(event, pending, touched, last)` function that:\n1. Matches `ToolCallStarted` for `write_file`/`edit_file` → records to `pending_tool_calls`\n2. Matches `ToolCallCompleted` (non-error) → moves from pending to `files_touched`\n3. Matches `SubAgentEvent` → recurses into the inner event (handles sub-sub-agents)\n4. Otherwise → no-op\n\nThe existing inline match in `spawn_event_forwarder` calls `track_file_event` for both top-level and sub-agent events.\n\n## Verification\n\n1. `cargo test -p fabro-workflows` — existing tests pass\n2. `cargo clippy --workspace -- -D warnings` — clean\n3. Add a unit test: emit a `SubAgentEvent` wrapping a `ToolCallStarted`/`ToolCallCompleted` for `edit_file`, verify it appears in `files_touched`\n",
     "internal.retry_count.start": 1,
     "internal.retry_count.preflight_compile": 1,
     "graph.rankdir": "LR",
-    "current_node": "preflight_compile",
+    "current_node": "preflight_lint",
     "internal.retry_count.toolchain": 1,
     "failure_class": "",
+    "thread.preflight_compile.current_node": "preflight_lint",
+    "internal.retry_count.preflight_lint": 1,
     "thread.toolchain.current_node": "preflight_compile",
     "failure_signature": "",
     "internal.node_visit_count": 1
   },
   "logs": [],
   "node_outcomes": {
+    "preflight_lint": {
+      "status": "success",
+      "context_updates": {
+        "command.output": "",
+        "command.stderr": ""
+      },
+      "notes": "Script completed: cargo clippy -q --workspace -- -D warnings 2>&1",
+      "duration_ms": 16562
+    },
     "start": {
       "status": "success",
       "duration_ms": 0
@@ -57,10 +70,11 @@
       "duration_ms": 69914
     }
   },
-  "next_node_id": "preflight_lint",
+  "next_node_id": "implement",
   "node_visits": {
+    "preflight_compile": 1,
+    "preflight_lint": 1,
     "toolchain": 1,
-    "start": 1,
-    "preflight_compile": 1
+    "start": 1
   }
 }
