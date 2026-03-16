@@ -1,0 +1,82 @@
+diff --git a/lib/crates/fabro-cli/src/main.rs b/lib/crates/fabro-cli/src/main.rs
+index d7afe28..36bf56e 100644
+--- a/lib/crates/fabro-cli/src/main.rs
++++ b/lib/crates/fabro-cli/src/main.rs
+@@ -814,12 +814,7 @@ async fn main_inner() -> (String, Result<()>) {
+                 }
+             },
+             Command::SendAnalytics { path } => {
+-                let result = async {
+-                    let json = std::fs::read(&path)?;
+-                    let track: fabro_util::telemetry::event::Track = serde_json::from_slice(&json)?;
+-                    fabro_util::telemetry::sender::send_to_segment(&track).await
+-                }
+-                .await;
++                let result = fabro_util::telemetry::sender::send_to_segment(&path).await;
+                 let _ = std::fs::remove_file(&path);
+                 result?;
+             }
+diff --git a/lib/crates/fabro-util/src/telemetry/panic.rs b/lib/crates/fabro-util/src/telemetry/panic.rs
+index d21ee6d..2cad1c3 100644
+--- a/lib/crates/fabro-util/src/telemetry/panic.rs
++++ b/lib/crates/fabro-util/src/telemetry/panic.rs
+@@ -52,7 +52,7 @@ pub fn build_panic_event(message: &str) -> Event<'static> {
+     );
+ 
+     // Set release to the package version.
+-    event.release = Some(env!("CARGO_PKG_VERSION").into());
++    event.release = Some(crate::version::FABRO_VERSION.into());
+ 
+     event
+ }
+@@ -111,13 +111,7 @@ pub async fn send_panic_to_sentry(path: &Path) -> anyhow::Result<()> {
+     let json = std::fs::read(path)?;
+     let event: Event<'static> = serde_json::from_slice(&json)?;
+ 
+-    let guard = sentry::init((
+-        dsn,
+-        sentry::ClientOptions {
+-            release: Some(env!("CARGO_PKG_VERSION").into()),
+-            ..Default::default()
+-        },
+-    ));
++    let guard = sentry::init((dsn, sentry::ClientOptions::default()));
+ 
+     sentry::capture_event(event);
+ 
+diff --git a/lib/crates/fabro-util/src/telemetry/sender.rs b/lib/crates/fabro-util/src/telemetry/sender.rs
+index 27e636f..bf89ce7 100644
+--- a/lib/crates/fabro-util/src/telemetry/sender.rs
++++ b/lib/crates/fabro-util/src/telemetry/sender.rs
+@@ -1,3 +1,5 @@
++use std::path::Path;
++
+ use base64::engine::general_purpose::STANDARD;
+ use base64::Engine;
+ 
+@@ -30,17 +32,22 @@ fn spawn_sender(track: Track) {
+     super::spawn::spawn_fabro_subcommand("__send_analytics", &filename, &json);
+ }
+ 
+-/// Sends a track event to Segment. Called by the `__send_analytics` subcommand.
+-pub async fn send_to_segment(track: &Track) -> anyhow::Result<()> {
++/// Reads a serialized track event from `path` and sends it to Segment.
++/// Called by the `__send_analytics` subcommand.
++/// No-ops if `SEGMENT_WRITE_KEY` was not set at compile time.
++pub async fn send_to_segment(path: &Path) -> anyhow::Result<()> {
+     let write_key = SEGMENT_WRITE_KEY
+         .ok_or_else(|| anyhow::anyhow!("SEGMENT_WRITE_KEY not set at compile time"))?;
+ 
++    let json = std::fs::read(path)?;
++    let track: Track = serde_json::from_slice(&json)?;
++
+     let auth = STANDARD.encode(format!("{write_key}:"));
+ 
+     let resp = reqwest::Client::new()
+         .post(SEGMENT_API_URL)
+         .header("Authorization", format!("Basic {auth}"))
+-        .json(track)
++        .json(&track)
+         .send()
+         .await?;
+ 
