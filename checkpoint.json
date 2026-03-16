@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-03-16T01:15:22.696391Z",
+  "current_node": "toolchain",
+  "completed_nodes": [
+    "start",
+    "toolchain"
+  ],
+  "node_retries": {
+    "toolchain": 1,
+    "start": 1
+  },
+  "context_values": {
+    "graph.goal": "# Add `--direction` flag to `fabro graph`\n\n## Context\nThe web UI already has LR/TB toggle buttons. The CLI `fabro graph` has no equivalent — it renders whatever `rankdir` the DOT file declares. We'll add a `--direction` option that overrides the DOT file's `rankdir` before passing it to `dot`.\n\n## Changes\n\n### 1. `lib/crates/fabro-workflows/src/cli/graph.rs`\n- Add `GraphDirection` enum (`Lr`, `Tb`) with `ValueEnum` + `Display`\n- Add `--direction` option to `GraphArgs` (optional, short `-d`)\n- In `graph_command`, if `--direction` is set, regex-replace `rankdir=\\w+` in the DOT source before calling `render_dot` (same approach the web UI uses)\n\n### 2. `docs/reference/cli.mdx` (~line 372-376)\n- Add row: `--direction <DIR>` / `Graph direction: `lr` (default) or `tb``\n\n### 3. Test\n- Add test: DOT source has `rankdir=LR`, pass `direction=Some(Tb)`, assert rendered SVG doesn't contain `rankdir=LR` (or better: assert the DOT passed to `dot` was rewritten). Simplest: unit-test the replacement logic directly.\n\n## Verification\n```\ncargo test -p fabro-workflows -- graph\ncargo clippy --workspace -- -D warnings\nfabro graph some-workflow.fabro --direction tb -o out.svg  # manual smoke test\n```\n",
+    "internal.retry_count.start": 1,
+    "current.preamble": "Goal: # Add `--direction` flag to `fabro graph`\n\n## Context\nThe web UI already has LR/TB toggle buttons. The CLI `fabro graph` has no equivalent — it renders whatever `rankdir` the DOT file declares. We'll add a `--direction` option that overrides the DOT file's `rankdir` before passing it to `dot`.\n\n## Changes\n\n### 1. `lib/crates/fabro-workflows/src/cli/graph.rs`\n- Add `GraphDirection` enum (`Lr`, `Tb`) with `ValueEnum` + `Display`\n- Add `--direction` option to `GraphArgs` (optional, short `-d`)\n- In `graph_command`, if `--direction` is set, regex-replace `rankdir=\\w+` in the DOT source before calling `render_dot` (same approach the web UI uses)\n\n### 2. `docs/reference/cli.mdx` (~line 372-376)\n- Add row: `--direction <DIR>` / `Graph direction: `lr` (default) or `tb``\n\n### 3. Test\n- Add test: DOT source has `rankdir=LR`, pass `direction=Some(Tb)`, assert rendered SVG doesn't contain `rankdir=LR` (or better: assert the DOT passed to `dot` was rewritten). Simplest: unit-test the replacement logic directly.\n\n## Verification\n```\ncargo test -p fabro-workflows -- graph\ncargo clippy --workspace -- -D warnings\nfabro graph some-workflow.fabro --direction tb -o out.svg  # manual smoke test\n```\n\n",
+    "internal.retry_count.toolchain": 1,
+    "failure_signature": "",
+    "graph.model_stylesheet": "\n            * { backend: api; model: claude-opus-4-6;}\n        ",
+    "internal.thread_id": "start",
+    "internal.node_visit_count": 1,
+    "internal.run_id": "01KKT3CAH2A81T3MC2SYFVX3TQ",
+    "outcome": "success",
+    "command.stderr": "",
+    "command.output": "cargo 1.94.0 (85eff7c80 2026-01-15)\n",
+    "graph.rankdir": "LR",
+    "failure_class": "",
+    "thread.start.current_node": "toolchain",
+    "current_node": "toolchain",
+    "internal.fidelity": "compact"
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "toolchain": {
+      "status": "success",
+      "context_updates": {
+        "command.stderr": "",
+        "command.output": "cargo 1.94.0 (85eff7c80 2026-01-15)\n"
+      },
+      "notes": "Script completed: command -v cargo >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && sudo ln -sf $HOME/.cargo/bin/* /usr/local/bin/; }; cargo --version 2>&1",
+      "duration_ms": 107
+    }
+  },
+  "next_node_id": "preflight_compile",
+  "node_visits": {
+    "toolchain": 1,
+    "start": 1
+  }
+}
