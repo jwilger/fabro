@@ -1,0 +1,124 @@
+diff --git a/docs/agents/hooks.mdx b/docs/agents/hooks.mdx
+index 25cf860..f5104c4 100644
+--- a/docs/agents/hooks.mdx
++++ b/docs/agents/hooks.mdx
+@@ -94,8 +94,8 @@ Each hook fires on a specific lifecycle event:
+ | `edge_selected` | After an edge is chosen for traversal | Yes |
+ | `parallel_start` | Before parallel branches fan out | No |
+ | `parallel_complete` | After parallel branches merge | No |
+-| `sandbox_ready` | After the sandbox environment is created | No |
+-| `sandbox_cleanup` | Before the sandbox is torn down | No |
++| `sandbox_ready` | After the sandbox environment is created (reserved — not yet wired) | No |
++| `sandbox_cleanup` | Before the sandbox is torn down (reserved — not yet wired) | No |
+ | `checkpoint_saved` | After a checkpoint is written to disk | No |
+ | `pre_tool_use` | Before an agent tool call executes | Yes |
+ | `post_tool_use` | After an agent tool call succeeds | No |
+@@ -399,4 +399,4 @@ event = "post_tool_use"
+ command = "cargo fmt"
+ matcher = "write_file|edit_file|apply_patch"
+ blocking = true
+-```
++```
+\ No newline at end of file
+diff --git a/lib/crates/fabro-workflows/src/engine.rs b/lib/crates/fabro-workflows/src/engine.rs
+index ca68942..cd152c0 100644
+--- a/lib/crates/fabro-workflows/src/engine.rs
++++ b/lib/crates/fabro-workflows/src/engine.rs
+@@ -1125,6 +1125,20 @@ impl WorkflowRunEngine {
+                                     .unwrap_or(usize::MAX),
+                                 delay_ms: millis_u64(delay),
+                             });
++                        {
++                            let mut hook_ctx = HookContext::new(
++                                HookEvent::StageRetrying,
++                                context.run_id(),
++                                graph.name.clone(),
++                            );
++                            hook_ctx.node_id = Some(node.id.clone());
++                            hook_ctx.node_label = Some(node.label().to_string());
++                            hook_ctx.handler_type = node.handler_type().map(String::from);
++                            hook_ctx.attempt = Some(usize::try_from(attempt).unwrap_or(usize::MAX));
++                            hook_ctx.max_attempts =
++                                Some(usize::try_from(policy.max_attempts).unwrap_or(usize::MAX));
++                            let _ = self.run_hooks(&hook_ctx, None).await;
++                        }
+                         tokio::time::sleep(delay).await;
+                         continue;
+                     }
+@@ -1153,6 +1167,20 @@ impl WorkflowRunEngine {
+                                     .unwrap_or(usize::MAX),
+                                 delay_ms: millis_u64(delay),
+                             });
++                        {
++                            let mut hook_ctx = HookContext::new(
++                                HookEvent::StageRetrying,
++                                context.run_id(),
++                                graph.name.clone(),
++                            );
++                            hook_ctx.node_id = Some(node.id.clone());
++                            hook_ctx.node_label = Some(node.label().to_string());
++                            hook_ctx.handler_type = node.handler_type().map(String::from);
++                            hook_ctx.attempt = Some(usize::try_from(attempt).unwrap_or(usize::MAX));
++                            hook_ctx.max_attempts =
++                                Some(usize::try_from(policy.max_attempts).unwrap_or(usize::MAX));
++                            let _ = self.run_hooks(&hook_ctx, None).await;
++                        }
+                         tokio::time::sleep(delay).await;
+                         continue;
+                     }
+diff --git a/lib/crates/fabro-workflows/src/handler/parallel.rs b/lib/crates/fabro-workflows/src/handler/parallel.rs
+index 41b83f9..ab2a9ee 100644
+--- a/lib/crates/fabro-workflows/src/handler/parallel.rs
++++ b/lib/crates/fabro-workflows/src/handler/parallel.rs
+@@ -11,6 +11,7 @@ use crate::context::Context;
+ use crate::error::FabroError;
+ use crate::event::WorkflowRunEvent;
+ use crate::graph::{Graph, Node};
++use crate::hook::{HookContext, HookEvent};
+ use crate::millis_u64;
+ use crate::outcome::{Outcome, StageStatus};
+ use fabro_agent::LocalSandbox;
+@@ -299,6 +300,14 @@ impl Handler for ParallelHandler {
+             join_policy: join_policy.to_string(),
+             error_policy: error_policy.to_string(),
+         });
++        if let Some(ref runner) = services.hook_runner {
++            let hook_ctx = HookContext::new(
++                HookEvent::ParallelStart,
++                context.run_id(),
++                graph.name.clone(),
++            );
++            let _ = runner.run(&hook_ctx, services.sandbox.clone(), None).await;
++        }
+         let max_parallel = node
+             .attrs
+             .get("max_parallel")
+@@ -711,6 +720,14 @@ impl Handler for ParallelHandler {
+             success_count,
+             failure_count: fail_count,
+         });
++        if let Some(ref runner) = services.hook_runner {
++            let hook_ctx = HookContext::new(
++                HookEvent::ParallelComplete,
++                context.run_id(),
++                graph.name.clone(),
++            );
++            let _ = runner.run(&hook_ctx, services.sandbox.clone(), None).await;
++        }
+ 
+         // Evaluate join policy
+         let status = match join_policy {
+diff --git a/lib/crates/fabro-workflows/src/hook/types.rs b/lib/crates/fabro-workflows/src/hook/types.rs
+index 2a299b8..bc14215 100644
+--- a/lib/crates/fabro-workflows/src/hook/types.rs
++++ b/lib/crates/fabro-workflows/src/hook/types.rs
+@@ -14,7 +14,9 @@ pub enum HookEvent {
+     EdgeSelected,
+     ParallelStart,
+     ParallelComplete,
++    /// Reserved: hooks for this event are not yet invoked by the engine.
+     SandboxReady,
++    /// Reserved: hooks for this event are not yet invoked by the engine.
+     SandboxCleanup,
+     CheckpointSaved,
+     PreToolUse,
