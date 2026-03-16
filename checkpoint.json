@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-03-16T12:00:54.345613Z",
+  "current_node": "setup",
+  "completed_nodes": [
+    "start",
+    "setup"
+  ],
+  "node_retries": {
+    "setup": 1,
+    "start": 1
+  },
+  "context_values": {
+    "graph.rankdir": "LR",
+    "internal.retry_count.setup": 1,
+    "outcome": "fail",
+    "failure_class": "deterministic",
+    "internal.fidelity": "compact",
+    "current_node": "setup",
+    "internal.run_id": "01KKV8AAME99ZT1PK1YN950J7P",
+    "internal.thread_id": "start",
+    "internal.node_visit_count": 1,
+    "graph.goal": "Add check to ensure max_length fits longest choice.\nDescription\n\t\nThere is currently no check to ensure that Field.max_length is large enough to fit the longest value in Field.choices.\nThis would be very helpful as often this mistake is not noticed until an attempt is made to save a record with those values that are too long.\n",
+    "current.preamble": "Goal: Add check to ensure max_length fits longest choice.\nDescription\n\t\nThere is currently no check to ensure that Field.max_length is large enough to fit the longest value in Field.choices.\nThis would be very helpful as often this mistake is not noticed until an attempt is made to save a record with those values that are too long.\n\n",
+    "internal.retry_count.start": 1,
+    "thread.start.current_node": "setup",
+    "failure_signature": "setup|deterministic|script failed with exit code: <n> ## stdout fatal: destination path '.' already exists and is not an empty directory.",
+    "command.output": "fatal: destination path '.' already exists and is not an empty directory.\n",
+    "command.stderr": ""
+  },
+  "logs": [],
+  "node_outcomes": {
+    "start": {
+      "status": "success",
+      "duration_ms": 0
+    },
+    "setup": {
+      "status": "fail",
+      "context_updates": {
+        "command.stderr": "",
+        "command.output": "fatal: destination path '.' already exists and is not an empty directory.\n"
+      },
+      "failure": {
+        "message": "Script failed with exit code: 128\n\n## stdout\nfatal: destination path '.' already exists and is not an empty directory.\n",
+        "failure_class": "deterministic"
+      },
+      "duration_ms": 40
+    }
+  },
+  "next_node_id": "solve",
+  "loop_failure_signatures": {
+    "setup|deterministic|script failed with exit code: <n> ## stdout fatal: destination path '.' already exists and is not an empty directory.": 1
+  },
+  "node_visits": {
+    "setup": 1,
+    "start": 1
+  }
+}
