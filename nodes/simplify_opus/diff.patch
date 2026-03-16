@@ -1,0 +1,60 @@
+diff --git a/docs/reference/cli.mdx b/docs/reference/cli.mdx
+index 2743fcc..4b55956 100644
+--- a/docs/reference/cli.mdx
++++ b/docs/reference/cli.mdx
+@@ -374,7 +374,7 @@ fabro graph run.toml --format svg
+ | `<WORKFLOW>` | Path to a `.fabro` workflow file or `.toml` run config (required) |
+ | `--format <FORMAT>` | Output format: `svg` (default) or `png` |
+ | `-o, --output <FILE>` | Output file path. Defaults to stdout. |
+-| `-d, --direction <DIR>` | Graph direction: `lr` (default) or `tb` |
++| `-d, --direction <DIR>` | Graph direction: `lr` or `tb`. If omitted, uses the DOT file's own `rankdir`. |
+ 
+ ## `fabro skill install`
+ 
+@@ -679,4 +679,4 @@ Interactive setup wizard that walks you through configuring API keys and validat
+ 
+ ```bash
+ fabro install
+-```
+\ No newline at end of file
++```
+diff --git a/lib/crates/fabro-workflows/src/cli/graph.rs b/lib/crates/fabro-workflows/src/cli/graph.rs
+index 1354c13..937b205 100644
+--- a/lib/crates/fabro-workflows/src/cli/graph.rs
++++ b/lib/crates/fabro-workflows/src/cli/graph.rs
+@@ -1,7 +1,9 @@
++use std::borrow::Cow;
+ use std::fmt;
+ use std::io::Write;
+ use std::path::PathBuf;
+ use std::process::Command;
++use std::sync::LazyLock;
+ 
+ use anyhow::bail;
+ use clap::{Args, ValueEnum};
+@@ -99,15 +101,20 @@ pub fn graph_command(args: &GraphArgs, styles: &Styles) -> anyhow::Result<()> {
+     Ok(())
+ }
+ 
++static RANKDIR_RE: LazyLock<regex::Regex> =
++    LazyLock::new(|| regex::Regex::new(r"rankdir\s*=\s*\w+").unwrap());
++
+ /// If a direction override is given, rewrite `rankdir=…` in the DOT source.
+-fn apply_direction(source: &str, direction: Option<GraphDirection>) -> String {
++fn apply_direction<'a>(source: &'a str, direction: Option<GraphDirection>) -> Cow<'a, str> {
+     match direction {
+         Some(dir) => {
+-            let re = regex::Regex::new(r"rankdir\s*=\s*\w+").unwrap();
+-            re.replace_all(source, format!("rankdir={dir}"))
+-                .into_owned()
++            let replacement = match dir {
++                GraphDirection::Lr => "rankdir=LR",
++                GraphDirection::Tb => "rankdir=TB",
++            };
++            RANKDIR_RE.replace_all(source, replacement)
+         }
+-        None => source.to_string(),
++        None => Cow::Borrowed(source),
+     }
+ }
+ 
