@@ -1309,6 +1309,14 @@ impl Interviewer for ProgressAwareInterviewer {
         self.inner.inform(message, stage).await;
         self.show_bars();
     }
+
+    fn hide_progress(&self) {
+        self.hide_bars();
+    }
+
+    fn show_progress(&self) {
+        self.show_bars();
+    }
 }
 
 #[cfg(test)]

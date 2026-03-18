@@ -1,9 +1,23 @@
-target
-.env
-.entire
-node_modules
-tmp
-evals/swe-bench/repos/
-evals/swe-bench/results/
-evals/swe-bench/dockerfiles/
-__pycache__
+# Node
+node_modules/
+scripts/model-tool/dist/
+scripts/design-tool/dist/
+
+# Generated design guide
+docs/design-guide/
+
+
+# Evals
+evals/
+
+# OS
+.DS_Store
+.claude/settings.local.json
+
+
+# Added by cargo
+
+/target
+
+# "global" workspace dependencies
+.dependencies/

@@ -4308,6 +4308,16 @@ components:
           description: Default MCP server configurations.
         github:
           $ref: "#/components/schemas/GitHubConfiguration"
+        interactive:
+          $ref: "#/components/schemas/InteractiveConfiguration"
+
+    InteractiveConfiguration:
+      description: Interactive CLI session configuration for human-in-the-loop nodes.
+      type: object
+      properties:
+        cli:
+          type: string
+          description: CLI tool to launch for interactive sessions (e.g. "claude").
 
     GitHubConfiguration:
       description: GitHub App token injection configuration.

@@ -221,6 +221,11 @@ impl Node {
     }
 
     #[must_use]
+    pub fn interactive(&self) -> bool {
+        self.bool_attr("interactive").unwrap_or(false)
+    }
+
+    #[must_use]
     pub fn project_memory(&self) -> bool {
         self.bool_attr("project_memory").unwrap_or(true)
     }
@@ -536,6 +541,7 @@ mod tests {
         assert_eq!(node.reasoning_effort(), "high");
         assert!(!node.auto_status());
         assert!(!node.allow_partial());
+        assert!(!node.interactive());
         assert_eq!(node.retry_policy(), None);
         assert_eq!(node.max_visits(), None);
         assert!(node.project_memory());

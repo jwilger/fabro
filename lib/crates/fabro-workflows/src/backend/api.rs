@@ -1,4 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::io::IsTerminal;
+use std::path::Path;
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -12,6 +15,7 @@ use fabro_llm::catalog::FallbackTarget;
 use fabro_llm::client::Client;
 use fabro_llm::provider::Provider;
 
+use crate::backend::ask_human;
 use crate::context::Context;
 use crate::cost::compute_stage_cost;
 use crate::error::FabroError;
@@ -19,6 +23,7 @@ use crate::event::WorkflowRunEvent;
 use crate::handler::agent::{CodergenBackend, CodergenResult};
 use crate::outcome::StageUsage;
 use fabro_graphviz::graph::Node;
+use fabro_interview::Interviewer;
 
 fn build_profile(model: &str, provider: Provider) -> Box<dyn ProviderProfile> {
     match provider {
@@ -127,6 +132,8 @@ pub struct AgentApiBackend {
     sessions: Mutex<HashMap<String, Session>>,
     env: HashMap<String, String>,
     mcp_servers: Vec<fabro_mcp::config::McpServerConfig>,
+    interviewer: Option<Arc<dyn Interviewer>>,
+    interactive_cli: Option<String>,
 }
 
 impl AgentApiBackend {
@@ -139,6 +146,8 @@ impl AgentApiBackend {
             sessions: Mutex::new(HashMap::new()),
             env: HashMap::new(),
             mcp_servers: Vec::new(),
+            interviewer: None,
+            interactive_cli: None,
         }
     }
 
@@ -152,6 +161,139 @@ impl AgentApiBackend {
     pub fn with_mcp_servers(mut self, servers: Vec<fabro_mcp::config::McpServerConfig>) -> Self {
         self.mcp_servers = servers;
         self
+    }
+
+    #[must_use]
+    pub fn with_interviewer(mut self, interviewer: Arc<dyn Interviewer>) -> Self {
+        self.interviewer = Some(interviewer);
+        self
+    }
+
+    #[must_use]
+    pub fn with_interactive_cli(mut self, cli: Option<String>) -> Self {
+        self.interactive_cli = cli;
+        self
+    }
+
+    /// Attempt to run an interactive CLI session (e.g. Claude Code) for an
+    /// interactive node. Returns `Ok(Some(...))` on success, `Ok(None)` if
+    /// the interactive CLI is not configured or no TTY is available (caller
+    /// should fall back to `ask_human`).
+    async fn run_interactive_cli(
+        &self,
+        _node: &Node,
+        prompt: &str,
+        sandbox: &Arc<dyn Sandbox>,
+        stage_dir: &Path,
+    ) -> Result<Option<CodergenResult>, FabroError> {
+        let cli = match &self.interactive_cli {
+            Some(c) if c == "claude" => c.clone(),
+            _ => return Ok(None),
+        };
+
+        if !std::io::stdin().is_terminal() {
+            tracing::debug!("interactive_cli configured but stdin is not a TTY, falling back");
+            return Ok(None);
+        }
+
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let cwd = sandbox.working_directory().to_string();
+
+        // Hide progress bars before spawning interactive subprocess
+        if let Some(ref interviewer) = self.interviewer {
+            interviewer.hide_progress();
+        }
+
+        let spawn_result = self.spawn_claude(&cli, prompt, &session_id, &cwd).await;
+
+        // Restore progress bars after subprocess exits
+        if let Some(ref interviewer) = self.interviewer {
+            interviewer.show_progress();
+        }
+
+        let status = spawn_result.map_err(|e| {
+            FabroError::handler(format!("Failed to spawn interactive CLI '{cli}': {e}"))
+        })?;
+
+        if !status.success() {
+            return Err(FabroError::handler(format!(
+                "Interactive CLI '{cli}' exited with status {status}"
+            )));
+        }
+
+        // Capture a summary of the session
+        let summary = match self.capture_claude_output(&session_id).await {
+            Ok(text) => text,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to capture interactive CLI summary, using placeholder");
+                "[Interactive session completed — summary capture failed]".to_string()
+            }
+        };
+
+        // Write summary to stage dir for debugging
+        let _ = tokio::fs::create_dir_all(stage_dir).await;
+        let _ = tokio::fs::write(stage_dir.join("interactive_summary.txt"), &summary).await;
+
+        Ok(Some(CodergenResult::Text {
+            text: summary,
+            usage: None,
+            files_touched: Vec::new(),
+            last_file_touched: None,
+        }))
+    }
+
+    async fn spawn_claude(
+        &self,
+        _cli: &str,
+        prompt: &str,
+        session_id: &str,
+        cwd: &str,
+    ) -> std::io::Result<std::process::ExitStatus> {
+        let mut cmd = tokio::process::Command::new("claude");
+        cmd.arg("--append-system-prompt")
+            .arg(prompt)
+            .arg("--session-id")
+            .arg(session_id)
+            .arg("--cwd")
+            .arg(cwd)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        // Allow nesting Claude Code inside a Fabro workflow that may itself
+        // be running under Claude Code.
+        cmd.env_remove("CLAUDE_CODE_ENTRY_POINT");
+        cmd.status().await
+    }
+
+    async fn capture_claude_output(&self, session_id: &str) -> anyhow::Result<String> {
+        let output = tokio::process::Command::new("claude")
+            .arg("-p")
+            .arg("Provide a comprehensive summary of everything discussed and decided in this session. Include key decisions, requirements gathered, and any files created or modified. Output ONLY the summary.")
+            .arg("--resume")
+            .arg(session_id)
+            .arg("--output-format")
+            .arg("json")
+            .env_remove("CLAUDE_CODE_ENTRY_POINT")
+            .output()
+            .await?;
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "claude summary command failed with status {}",
+                output.status
+            );
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Parse JSON response and extract "result" field
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
+            if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+                return Ok(result.to_string());
+            }
+        }
+
+        // Fall back to raw output if JSON parsing fails
+        Ok(stdout.trim().to_string())
     }
 
     async fn create_session(
@@ -168,10 +310,12 @@ impl AgentApiBackend {
             &self.env,
             tool_hooks,
             self.mcp_servers.clone(),
+            self.interviewer.as_ref(),
         )
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn create_session_for(
         model: &str,
         provider: Provider,
@@ -180,6 +324,7 @@ impl AgentApiBackend {
         env: &HashMap<String, String>,
         tool_hooks: Option<Arc<dyn fabro_agent::ToolHookCallback>>,
         mcp_servers: Vec<fabro_mcp::config::McpServerConfig>,
+        interviewer: Option<&Arc<dyn Interviewer>>,
     ) -> Result<Session, FabroError> {
         let client = Client::from_env()
             .await
@@ -227,6 +372,18 @@ impl AgentApiBackend {
         });
 
         profile.register_subagent_tools(manager, factory, 0);
+
+        if node.interactive() {
+            if let Some(interviewer) = interviewer {
+                profile
+                    .tool_registry_mut()
+                    .register(ask_human::make_ask_human_tool(
+                        Arc::clone(interviewer),
+                        node.id.clone(),
+                    ));
+            }
+        }
+
         let profile: Arc<dyn ProviderProfile> = Arc::from(profile);
 
         let mut session = Session::new(client, profile, Arc::clone(sandbox), config);
@@ -412,6 +569,17 @@ impl CodergenBackend for AgentApiBackend {
         sandbox: &Arc<dyn Sandbox>,
         tool_hooks: Option<Arc<dyn fabro_agent::ToolHookCallback>>,
     ) -> Result<CodergenResult, FabroError> {
+        // For interactive nodes, try launching an interactive CLI session first.
+        if node.interactive() {
+            if let Some(result) = self
+                .run_interactive_cli(node, prompt, sandbox, stage_dir)
+                .await?
+            {
+                return Ok(result);
+            }
+            // Fall through: no CLI configured or no TTY → use ask_human tool path
+        }
+
         let fidelity = context.fidelity();
         let reuse_key = if fidelity == crate::context::keys::Fidelity::Full {
             thread_id.map(String::from)
@@ -512,6 +680,7 @@ impl CodergenBackend for AgentApiBackend {
                         &self.env,
                         tool_hooks.clone(),
                         self.mcp_servers.clone(),
+                        self.interviewer.as_ref(),
                     )
                     .await
                     {

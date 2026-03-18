@@ -18,6 +18,11 @@ pub struct CheckpointConfig {
     pub exclude_globs: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct InteractiveConfig {
+    pub cli: Option<String>,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -81,6 +86,7 @@ pub struct WorkflowRunConfig {
     #[serde(default)]
     pub mcp_servers: HashMap<String, McpServerEntry>,
     pub github: Option<GitHubConfig>,
+    pub interactive: Option<InteractiveConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -117,6 +123,7 @@ pub struct RunDefaults {
     #[serde(default)]
     pub mcp_servers: HashMap<String, McpServerEntry>,
     pub github: Option<GitHubConfig>,
+    pub interactive: Option<InteractiveConfig>,
 }
 
 impl WorkflowRunConfig {
@@ -140,6 +147,7 @@ impl WorkflowRunConfig {
             hooks: std::mem::take(&mut self.hooks),
             mcp_servers: std::mem::take(&mut self.mcp_servers),
             github: self.github.take(),
+            interactive: self.interactive.take(),
         };
         let mut merged = defaults.clone();
         merged.merge_overlay(task_overlay);
@@ -155,6 +163,7 @@ impl WorkflowRunConfig {
         self.hooks = merged.hooks;
         self.mcp_servers = merged.mcp_servers;
         self.github = merged.github;
+        self.interactive = merged.interactive;
     }
 }
 
@@ -290,6 +299,10 @@ impl RunDefaults {
 
         if overlay.github.is_some() {
             self.github = overlay.github;
+        }
+
+        if overlay.interactive.is_some() {
+            self.interactive = overlay.interactive;
         }
     }
 }

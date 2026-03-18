@@ -7,8 +7,8 @@ use serde::Deserialize;
 use crate::hook::HookDefinition;
 use crate::mcp::McpServerEntry;
 use crate::run::{
-    AssetsConfig, CheckpointConfig, GitHubConfig, LlmConfig, PullRequestConfig, RunDefaults,
-    SetupConfig,
+    AssetsConfig, CheckpointConfig, GitHubConfig, InteractiveConfig, LlmConfig, PullRequestConfig,
+    RunDefaults, SetupConfig,
 };
 use crate::sandbox::SandboxConfig;
 
@@ -39,6 +39,7 @@ pub struct ProjectConfig {
     #[serde(default)]
     pub mcp_servers: HashMap<String, McpServerEntry>,
     pub github: Option<GitHubConfig>,
+    pub interactive: Option<InteractiveConfig>,
 }
 
 impl ProjectConfig {
@@ -56,6 +57,7 @@ impl ProjectConfig {
             hooks: self.hooks,
             mcp_servers: self.mcp_servers,
             github: self.github,
+            interactive: self.interactive,
         }
     }
 }

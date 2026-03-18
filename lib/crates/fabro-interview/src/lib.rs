@@ -197,6 +197,12 @@ pub trait Interviewer: Send + Sync {
     async fn inform(&self, _message: &str, _stage: &str) {
         // Default no-op
     }
+
+    /// Hide progress UI to prepare for an interactive subprocess taking over the terminal.
+    fn hide_progress(&self) {}
+
+    /// Restore progress UI after an interactive subprocess finishes.
+    fn show_progress(&self) {}
 }
 
 // Re-export all implementors at the crate root

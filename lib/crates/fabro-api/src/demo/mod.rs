@@ -1321,6 +1321,7 @@ mod runs {
             assets: None,
             mcp_servers: Default::default(),
             github: None,
+            interactive: None,
         })
         .unwrap()
     }
@@ -1490,6 +1491,7 @@ mod workflows {
                     assets: None,
                     mcp_servers: Default::default(),
                     github: None,
+                    interactive: None,
                 }),
                 graph: r#"digraph fix_build {
     graph [
@@ -1563,6 +1565,7 @@ mod workflows {
                     assets: None,
                     mcp_servers: Default::default(),
                     github: None,
+                    interactive: None,
                 }),
                 graph: r#"digraph implement {
     graph [
@@ -1648,6 +1651,7 @@ mod workflows {
                     assets: None,
                     mcp_servers: Default::default(),
                     github: None,
+                    interactive: None,
                 }),
                 graph: r#"digraph sync {
     graph [
@@ -1722,6 +1726,7 @@ mod workflows {
                     assets: None,
                     mcp_servers: Default::default(),
                     github: None,
+                    interactive: None,
                 }),
                 graph: r#"digraph expand {
     graph [
@@ -3285,6 +3290,7 @@ mod settings {
                 hooks: vec![],
                 mcp_servers: Default::default(),
                 github: None,
+                interactive: None,
             },
         })
         .unwrap()
