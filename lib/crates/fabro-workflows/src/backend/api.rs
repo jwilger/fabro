@@ -185,6 +185,7 @@ impl AgentApiBackend {
         prompt: &str,
         sandbox: &Arc<dyn Sandbox>,
         stage_dir: &Path,
+        emitter: &Arc<crate::event::EventEmitter>,
     ) -> Result<Option<CodergenResult>, FabroError> {
         let cli = match &self.interactive_cli {
             Some(c) if c == "claude" => c.clone(),
@@ -204,7 +205,18 @@ impl AgentApiBackend {
             interviewer.hide_progress();
         }
 
+        // Keep the stall watchdog alive while the interactive session runs.
+        let watchdog_emitter = Arc::clone(emitter);
+        let watchdog_handle = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                watchdog_emitter.touch();
+            }
+        });
+
         let spawn_result = self.spawn_claude(&cli, prompt, &session_id, &cwd).await;
+
+        watchdog_handle.abort();
 
         // Restore progress bars after subprocess exits
         if let Some(ref interviewer) = self.interviewer {
@@ -250,12 +262,12 @@ impl AgentApiBackend {
         cwd: &str,
     ) -> std::io::Result<std::process::ExitStatus> {
         let mut cmd = tokio::process::Command::new("claude");
-        cmd.arg("--append-system-prompt")
+        cmd.arg("--system-prompt")
             .arg(prompt)
             .arg("--session-id")
             .arg(session_id)
-            .arg("--cwd")
-            .arg(cwd)
+            .arg("Begin this interactive session. Introduce yourself and start with your first question.")
+            .current_dir(cwd)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
@@ -572,7 +584,7 @@ impl CodergenBackend for AgentApiBackend {
         // For interactive nodes, try launching an interactive CLI session first.
         if node.interactive() {
             if let Some(result) = self
-                .run_interactive_cli(node, prompt, sandbox, stage_dir)
+                .run_interactive_cli(node, prompt, sandbox, stage_dir, emitter)
                 .await?
             {
                 return Ok(result);
