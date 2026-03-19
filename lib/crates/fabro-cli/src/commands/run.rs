@@ -126,6 +126,10 @@ pub struct RunArgs {
     #[arg(long)]
     pub preserve_sandbox: bool,
 
+    /// Disable TUI mode (use progress bars instead)
+    #[arg(long)]
+    pub no_tui: bool,
+
     /// Run the workflow in the background and print the run ID
     #[arg(short = 'd', long, conflicts_with_all = ["resume", "run_branch", "preflight"])]
     pub detach: bool,
@@ -625,11 +629,18 @@ pub async fn run_command(
 
     // Create progress UI (used for both normal and verbose modes)
     let is_tty = std::io::stderr().is_terminal();
+
+    // Determine whether to use the TUI (alternate-screen ratatui) or fallback to indicatif
+    #[cfg(feature = "tui")]
+    let use_tui = is_tty && !args.no_tui;
+    #[cfg(not(feature = "tui"))]
+    let use_tui = false;
+
     let progress_ui = Arc::new(Mutex::new(run_progress::ProgressUI::new(
-        is_tty,
+        is_tty && !use_tui,
         args.verbose,
     )));
-    {
+    if !use_tui {
         let mut ui = progress_ui.lock().expect("progress lock poisoned");
         ui.show_version();
         ui.show_run_id(&run_id);
@@ -708,11 +719,42 @@ pub async fn run_command(
         });
     }
 
-    run_progress::ProgressUI::register(&progress_ui, &mut emitter);
+    // Register TUI event listener or fallback progress UI
+    #[cfg(feature = "tui")]
+    let tui_event_rx = if use_tui {
+        Some(fabro_tui::register_tui_listener(&mut emitter))
+    } else {
+        None
+    };
+    #[cfg(not(feature = "tui"))]
+    let _tui_event_rx: Option<
+        tokio::sync::mpsc::UnboundedReceiver<fabro_workflows::event::WorkflowRunEvent>,
+    > = None;
+
+    if !use_tui {
+        run_progress::ProgressUI::register(&progress_ui, &mut emitter);
+    }
 
     // 4. Build interviewer
+    #[cfg(feature = "tui")]
+    let (tui_chat_tx, tui_chat_rx) = tokio::sync::mpsc::unbounded_channel();
+
     let interviewer: Arc<dyn Interviewer> = if args.auto_approve {
         Arc::new(AutoApproveInterviewer)
+    } else if use_tui {
+        #[cfg(feature = "tui")]
+        {
+            Arc::new(fabro_tui::TuiInterviewer::new(tui_chat_tx.clone()))
+        }
+        #[cfg(not(feature = "tui"))]
+        {
+            unreachable!("use_tui is always false without tui feature")
+        }
+    } else if is_tty {
+        Arc::new(super::conversation::ConversationInterviewer::new(
+            ConsoleInterviewer::new(styles),
+            Arc::clone(&progress_ui),
+        ))
     } else {
         Arc::new(run_progress::ProgressAwareInterviewer::new(
             ConsoleInterviewer::new(styles),
@@ -1074,6 +1116,7 @@ pub async fn run_command(
             }));
             Arc::new(env)
         }
+        #[allow(unreachable_patterns)]
         _ => bail!("exe.dev sandbox support is not enabled in this build"),
     };
 
@@ -1182,18 +1225,11 @@ pub async fn run_command(
             .map(|(name, entry)| entry.into_config(name))
             .collect()
     };
-    let interactive_cli = run_cfg
-        .as_ref()
-        .and_then(|c| c.interactive.as_ref())
-        .or(run_defaults.interactive.as_ref())
-        .and_then(|ic| ic.cli.clone());
-
     let registry = default_registry(interviewer.clone(), {
         let sandbox_env = sandbox_env.clone();
         let model = model.clone();
         let mcp_servers = mcp_servers.clone();
         let interviewer = interviewer.clone();
-        let interactive_cli = interactive_cli.clone();
         move || {
             if dry_run_mode {
                 None
@@ -1202,8 +1238,7 @@ pub async fn run_command(
                     AgentApiBackend::new(model.clone(), provider_enum, fallback_chain.clone())
                         .with_env(sandbox_env.clone())
                         .with_mcp_servers(mcp_servers.clone())
-                        .with_interviewer(interviewer.clone())
-                        .with_interactive_cli(interactive_cli.clone());
+                        .with_interviewer(interviewer.clone());
                 let cli = AgentCliBackend::new(model.clone(), provider_enum)
                     .with_env(sandbox_env.clone());
                 Some(Box::new(BackendRouter::new(Box::new(api), cli)))
@@ -1314,16 +1349,48 @@ pub async fn run_command(
     });
 
     let run_start = Instant::now();
-    let engine_result = if let Some(ref checkpoint_path) = args.resume {
-        let checkpoint = Checkpoint::load(checkpoint_path)?;
-        engine
-            .run_with_lifecycle(&graph, &mut config, lifecycle, Some(&checkpoint))
-            .await
+
+    // Load checkpoint once if resuming
+    let resume_checkpoint = if let Some(ref checkpoint_path) = args.resume {
+        Some(Checkpoint::load(checkpoint_path)?)
     } else {
-        engine
-            .run_with_lifecycle(&graph, &mut config, lifecycle, None)
-            .await
+        None
     };
+
+    // When TUI is active, spawn it on a blocking thread before running the engine.
+    // The engine runs in the current async context; the TUI receives events via channels.
+    #[cfg(feature = "tui")]
+    let tui_join_handle = if use_tui {
+        let tui_event_rx = tui_event_rx.expect("tui_event_rx must be Some when use_tui");
+        let tui_chat_rx = tui_chat_rx;
+        let tui_config = fabro_tui::TuiConfig {
+            run_id: run_id.clone(),
+            event_rx: tui_event_rx,
+            chat_rx: tui_chat_rx,
+        };
+        Some(tokio::task::spawn_blocking(move || {
+            fabro_tui::run_tui(tui_config)
+        }))
+    } else {
+        None
+    };
+
+    // Run the engine (events flow to TUI via the registered emitter listener)
+    let engine_result = engine
+        .run_with_lifecycle(&graph, &mut config, lifecycle, resume_checkpoint.as_ref())
+        .await;
+
+    // Wait for TUI to finish after the engine completes
+    // (The emitter's channel will close when the engine's Arc<EventEmitter> is dropped,
+    // which signals the TUI that no more events are coming.)
+    #[cfg(feature = "tui")]
+    if let Some(handle) = tui_join_handle {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => eprintln!("TUI error: {e}"),
+            Err(e) => eprintln!("TUI task panicked: {e}"),
+        }
+    }
     let run_duration_ms = run_start.elapsed().as_millis() as u64;
 
     // Restore cwd (worktree is kept for `fabro cp` access; pruned separately)
@@ -1825,6 +1892,7 @@ async fn run_from_branch(
             SandboxProvider::Daytona => {
                 bail!("--run-branch resume is not yet supported with --sandbox daytona");
             }
+            #[allow(unreachable_patterns)]
             _ => bail!("exe.dev sandbox support is not enabled in this build"),
         };
 
@@ -1876,8 +1944,7 @@ async fn run_from_branch(
             } else {
                 let api =
                     AgentApiBackend::new(model.clone(), provider_enum, fallback_chain.clone())
-                        .with_interviewer(interviewer.clone())
-                        .with_interactive_cli(None);
+                        .with_interviewer(interviewer.clone());
                 let cli = AgentCliBackend::new(model.clone(), provider_enum);
                 Some(Box::new(BackendRouter::new(Box::new(api), cli)))
             }
@@ -2181,6 +2248,7 @@ async fn run_preflight(
         SandboxProvider::Local => {
             Ok(Arc::new(LocalSandbox::new(original_cwd.clone())) as Arc<dyn Sandbox>)
         }
+        #[allow(unreachable_patterns)]
         _ => Err("exe.dev sandbox support is not enabled in this build".to_string()),
     };
 

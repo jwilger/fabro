@@ -266,6 +266,30 @@ impl ProgressUI {
         });
     }
 
+    /// Hide progress bar draw target so other output can write to stderr.
+    pub fn hide_draw_target(&self) {
+        if let ProgressRenderer::Tty(tty) = &self.renderer {
+            tty.multi.set_draw_target(ProgressDrawTarget::hidden());
+        }
+    }
+
+    /// Restore progress bar draw target to stderr.
+    pub fn show_draw_target(&self) {
+        if let ProgressRenderer::Tty(tty) = &self.renderer {
+            tty.multi.set_draw_target(ProgressDrawTarget::stderr());
+        }
+    }
+
+    /// Insert a separator line and hide the draw target (used before interactive prompts).
+    pub fn hide_with_separator(&self) {
+        if let ProgressRenderer::Tty(tty) = &self.renderer {
+            let sep = tty.multi.add(ProgressBar::new_spinner());
+            sep.set_style(style_empty());
+            sep.finish();
+            tty.multi.set_draw_target(ProgressDrawTarget::hidden());
+        }
+    }
+
     /// Clear all active bars and release the terminal for normal stderr output.
     pub fn finish(&mut self) {
         for (_id, stage) in self.active_stages.drain() {
@@ -1271,20 +1295,6 @@ impl ProgressAwareInterviewer {
     pub fn new(inner: ConsoleInterviewer, progress: Arc<Mutex<ProgressUI>>) -> Self {
         Self { inner, progress }
     }
-
-    fn hide_bars(&self) {
-        let ui = self.progress.lock().expect("progress lock poisoned");
-        if let ProgressRenderer::Tty(tty) = &ui.renderer {
-            tty.multi.set_draw_target(ProgressDrawTarget::hidden());
-        }
-    }
-
-    fn show_bars(&self) {
-        let ui = self.progress.lock().expect("progress lock poisoned");
-        if let ProgressRenderer::Tty(tty) = &ui.renderer {
-            tty.multi.set_draw_target(ProgressDrawTarget::stderr());
-        }
-    }
 }
 
 #[async_trait]
@@ -1292,30 +1302,27 @@ impl Interviewer for ProgressAwareInterviewer {
     async fn ask(&self, question: Question) -> Answer {
         {
             let ui = self.progress.lock().expect("progress lock poisoned");
-            if let ProgressRenderer::Tty(tty) = &ui.renderer {
-                let sep = tty.multi.add(ProgressBar::new_spinner());
-                sep.set_style(style_empty());
-                sep.finish();
-                tty.multi.set_draw_target(ProgressDrawTarget::hidden());
-            }
+            ui.hide_with_separator();
         }
         let answer = self.inner.ask(question).await;
-        self.show_bars();
+        self.show_progress();
         answer
     }
 
     async fn inform(&self, message: &str, stage: &str) {
-        self.hide_bars();
+        self.hide_progress();
         self.inner.inform(message, stage).await;
-        self.show_bars();
+        self.show_progress();
     }
 
     fn hide_progress(&self) {
-        self.hide_bars();
+        let ui = self.progress.lock().expect("progress lock poisoned");
+        ui.hide_draw_target();
     }
 
     fn show_progress(&self) {
-        self.show_bars();
+        let ui = self.progress.lock().expect("progress lock poisoned");
+        ui.show_draw_target();
     }
 }
 

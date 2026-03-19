@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
-use std::path::Path;
-use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -54,11 +52,9 @@ fn track_file_event(event: &AgentEvent, state: &mut FileTracking) {
             tool_name,
             tool_call_id,
             arguments,
-        } => {
-            if tool_name == "write_file" || tool_name == "edit_file" {
-                if let Some(path) = arguments.get("file_path").and_then(|v| v.as_str()) {
-                    state.pending.insert(tool_call_id.clone(), path.to_string());
-                }
+        } if tool_name == "write_file" || tool_name == "edit_file" => {
+            if let Some(path) = arguments.get("file_path").and_then(|v| v.as_str()) {
+                state.pending.insert(tool_call_id.clone(), path.to_string());
             }
         }
         AgentEvent::ToolCallCompleted {
@@ -133,7 +129,6 @@ pub struct AgentApiBackend {
     env: HashMap<String, String>,
     mcp_servers: Vec<fabro_mcp::config::McpServerConfig>,
     interviewer: Option<Arc<dyn Interviewer>>,
-    interactive_cli: Option<String>,
 }
 
 impl AgentApiBackend {
@@ -147,7 +142,6 @@ impl AgentApiBackend {
             env: HashMap::new(),
             mcp_servers: Vec::new(),
             interviewer: None,
-            interactive_cli: None,
         }
     }
 
@@ -169,143 +163,141 @@ impl AgentApiBackend {
         self
     }
 
-    #[must_use]
-    pub fn with_interactive_cli(mut self, cli: Option<String>) -> Self {
-        self.interactive_cli = cli;
-        self
-    }
-
-    /// Attempt to run an interactive CLI session (e.g. Claude Code) for an
-    /// interactive node. Returns `Ok(Some(...))` on success, `Ok(None)` if
-    /// the interactive CLI is not configured or no TTY is available (caller
-    /// should fall back to `ask_human`).
-    async fn run_interactive_cli(
+    /// Run an interactive node inline: stream assistant output to the terminal
+    /// and use the `ask_human` tool for multi-turn conversation with the user.
+    async fn run_interactive_inline(
         &self,
-        _node: &Node,
+        node: &Node,
         prompt: &str,
-        sandbox: &Arc<dyn Sandbox>,
-        stage_dir: &Path,
         emitter: &Arc<crate::event::EventEmitter>,
-    ) -> Result<Option<CodergenResult>, FabroError> {
-        let cli = match &self.interactive_cli {
-            Some(c) if c == "claude" => c.clone(),
-            _ => return Ok(None),
-        };
-
-        if !std::io::stdin().is_terminal() {
-            tracing::debug!("interactive_cli configured but stdin is not a TTY, falling back");
-            return Ok(None);
-        }
-
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let cwd = sandbox.working_directory().to_string();
-
-        // Hide progress bars before spawning interactive subprocess
+        stage_dir: &std::path::Path,
+        sandbox: &Arc<dyn Sandbox>,
+        tool_hooks: Option<Arc<dyn fabro_agent::ToolHookCallback>>,
+    ) -> Result<CodergenResult, FabroError> {
+        // Hide progress bars for the duration of the interactive session.
         if let Some(ref interviewer) = self.interviewer {
             interviewer.hide_progress();
         }
 
-        // Keep the stall watchdog alive while the interactive session runs.
+        let mut session = self
+            .create_session(node, sandbox, tool_hooks.clone())
+            .await?;
+
+        // Spawn inline renderer (prints streamed text + tool activity to stderr).
+        let renderer_handle =
+            crate::backend::interactive_renderer::spawn_interactive_renderer(&session);
+
+        // File change tracking.
+        let file_tracking = Arc::new(Mutex::new(FileTracking {
+            pending: HashMap::new(),
+            touched: HashSet::new(),
+            last: None,
+        }));
+
+        // Standard event forwarder (for workflow pipeline events + file tracking).
+        spawn_event_forwarder(
+            &session,
+            node.id.clone(),
+            Arc::clone(emitter),
+            Arc::clone(&file_tracking),
+        );
+
+        // Watchdog keepalive while user may be typing.
         let watchdog_emitter = Arc::clone(emitter);
-        let watchdog_handle = tokio::spawn(async move {
+        let watchdog = tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
                 watchdog_emitter.touch();
             }
         });
 
-        let spawn_result = self.spawn_claude(&cli, prompt, &session_id, &cwd).await;
+        // Run the agent — ask_human tool calls go through Interviewer::ask().
+        session.initialize().await;
+        emitter.emit(&WorkflowRunEvent::Prompt {
+            stage: node.id.clone(),
+            text: prompt.to_string(),
+        });
 
-        watchdog_handle.abort();
+        let turns_before = session.history().turns().len();
+        let result = session.process_input(prompt).await;
 
-        // Restore progress bars after subprocess exits
+        // Cleanup.
+        renderer_handle.abort();
+        watchdog.abort();
         if let Some(ref interviewer) = self.interviewer {
             interviewer.show_progress();
         }
 
-        let status = spawn_result.map_err(|e| {
-            FabroError::handler(format!("Failed to spawn interactive CLI '{cli}': {e}"))
-        })?;
-
-        if !status.success() {
-            return Err(FabroError::handler(format!(
-                "Interactive CLI '{cli}' exited with status {status}"
-            )));
+        // Handle errors.
+        match result {
+            Ok(()) => {}
+            Err(fabro_agent::AgentError::Llm(sdk_err)) => return Err(FabroError::Llm(sdk_err)),
+            Err(fabro_agent::AgentError::Aborted(_)) => return Err(FabroError::Cancelled),
+            Err(other) => {
+                return Err(FabroError::handler(format!(
+                    "Agent session failed: {other}"
+                )));
+            }
         }
 
-        // Capture a summary of the session
-        let summary = match self.capture_claude_output(&session_id).await {
-            Ok(text) => text,
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to capture interactive CLI summary, using placeholder");
-                "[Interactive session completed — summary capture failed]".to_string()
+        // Aggregate token usage from new turns.
+        let mut total_usage = fabro_llm::types::Usage::default();
+        for turn in &session.history().turns()[turns_before..] {
+            if let Turn::Assistant { usage, .. } = turn {
+                total_usage = total_usage + *usage.clone();
             }
+        }
+
+        let mut stage_usage = StageUsage {
+            model: self.model.clone(),
+            input_tokens: total_usage.input_tokens,
+            output_tokens: total_usage.output_tokens,
+            cache_read_tokens: total_usage.cache_read_tokens,
+            cache_write_tokens: total_usage.cache_write_tokens,
+            reasoning_tokens: total_usage.reasoning_tokens,
+            cost: None,
+        };
+        stage_usage.cost = compute_stage_cost(&stage_usage);
+
+        // Extract last assistant response.
+        let response = session
+            .history()
+            .turns()
+            .iter()
+            .rev()
+            .find_map(|turn| {
+                if let Turn::Assistant { content, .. } = turn {
+                    if !content.is_empty() {
+                        return Some(content.clone());
+                    }
+                }
+                None
+            })
+            .unwrap_or_default();
+
+        // Collect files_touched.
+        let (files_touched, last_file_touched) = {
+            let s = file_tracking.lock().unwrap();
+            let mut v: Vec<String> = s.touched.iter().cloned().collect();
+            v.sort();
+            (v, s.last.clone())
         };
 
-        // Write summary to stage dir for debugging
-        let _ = tokio::fs::create_dir_all(stage_dir).await;
-        let _ = tokio::fs::write(stage_dir.join("interactive_summary.txt"), &summary).await;
-
-        Ok(Some(CodergenResult::Text {
-            text: summary,
-            usage: None,
-            files_touched: Vec::new(),
-            last_file_touched: None,
-        }))
-    }
-
-    async fn spawn_claude(
-        &self,
-        _cli: &str,
-        prompt: &str,
-        session_id: &str,
-        cwd: &str,
-    ) -> std::io::Result<std::process::ExitStatus> {
-        let mut cmd = tokio::process::Command::new("claude");
-        cmd.arg("--system-prompt")
-            .arg(prompt)
-            .arg("--session-id")
-            .arg(session_id)
-            .arg("Begin this interactive session. Introduce yourself and start with your first question.")
-            .current_dir(cwd)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
-        // Allow nesting Claude Code inside a Fabro workflow that may itself
-        // be running under Claude Code.
-        cmd.env_remove("CLAUDE_CODE_ENTRY_POINT");
-        cmd.status().await
-    }
-
-    async fn capture_claude_output(&self, session_id: &str) -> anyhow::Result<String> {
-        let output = tokio::process::Command::new("claude")
-            .arg("-p")
-            .arg("Provide a comprehensive summary of everything discussed and decided in this session. Include key decisions, requirements gathered, and any files created or modified. Output ONLY the summary.")
-            .arg("--resume")
-            .arg(session_id)
-            .arg("--output-format")
-            .arg("json")
-            .env_remove("CLAUDE_CODE_ENTRY_POINT")
-            .output()
-            .await?;
-
-        if !output.status.success() {
-            anyhow::bail!(
-                "claude summary command failed with status {}",
-                output.status
-            );
+        let provider_used = serde_json::json!({
+            "mode": "agent",
+            "provider": self.provider.as_str(),
+            "model": &self.model,
+        });
+        if let Ok(json) = serde_json::to_string_pretty(&provider_used) {
+            let _ = std::fs::write(stage_dir.join("provider_used.json"), json);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        // Parse JSON response and extract "result" field
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
-            if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
-                return Ok(result.to_string());
-            }
-        }
-
-        // Fall back to raw output if JSON parsing fails
-        Ok(stdout.trim().to_string())
+        Ok(CodergenResult::Text {
+            text: response,
+            usage: Some(stage_usage),
+            files_touched,
+            last_file_touched,
+        })
     }
 
     async fn create_session(
@@ -581,15 +573,12 @@ impl CodergenBackend for AgentApiBackend {
         sandbox: &Arc<dyn Sandbox>,
         tool_hooks: Option<Arc<dyn fabro_agent::ToolHookCallback>>,
     ) -> Result<CodergenResult, FabroError> {
-        // For interactive nodes, try launching an interactive CLI session first.
-        if node.interactive() {
-            if let Some(result) = self
-                .run_interactive_cli(node, prompt, sandbox, stage_dir, emitter)
-                .await?
-            {
-                return Ok(result);
-            }
-            // Fall through: no CLI configured or no TTY → use ask_human tool path
+        // For interactive nodes on a TTY, run an inline conversation session
+        // with streamed output and the ask_human tool for user input.
+        if node.interactive() && std::io::stdin().is_terminal() {
+            return self
+                .run_interactive_inline(node, prompt, emitter, stage_dir, sandbox, tool_hooks)
+                .await;
         }
 
         let fidelity = context.fidelity();

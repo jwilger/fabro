@@ -484,10 +484,8 @@ pub async fn run_prompt_via_server(args: PromptArgs, server: &ServerConnection) 
                             print!("{delta}");
                             let _ = io::stdout().flush();
                         }
-                        crate::types::StreamEvent::Finish { usage, .. } => {
-                            if show_usage {
-                                output_usage = Some(usage);
-                            }
+                        crate::types::StreamEvent::Finish { usage, .. } if show_usage => {
+                            output_usage = Some(usage);
                         }
                         crate::types::StreamEvent::Error { error, .. } => {
                             bail!("Server error: {error}");

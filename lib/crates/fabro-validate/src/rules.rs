@@ -933,40 +933,36 @@ impl LintRule for StylesheetModelKnownRule {
             let label = Self::selector_label(&rule.selector);
             for decl in &rule.declarations {
                 match decl.property.as_str() {
-                    "model" => {
-                        if fabro_llm::catalog::get_model_info(&decl.value).is_none() {
-                            diagnostics.push(Diagnostic {
-                                rule: self.name().to_string(),
-                                severity: Severity::Warning,
-                                message: format!(
-                                    "Unknown model '{}' in stylesheet rule '{label}'. Run `fabro model list` to see available models",
-                                    decl.value
-                                ),
-                                node_id: None,
-                                edge: None,
-                                fix: Some("Use a model ID from `fabro model list`".to_string()),
-                            });
-                        }
+                    "model" if fabro_llm::catalog::get_model_info(&decl.value).is_none() => {
+                        diagnostics.push(Diagnostic {
+                            rule: self.name().to_string(),
+                            severity: Severity::Warning,
+                            message: format!(
+                                "Unknown model '{}' in stylesheet rule '{label}'. Run `fabro model list` to see available models",
+                                decl.value
+                            ),
+                            node_id: None,
+                            edge: None,
+                            fix: Some("Use a model ID from `fabro model list`".to_string()),
+                        });
                     }
-                    "provider" => {
-                        if fabro_llm::Provider::from_str(&decl.value).is_err() {
-                            let valid: Vec<&str> = fabro_llm::Provider::ALL
-                                .iter()
-                                .map(|p| p.as_str())
-                                .collect();
-                            diagnostics.push(Diagnostic {
-                                rule: self.name().to_string(),
-                                severity: Severity::Warning,
-                                message: format!(
-                                    "Unknown provider '{}' in stylesheet rule '{label}'. Valid providers: {}",
-                                    decl.value,
-                                    valid.join(", ")
-                                ),
-                                node_id: None,
-                                edge: None,
-                                fix: Some(format!("Use one of: {}", valid.join(", "))),
-                            });
-                        }
+                    "provider" if fabro_llm::Provider::from_str(&decl.value).is_err() => {
+                        let valid: Vec<&str> = fabro_llm::Provider::ALL
+                            .iter()
+                            .map(|p| p.as_str())
+                            .collect();
+                        diagnostics.push(Diagnostic {
+                            rule: self.name().to_string(),
+                            severity: Severity::Warning,
+                            message: format!(
+                                "Unknown provider '{}' in stylesheet rule '{label}'. Valid providers: {}",
+                                decl.value,
+                                valid.join(", ")
+                            ),
+                            node_id: None,
+                            edge: None,
+                            fix: Some(format!("Use one of: {}", valid.join(", "))),
+                        });
                     }
                     _ => {}
                 }

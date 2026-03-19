@@ -193,10 +193,8 @@ impl RunDefaults {
         }
 
         match (&mut self.setup, overlay.setup) {
-            (Some(base), Some(over)) => {
-                if over.timeout_ms.is_some() {
-                    base.timeout_ms = over.timeout_ms;
-                }
+            (Some(base), Some(over)) if over.timeout_ms.is_some() => {
+                base.timeout_ms = over.timeout_ms;
             }
             (None, Some(over)) => self.setup = Some(over),
             _ => {}
@@ -238,10 +236,8 @@ impl RunDefaults {
                 }
                 #[cfg(feature = "exedev")]
                 match (&mut base.exe, over.exe) {
-                    (Some(base_e), Some(over_e)) => {
-                        if over_e.image.is_some() {
-                            base_e.image = over_e.image;
-                        }
+                    (Some(base_e), Some(over_e)) if over_e.image.is_some() => {
+                        base_e.image = over_e.image;
                     }
                     (None, Some(over_e)) => base.exe = Some(over_e),
                     _ => {}

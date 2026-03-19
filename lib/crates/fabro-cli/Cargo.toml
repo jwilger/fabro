@@ -10,10 +10,11 @@ name = "fabro"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["tui"]
 server = ["dep:fabro-api"]
 exedev = ["dep:fabro-exe", "fabro-config/exedev", "fabro-workflows/exedev"]
 sleep_inhibitor = ["dep:fabro-beastie"]
+tui = ["dep:fabro-tui"]
 
 [dependencies]
 fabro-config = { path = "../fabro-config" }
@@ -35,6 +36,7 @@ fabro-validate = { path = "../fabro-validate" }
 fabro-workflows = { path = "../fabro-workflows" }
 fabro-api = { path = "../fabro-api", optional = true }
 fabro-beastie = { path = "../fabro-beastie", optional = true }
+fabro-tui = { path = "../fabro-tui", optional = true }
 fabro-util = { path = "../fabro-util" }
 clap.workspace = true
 cli-table.workspace = true
@@ -64,6 +66,7 @@ rustls = { version = "0.23", default-features = false, features = ["std", "ring"
 rustls-pemfile = "2"
 x509-parser = "0.16"
 rand.workspace = true
+crossterm.workspace = true
 dialoguer.workspace = true
 git2.workspace = true
 axum = "0.8"
